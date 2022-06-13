@@ -22,6 +22,5 @@ interface IStrategyVault {
         bytes calldata data
     ) external;
 
-    function canSettleMaturity(uint256 maturity) external view returns (bool);
     function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) external view returns (uint256 underlyingValue);
 }

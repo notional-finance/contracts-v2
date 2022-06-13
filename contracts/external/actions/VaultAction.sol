@@ -264,22 +264,13 @@ contract VaultAction is ActionGuards, IVaultAction {
      */
     function settleVault(address vault, uint256 maturity) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        // Allow anyone to call this method unless it must be authorized by the vault. Generally speaking,
+        // as long as there is sufficient cash on the vault we should be able to settle
+        vaultConfig.authorizeCaller(msg.sender, VaultConfiguration.ONLY_VAULT_SETTLE);
+
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, maturity);
-
-        // If the vault allows further re-entrancy then set the status back to the default
-        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
-            reentrancyStatus = _NOT_ENTERED;
-        }
-
         // Ensure that we are past maturity and the vault is able to settle
-        require(
-            maturity <= block.timestamp &&
-            vaultState.isSettled == false &&
-            // TODO: just authenticate this via the vault
-            // In some cases, the strategy vault may need to authorize settlement
-            IStrategyVault(vault).canSettleMaturity(maturity),
-            "Cannot Settle"
-        );
+        require(maturity <= block.timestamp && vaultState.isSettled == false, "Cannot Settle");
 
         AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
             vaultConfig.borrowCurrencyId,
@@ -297,9 +288,11 @@ contract VaultAction is ActionGuards, IVaultAction {
             // strategy tokens have been redeemed to asset cash.
             require(vaultState.totalStrategyTokens == 0, "Redeem all tokens");
 
-            // After this point, we have a cash shortfall and will need to resolve it
-            int256 assetCashShortfall = vaultState.totalAssetCash.sub(assetCashRequiredToSettle).toInt();
+            // After this point, we have a cash shortfall and will need to resolve it.
+            // Underflow checked above
+            int256 assetCashShortfall = (assetCashRequiredToSettle - vaultState.totalAssetCash).toInt();
             uint16 currencyId = vaultConfig.borrowCurrencyId;
+            emit VaultShortfall(currencyId, vaultConfig.vault, assetCashShortfall);
 
             // Attempt to resolve the cash balance using the reserve
             (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(
@@ -320,6 +313,8 @@ contract VaultAction is ActionGuards, IVaultAction {
             // If there is any cash shortfall, we automatically disable the vault. Accounts can still
             // exit but no one can enter. Governance can re-enable the vault.
             VaultConfiguration.setVaultEnabledStatus(vaultConfig.vault, false);
+            emit VaultPauseStatus(vaultConfig.vault, false);
+
             vaultState.setVaultState(vault);
         }
 

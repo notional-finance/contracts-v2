@@ -16,7 +16,6 @@ abstract contract BaseStrategyVault is IStrategyVault {
     using SafeERC20 for ERC20;
 
     /** These view methods need to be implemented by the vault */
-    function canSettleMaturity(uint256 maturity) external view virtual returns (bool);
     function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) public view virtual returns (uint256 underlyingValue);
     
     // Vaults need to implement these two methods

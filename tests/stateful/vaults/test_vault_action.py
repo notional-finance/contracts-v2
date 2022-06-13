@@ -31,7 +31,7 @@ def test_initialize_and_enable_vault_authorization(environment, vault, accounts)
         100_000_000e8,
         {"from": accounts[0]},
     )
-    assert txn.events["VaultChange"]["vaultAddress"] == vault.address
+    assert txn.events["VaultChange"]["vault"] == vault.address
     assert txn.events["VaultChange"]["enabled"]
 
     with brownie.reverts():
@@ -201,7 +201,6 @@ def test_deposit_asset_cash(environment, vault, accounts):
     check_system_invariants(environment, accounts, [vault])
 
 
-@pytest.mark.only
 def test_deposit_asset_cash_fails_collateral_ratio(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
@@ -237,282 +236,246 @@ def test_deposit_asset_cash_fails_collateral_ratio(environment, vault, accounts)
     check_system_invariants(environment, accounts, [vault])
 
 
-@pytest.mark.skip
-def test_settle_vault_vault_not_ready(environment, accounts, vault):
+def test_settle_vault_vault(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
         100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25_000e18,
+        maturity,
+        True,
+        100_000e8,
+        0,
+        "",
+        {"from": accounts[1]},
     )
 
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
     environment.notional.redeemStrategyTokensToCash(maturity, 10_000e8, "", {"from": vault})
 
     with brownie.reverts("Cannot Settle"):
         # Cannot settle before maturity
-        environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
+        environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
 
     chain.mine(1, timestamp=maturity)
-
-    with brownie.reverts("Cannot Settle"):
-        # Cannot if the vault is reporting insufficient cash
-        environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-@pytest.mark.skip
-def test_settle_vault_no_manual_accounts(environment, accounts, vault):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
-        100_000_000e8,
-    )
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
-    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
-
-    (assetCash, underlyingCash) = environment.notional.getCashRequiredToSettleCurrent(vault)
-    assert assetCash == 0
-    assert underlyingCash == 0
-
-    chain.mine(1, timestamp=maturity)
-
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatioBefore, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-
-    environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
-
-    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
-    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatioAfter, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-
-    assert vaultAccountBefore == vaultAccountAfter
-    assert collateralRatioBefore == collateralRatioAfter
-
-    assert vaultStateAfter["totalfCash"] == 0
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
-    assert vaultStateAfter["isFullySettled"]
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
-    assert vaultStateBefore["totalVaultShares"] == vaultStateAfter["totalVaultShares"]
-    assert vaultStateAfter["totalAssetCash"] == 0
-    assert vaultStateBefore["totalStrategyTokens"] == vaultStateAfter["totalStrategyTokens"]
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-@pytest.mark.skip
-def test_settle_vault_shortfall_failed_to_sell_tokens(environment, vault, accounts):
-    environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
-    )
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
-    vaultState = environment.notional.getCurrentVaultState(vault)
-    vault.setExchangeRate(0.75e18)
-    environment.notional.redeemStrategyTokensToCash(
-        maturity, vaultState["totalVaultShares"] - 100, "", {"from": vault}
-    )
-
-    chain.mine(1, timestamp=maturity)
-    vault.setForceSettle(True)
-    assert vault.totalSupply() > 0
 
     with brownie.reverts("Redeem all tokens"):
-        # There are still strategy tokens left to redeem
-        environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
+        # Cannot if the vault is reporting insufficient cash
+        environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
+
+    # Settle the vault with sufficient cash
+    environment.notional.redeemStrategyTokensToCash(maturity, 90_000e8, "", {"from": vault})
+
+    vault.setExchangeRate(0.95e18)
+    txn = environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
+
+    vaultState = environment.notional.getVaultState(vault, maturity)
+    assert vaultState["isSettled"]
+    assert vaultState["settlementStrategyTokenValue"] == 0.95e8
+    assert "VaultShortfall" not in txn.events
+    assert "ProtocolInsolvency" not in txn.events
+    assert "VaultPauseStatus" not in txn.events
+
+    with brownie.reverts("Cannot Settle"):
+        # Cannot settle twice
+        environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
 
     check_system_invariants(environment, accounts, [vault])
 
 
-@pytest.mark.skip
-def test_settle_vault_cover_shortfall_with_reserve_no_manual(environment, vault, accounts):
+def test_settle_vault_authentication(environment, accounts, vault):
     environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True, ONLY_VAULT_SETTLE=True)),
+        100_000_000e8,
     )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
-    vaultState = environment.notional.getCurrentVaultState(vault)
-    vault.setExchangeRate(0.75e18)
-    environment.notional.redeemStrategyTokensToCash(
-        maturity, vaultState["totalStrategyTokens"], "", {"from": vault}
-    )
-
-    chain.mine(1, timestamp=maturity)
-
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-
-    reserveBalance = environment.notional.getReserveBalance(2)
-    environment.cToken["DAI"].transfer(
-        environment.notional.address, 5_000_000e8, {"from": accounts[0]}
-    )
-    environment.notional.setReserveCashBalance(
-        2, 5_000_000e8 + reserveBalance, {"from": accounts[0]}
-    )
-
-    environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
-
-    reserveBalance = environment.notional.getReserveBalance(2)
-    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
-    assert vaultStateAfter["totalfCash"] == 0
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
-    assert vaultStateAfter["isFullySettled"]
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
-    assert vaultStateAfter["totalVaultShares"] == vaultStateBefore["totalVaultShares"]
-    assert vaultStateAfter["totalAssetCash"] == 0
-    assert vaultStateAfter["totalStrategyTokens"] == 0
-
-    assert reserveBalance < 5_000_000e8
-
-    # Vault is now disabled
-    with brownie.reverts("Cannot Enter"):
-        environment.notional.enterVault(
-            accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-        )
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-@pytest.mark.skip
-def test_settle_vault_insolvent_no_manual_accounts(environment, vault, accounts):
-    environment.notional.updateVault(
-        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True))
-    )
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
-    vaultState = environment.notional.getCurrentVaultState(vault)
-    vault.setExchangeRate(0.75e18)
-    environment.notional.redeemStrategyTokensToCash(
-        maturity, vaultState["totalVaultShares"], "", {"from": vault}
-    )
-
-    chain.mine(1, timestamp=maturity)
-
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-    (collateralRatioBefore, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-
-    reserveBalance = environment.notional.getReserveBalance(2)
-    environment.cToken["DAI"].transfer(
-        environment.notional.address, 50_000e8, {"from": accounts[0]}
-    )
-    environment.notional.setReserveCashBalance(2, 50_000e8 + reserveBalance, {"from": accounts[0]})
-
-    txn = environment.notional.settleVault(vault, maturity, [], [], "", {"from": accounts[1]})
-
-    assert environment.notional.getReserveBalance(2) == 0
-
-    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
-    assert vaultStateAfter["totalfCash"] == 0
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
-    assert vaultStateAfter["isFullySettled"]
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
-    assert vaultStateAfter["totalVaultShares"] == vaultStateBefore["totalVaultShares"]
-    assert vaultStateAfter["totalAssetCash"] == 0
-    assert vaultStateBefore["totalStrategyTokens"] == 0
-
-    assert txn.events["ProtocolInsolvency"]
-
-    # Vault is now disabled
-    with brownie.reverts("Cannot Enter"):
-        environment.notional.enterVault(
-            accounts[1], vault.address, 25_000e18, True, 100_000e8, 0, "", {"from": accounts[1]}
-        )
-
-    # Transfer the shortfall amount in so that we can check all the other invariants
-    environment.cToken["DAI"].transfer(
-        environment.notional.address,
-        txn.events["ProtocolInsolvency"]["shortfall"],
-        {"from": accounts[0]},
-    )
-    check_system_invariants(environment, accounts, [vault])
-
-
-@pytest.mark.skip
-def test_settle_vault_manual_insufficient_shares_sold(
-    environment, vault, escrowed_account, accounts
-):
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
-    chain.mine(1, timestamp=maturity)
-
-    with brownie.reverts():
-        # Not enough vault shares are sold to resolve this settlement
-        environment.notional.settleVault(
-            vault, maturity, [escrowed_account.address], [100e8], "", {"from": accounts[0]}
-        )
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-@pytest.mark.skip
-def test_settle_vault_no_shortfall_manual_accounts(environment, vault, escrowed_account, accounts):
-    # TODO: need to simulate part of the asset cash being pulled as well...
-
-    maturity = environment.notional.getCurrentVaultMaturity(vault)
-    chain.mine(1, timestamp=maturity)
-    vaultAccount = environment.notional.getVaultAccount(escrowed_account, vault)
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-
-    vaultSharesRequiredToSettle = (
-        Wei(-(vaultAccount["escrowedAssetCash"] / 50 + vaultAccount["fCash"]) / 0.95) + 100
-    )
-    environment.notional.settleVault(
-        vault,
+        accounts[1],
+        vault.address,
+        25_000e18,
         maturity,
-        [escrowed_account.address],
-        [vaultSharesRequiredToSettle],
+        True,
+        100_000e8,
+        0,
         "",
-        {"from": accounts[0]},
+        {"from": accounts[1]},
     )
 
-    vaultAccountAfter = environment.notional.getVaultAccount(escrowed_account, vault)
-    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
+    environment.notional.redeemStrategyTokensToCash(maturity, 10_000e8, "", {"from": vault})
 
-    assert vaultStateAfter["totalfCash"] == 0
-    assert vaultStateAfter["totalfCashRequiringSettlement"] == 0
-    assert vaultStateAfter["isFullySettled"]
-    assert vaultStateAfter["accountsRequiringSettlement"] == 0
-    assert (
-        vaultStateAfter["totalVaultShares"]
-        == vaultStateBefore["totalVaultShares"] - vaultSharesRequiredToSettle
-    )
-    assert vaultStateAfter["totalAssetCash"] == 0
-    assert (
-        vaultStateAfter["totalStrategyTokens"]
-        == vaultStateBefore["totalVaultShares"] - vaultSharesRequiredToSettle
+    with brownie.reverts("Cannot Settle"):
+        # Cannot settle before maturity
+        environment.notional.settleVault(vault, maturity, {"from": vault})
+
+    with brownie.reverts("Unauthorized"):
+        # Cannot settle before maturity
+        environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
+
+    chain.mine(1, timestamp=maturity)
+
+    with brownie.reverts("Unauthorized"):
+        # Cannot if the vault is reporting insufficient cash
+        environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
+
+    with brownie.reverts("Redeem all tokens"):
+        # Cannot if the vault is reporting insufficient cash
+        environment.notional.settleVault(vault, maturity, {"from": vault})
+
+    # Settle the vault with sufficient cash
+    environment.notional.redeemStrategyTokensToCash(maturity, 90_000e8, "", {"from": vault})
+
+    vault.setExchangeRate(0.95e18)
+    with brownie.reverts("Unauthorized"):
+        environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
+
+    txn = environment.notional.settleVault(vault, maturity, {"from": vault})
+
+    vaultState = environment.notional.getVaultState(vault, maturity)
+    assert vaultState["isSettled"]
+    assert vaultState["settlementStrategyTokenValue"] == 0.95e8
+    assert "VaultShortfall" not in txn.events
+    assert "ProtocolInsolvency" not in txn.events
+    assert "VaultPauseStatus" not in txn.events
+
+    with brownie.reverts("Unauthorized"):
+        environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
+
+    with brownie.reverts("Cannot Settle"):
+        # Cannot settle twice
+        environment.notional.settleVault(vault, maturity, {"from": vault})
+
+    check_system_invariants(environment, accounts, [vault])
+
+
+def test_settle_vault_with_escrowed_asset_cash(environment, accounts, vault, escrowed_account):
+    # 25_000e8 in escrowed asset cash to start
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
+
+    vault.setExchangeRate(1e18)
+    environment.notional.redeemStrategyTokensToCash(maturity, 76_000e8, "", {"from": vault})
+    chain.mine(1, timestamp=maturity)
+
+    txn = environment.notional.settleVault(vault, maturity, {"from": vault})
+
+    vaultState = environment.notional.getVaultState(vault, maturity)
+    assert vaultState["isSettled"]
+    # Looks to be an off by one issue inside the compound contracts...
+    assert pytest.approx(vaultState["totalAssetCash"], abs=1) == 3_800_000e8
+    assert vaultState["totalEscrowedAssetCash"] == vaultStateBefore["totalEscrowedAssetCash"]
+    assert vaultState["settlementStrategyTokenValue"] == 1e8
+    assert "VaultShortfall" not in txn.events
+    assert "ProtocolInsolvency" not in txn.events
+    assert "VaultPauseStatus" not in txn.events
+
+    check_system_invariants(environment, accounts, [vault])
+
+
+def test_settle_vault_shortfall(environment, accounts, vault, escrowed_account):
+    # 25_000e8 in escrowed asset cash to start
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    vault.setExchangeRate(0.778e18)
+    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
+
+    environment.notional.redeemStrategyTokensToCash(
+        maturity, vaultStateBefore["totalStrategyTokens"], "", {"from": vault}
     )
 
-    assert vaultAccountAfter["fCash"] == 0
-    assert vaultAccountAfter["escrowedAssetCash"] == 0
-    assert (
-        vaultAccountAfter["vaultShares"]
-        == vaultAccount["vaultShares"] - vaultSharesRequiredToSettle
+    chain.mine(1, timestamp=maturity)
+    environment.notional.initializeMarkets(2, False)
+
+    (assetCashShortfall, _) = environment.notional.getCashRequiredToSettle(vault, maturity)
+    reserveBalanceBefore = environment.notional.getReserveBalance(2)
+    assert assetCashShortfall > 0 and assetCashShortfall < reserveBalanceBefore
+    txn = environment.notional.settleVault(vault, maturity, {"from": vault})
+    reserveBalanceAfter = environment.notional.getReserveBalance(2)
+
+    vaultState = environment.notional.getVaultState(vault, maturity)
+    assert vaultState["isSettled"]
+    assert vaultState["settlementStrategyTokenValue"] == 0.778e8
+    assert reserveBalanceAfter == reserveBalanceBefore - assetCashShortfall
+
+    assert txn.events["VaultShortfall"]["currencyId"] == 2
+    assert txn.events["VaultShortfall"]["vault"] == vault.address
+    assert txn.events["VaultShortfall"]["shortfall"] == assetCashShortfall
+
+    assert txn.events["VaultPauseStatus"]["vault"] == vault.address
+    assert not txn.events["VaultPauseStatus"]["enabled"]
+
+    # Vault is now disabled
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    with brownie.reverts("Cannot Enter"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            25_000e18,
+            maturity,
+            True,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
+    check_system_invariants(environment, accounts, [vault])
+
+
+def test_settle_vault_insolvent(environment, accounts, vault, escrowed_account):
+    # 25_000e8 in escrowed asset cash to start
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    vault.setExchangeRate(0.75e18)
+    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
+
+    environment.notional.redeemStrategyTokensToCash(
+        maturity, vaultStateBefore["totalStrategyTokens"], "", {"from": vault}
     )
+
+    chain.mine(1, timestamp=maturity)
+    environment.notional.initializeMarkets(2, False)
+
+    (assetCashShortfall, _) = environment.notional.getCashRequiredToSettle(vault, maturity)
+    reserveBalanceBefore = environment.notional.getReserveBalance(2)
+    txn = environment.notional.settleVault(vault, maturity, {"from": vault})
+    reserveBalanceAfter = environment.notional.getReserveBalance(2)
+
+    vaultState = environment.notional.getVaultState(vault, maturity)
+    assert vaultState["isSettled"]
+    assert vaultState["settlementStrategyTokenValue"] == 0.75e8
+    assert reserveBalanceAfter == 0
+
+    assert txn.events["VaultShortfall"]["currencyId"] == 2
+    assert txn.events["VaultShortfall"]["vault"] == vault.address
+    assert txn.events["VaultShortfall"]["shortfall"] == assetCashShortfall
+
+    assert txn.events["ProtocolInsolvency"]["currencyId"] == 2
+    assert txn.events["ProtocolInsolvency"]["vault"] == vault.address
+    assert (
+        txn.events["ProtocolInsolvency"]["shortfall"] == assetCashShortfall - reserveBalanceBefore
+    )
+
+    assert txn.events["VaultPauseStatus"]["vault"] == vault.address
+    assert not txn.events["VaultPauseStatus"]["enabled"]
+
+    # Vault is now disabled
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    with brownie.reverts("Cannot Enter"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            25_000e18,
+            maturity,
+            True,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
     check_system_invariants(environment, accounts, [vault])

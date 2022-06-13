@@ -12,12 +12,14 @@ import {
 
 interface IVaultAction {
     /// @notice Emitted when a new vault is listed or updated
-    event VaultChange(address vaultAddress, bool enabled);
+    event VaultChange(address indexed vault, bool enabled);
     /// @notice Emitted when a vault's status is updated
-    event VaultPauseStatus(address vaultAddress, bool enabled);
+    event VaultPauseStatus(address indexed vault, bool enabled);
+    /// @notice Emitted when a vault has a shortfall upon settlement
+    event VaultShortfall(uint16 indexed currencyId, address indexed vault, int256 shortfall);
     /// @notice Emitted when a vault has an insolvency that cannot be covered by the
     /// cash reserve
-    event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
+    event ProtocolInsolvency(uint16 indexed currencyId, address indexed vault, int256 shortfall);
 
     /** Vault Action Methods */
 
