@@ -3,7 +3,7 @@ from collections import defaultdict
 import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
-from tests.constants import HAS_ASSET_DEBT, HAS_BOTH_DEBT, HAS_CASH_DEBT
+from tests.constants import HAS_ASSET_DEBT, HAS_BOTH_DEBT, HAS_CASH_DEBT, SECONDS_IN_QUARTER
 from tests.helpers import active_currencies_to_list, get_settlement_date
 
 chain = Chain()
@@ -116,6 +116,20 @@ def check_cash_balance(env, accounts, vaults):
 
             maxMarkets = config["maxBorrowMarketIndex"]
             markets = env.notional.getActiveMarkets(currencyId)
+
+            # Calculate the settled asset cash for the previous maturity (if any)
+            prevMaturity = markets[0][1] - SECONDS_IN_QUARTER
+            settlementRate = env.notional.getSettlementRate(currencyId, prevMaturity)
+            state = env.notional.getVaultState(vault, prevMaturity)
+            netAssetCash = Wei(
+                state["totalfCash"]
+                * 1e10
+                * settlementRate["underlyingDecimals"]
+                / settlementRate["rate"]
+                + state["totalAssetCash"]
+            )
+            vaultBalances += netAssetCash
+
             for i in range(0, maxMarkets):
                 maturity = markets[i][1]
                 state = env.notional.getVaultState(vault, maturity)

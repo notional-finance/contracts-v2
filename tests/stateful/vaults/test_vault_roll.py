@@ -215,7 +215,7 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
 
     # Increase the reserve balance to account for the cash used to offset the fCash
     environment.notional.setReserveCashBalance(
-        2, environment.notional.getReserveBalance(2) + 50_000_00e8
+        2, environment.notional.getReserveBalance(2) + 5_000_000e8
     )
     vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity1, "fCash": -100_000e8}]
     check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)

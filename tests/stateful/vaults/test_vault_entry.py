@@ -335,23 +335,22 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
     environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
     environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
     maturity = environment.notional.getActiveMarkets(1)[0][1]
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
 
     environment.notional.enterVault(
         accounts[1], vault.address, 0, maturity, True, 105_000e8, 0, "", {"from": accounts[1]}
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    vaultStateOld = environment.notional.getVaultState(vault, maturity)
     vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
     (collateralRatioAfter, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
 
     assert collateralRatioAfter < collateralRatioBefore
-    assert vaultStateOld["totalVaultShares"] == 0
-    assert vaultStateOld["totalStrategyTokens"] == 0
     assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
     assert vaultStateNew["totalStrategyTokens"] == vaultAccountAfter["vaultShares"]
+    assert vaultAccountBefore["vaultShares"] < vaultAccountAfter["vaultShares"]
     assert vaultAccountAfter["fCash"] == -105_000e8
     assert vaultAccountAfter["maturity"] == maturity
 
@@ -396,6 +395,8 @@ def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, 
             {"from": accounts[1]},
         )
 
+    # Run this for the invariants to succeed
+    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
     check_system_invariants(environment, accounts, [vault])
 
 

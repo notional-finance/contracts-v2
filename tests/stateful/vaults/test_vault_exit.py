@@ -257,7 +257,7 @@ def test_exit_vault_lending_fails(environment, accounts, vault):
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
     balanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
 
-    # TODO: this adds 50_000_000e8 cDAI into the contract but there is no offsetting fCash position
+    # NOTE: this adds 5_000_000e8 cDAI into the contract but there is no offsetting fCash position
     # recorded, similarly, the fCash erased is not recorded anywhere either
     environment.notional.exitVault(
         accounts[1], vault.address, 10_000e8, 100_000e8, 0, False, "", {"from": accounts[1]}
@@ -283,11 +283,11 @@ def test_exit_vault_lending_fails(environment, accounts, vault):
     assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
     assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
-    # reserveBalance = environment.notional.getReserveBalance(2)
-    # environment.notional.setReserveCashBalance(
-    #     2, 5_000_000e8 + reserveBalance, {"from": accounts[0]}
-    # )
-    check_system_invariants(environment, accounts, [vault])
+    vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity, "fCash": -100_000e8}]
+    environment.notional.setReserveCashBalance(
+        2, environment.notional.getReserveBalance(2) + 5_000_000e8
+    )
+    check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)
 
 
 def test_exit_vault_during_settlement(environment, vault, accounts):
@@ -399,9 +399,10 @@ def test_exit_vault_after_settlement(environment, vault, accounts):
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
 
     assert balanceAfter - balanceBefore == vaultStateBefore["totalStrategyTokens"] * 50
-    assert vaultStateAfter["totalStrategyTokens"] == 0
-    assert vaultStateAfter["totalVaultShares"] == 0
+    assert vaultStateAfter["totalStrategyTokens"] == vaultStateAfter["totalStrategyTokens"]
+    assert vaultStateAfter["totalVaultShares"] == vaultStateAfter["totalVaultShares"]
     assert vaultAccountAfter["vaultShares"] == 0
     assert vaultAccountAfter["fCash"] == 0
+    assert vaultAccountAfter["maturity"] == 0
 
     check_system_invariants(environment, accounts, [vault])

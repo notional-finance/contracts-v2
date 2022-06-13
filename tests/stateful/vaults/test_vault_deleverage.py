@@ -254,7 +254,9 @@ def test_deleverage_account(environment, accounts, vault):
 def test_cannot_deleverage_liquidator_matured_shares(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True, TRANSFER_SHARES_ON_DELEVERAGE=True)
+        ),
         100_000_000e8,
     )
     maturity = environment.notional.getActiveMarkets(1)[0][1]
@@ -300,7 +302,9 @@ def test_cannot_deleverage_liquidator_matured_shares(environment, accounts, vaul
 def test_deleverage_account_transfer_shares(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True, TRANSFER_SHARES_ON_DELEVERAGE=True)
+        ),
         100_000_000e8,
     )
     maturity = environment.notional.getActiveMarkets(1)[0][1]
@@ -470,6 +474,7 @@ def test_exit_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     check_system_invariants(environment, accounts, [vault])
 
 
+@pytest.mark.only
 def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_account, accounts):
     environment.notional.updateVault(
         vault.address,
@@ -494,13 +499,15 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
         _,
         _,
     ) = environment.notional.getPrincipalFromfCashBorrow(
-        2, 50_000e8, maturity + SECONDS_IN_QUARTER, 0, chain.time()
+        2, 102_000e8, maturity + SECONDS_IN_QUARTER, 0, chain.time()
     )
 
+    # Need to increase the exchange rate to ensure sufficient collateral
+    vault.setExchangeRate(1.1e18)
     environment.notional.rollVaultPosition(
         escrowed_account,
         vault.address,
-        50_000e8,
+        102_000e8,
         maturity + SECONDS_IN_QUARTER,
         (0, 0, ""),
         {"from": escrowed_account},
@@ -510,7 +517,7 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     vaultStateAfter = environment.notional.getVaultState(vault, maturity)
 
     assert vaultAccountAfter["maturity"] == maturity + SECONDS_IN_QUARTER
-    assert vaultAccountAfter["fCash"] == -50_000e8
+    assert vaultAccountAfter["fCash"] == -102_000e8
     assert vaultAccountAfter["escrowedAssetCash"] == 0
 
     assert vaultStateAfter["totalVaultShares"] == 0
@@ -518,10 +525,10 @@ def test_roll_vault_with_escrowed_asset_cash(environment, vault, escrowed_accoun
     assert vaultStateAfter["totalfCash"] == 0
 
     rollBorrowLendCostInternal = (
-        lendAmountUnderlying - borrowAmountUnderlying
-    ) / 1e10 - vaultAccountBefore["escrowedAssetCash"] / 50
-    netSharesRedeemed = vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"]
+        borrowAmountUnderlying - lendAmountUnderlying
+    ) / 1e10 + vaultAccountBefore["escrowedAssetCash"] / 50
+    netSharesMinted = vaultAccountAfter["vaultShares"] - vaultAccountBefore["vaultShares"]
     # This is approx equal because there is no vault fee assessed
-    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesRedeemed * 0.95
+    assert pytest.approx(rollBorrowLendCostInternal, rel=1e-6) == netSharesMinted * 1.1
 
     check_system_invariants(environment, accounts, [vault])
