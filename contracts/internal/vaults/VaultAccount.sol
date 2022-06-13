@@ -404,6 +404,53 @@ library VaultAccountLib {
         vaultAccount.tempCashBalance = 0;
     }
 
+    function calculateDeleverageAmount(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        int256 vaultShareValue
+    ) internal view returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
+        // In the base case, the liquidator can deleverage an account up to minCollateralRatio * VAULT_DELEVERAGE_LIMIT
+        // which is a constant value. This assures that a liquidator cannot over-purchase assets on an account.
+        int256 maxCollateralRatioPlusOne = vaultConfig.minCollateralRatio
+            .mulInRatePrecision(Constants.VAULT_DELEVERAGE_LIMIT)
+            .add(Constants.RATE_PRECISION);
+
+        // Both of these are denominated in asset cash
+        int256 debtOutstanding = vaultAccount.escrowedAssetCash
+            .add(vaultConfig.assetRate.convertFromUnderlying(vaultAccount.fCash))
+            .neg();
+
+        // The post liquidation collateral ratio is calculated as:
+        //                          (shareValue - debtOutstanding + deposit * (1 - liquidationRate))
+        //   postLiquidationRatio = ----------------------------------------------------------------
+        //                                          (debtOutstanding - deposit)
+        //
+        //   if we rearrange terms to put the deposit on one side we get:
+        //
+        //              (postLiquidationRatio + 1) * debtOutstanding - shareValue
+        //   deposit =  ---------------------------------------------------------- 
+        //                  (postLiquidationRatio + 1) - liquidationRate
+
+        maxLiquidatorDepositAssetCash = (
+            debtOutstanding.mulInRatePrecision(maxCollateralRatioPlusOne).sub(vaultShareValue)
+        // Both denominators are in 1e9 precision
+        ).divInRatePrecision(maxCollateralRatioPlusOne.sub(vaultConfig.liquidationRate));
+
+        // If an account's debtOutstanding - maxLiquidatorDeposit < maxAccountBorrowSize it may not be profitable to liquidate
+        // a second time. If this occurs at the VAULT_DELEVERAGE_LIMIT then the liquidator must liquidate the account such that
+        // it has no net fCash debt.
+        int256 postLiquidationDebtRemaining = debtOutstanding.sub(maxLiquidatorDepositAssetCash);
+        int256 minAccountBorrowSizeAssetCash = vaultConfig.assetRate.convertFromUnderlying(vaultConfig.minAccountBorrowSize);
+
+        if (postLiquidationDebtRemaining < minAccountBorrowSizeAssetCash) {
+            // If the postLiquidationDebtRemaining is negative (over liquidation) or below the minAccountBorrowSize set the
+            // max deposit amount to set the fCash debt to zero.
+            maxLiquidatorDepositAssetCash = debtOutstanding;
+            mustLiquidateFullAmount = true;
+        }
+    }
+
     /**
      * @notice Executes a trade on the AMM.
      * @param currencyId id of the vault borrow currency

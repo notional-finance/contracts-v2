@@ -501,7 +501,7 @@ struct VaultConfig {
     int256 minAccountBorrowSize;
     int256 feeRate;
     int256 minCollateralRatio;
-    uint256 liquidationRate;
+    int256 liquidationRate;
     int256 reserveFeeShare;
     uint256 maxBorrowMarketIndex;
     AssetRateParameters assetRate;

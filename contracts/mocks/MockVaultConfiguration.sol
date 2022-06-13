@@ -145,7 +145,7 @@ contract MockVaultConfiguration {
         VaultAccount memory vaultAccount,
         VaultState memory vaultState
     ) external view returns (int256 collateralRatio) {
-        return getVaultConfigView(vault).calculateCollateralRatio(
+        (collateralRatio, /* */) = getVaultConfigView(vault).calculateCollateralRatio(
             vaultState,
             vaultAccount.vaultShares,
             vaultAccount.fCash,

@@ -12,6 +12,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
     using VaultStateLib for VaultState;
+    using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
@@ -231,8 +232,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
      * @param account the address that will exit the vault
      * @param vault the vault to enter
      * @param liquidator the address that will receive profits from liquidation
-     * @param depositAmountExternal amount of cash to deposit
-     * @param useUnderlying true if we should use the underlying token
+     * @param depositAmountExternal amount of asset cash to deposit
      * @param redeemData calldata sent to the vault when redeeming liquidator profits
      * @return profitFromLiquidation amount of vaultShares or cash received from liquidation
      */
@@ -241,7 +241,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         address vault,
         address liquidator,
         uint256 depositAmountExternal,
-        bool useUnderlying,
         bytes calldata redeemData
     ) external nonReentrant override returns (uint256 profitFromLiquidation) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
@@ -265,13 +264,19 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(block.timestamp < vaultAccount.maturity);
 
         // Check that the collateral ratio is below the minimum allowed
-        int256 collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
-            vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+        (int256 collateralRatio, int256 vaultShareValue) = vaultConfig.calculateCollateralRatio(
+            vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash
+        );
         require(collateralRatio < vaultConfig.minCollateralRatio , "Sufficient Collateral");
+
+        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        depositAmountExternal =_calculateLiquidatorDeposit(
+            assetToken, vaultAccount, vaultConfig, vaultState, depositAmountExternal, vaultShareValue
+        );
 
         // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
         // vault shares at a discount to the deposited amount
-        vaultAccount.depositIntoAccount(liquidator, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
+        vaultAccount.depositIntoAccount(liquidator, vaultConfig.borrowCurrencyId, depositAmountExternal, false);
 
         // The liquidator will purchase vault shares from the vault account at discount. The calculation is:
         // (cashDeposited / assetCashValueOfShares) * liquidationRate * vaultShares
@@ -280,29 +285,23 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         //      and liquidationRate is a percentage greater than 100% that represents their bonus
         uint256 vaultSharesToLiquidator;
         {
-            int256 assetCashValue = vaultState.getCashValueOfShare(vaultConfig, vaultAccount.vaultShares);
             vaultSharesToLiquidator = SafeInt256.toUint(vaultAccount.tempCashBalance)
-                .mul(vaultConfig.liquidationRate)
+                .mul(vaultConfig.liquidationRate.toUint())
                 .mul(vaultAccount.vaultShares)
-                .div(SafeInt256.toUint(assetCashValue))
-                .div(uint256(Constants.PERCENTAGE_DECIMALS));
+                .div(vaultShareValue.toUint())
+                .div(uint256(Constants.RATE_PRECISION));
         }
 
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToLiquidator);
-        // We do not allow the liquidator to lend on behalf of the account during liquidation or they can move the
-        // fCash market against the account and put them in an insolvent position. All the cash balance deposited
-        // goes into the escrowed asset cash balance.
-        vaultAccount.increaseEscrowedAssetCash(vaultState);
-
-        // Ensure that the collateral ratio does not increase too much (we would over liquidate the account
-        // in this case). If the account is still over leveraged we still allow the transaction to complete
-        // in that case.
-        collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
-            vaultAccount.fCash, vaultAccount.escrowedAssetCash);
-        require(
-            collateralRatio < vaultConfig.minCollateralRatio.mulInRatePrecision(Constants.VAULT_DELEVERAGE_LIMIT),
-            "Over Deleverage Limit"
-        );
+        // The liquidated account will lend to exit their position at a zero interest rate and forgo any future interest
+        // from asset tokens. Trading on the AMM during liquidation is risky and lending at a zero interest rate is more
+        // costly to the the liquidated account but is safer from a protocol perspective. This can be seen as a protocol
+        // level liquidation fee.
+        vaultAccount.fCash = vaultAccount.fCash.add(vaultConfig.assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
+        // _calculateLiquidatorDeposit should ensure that we only ever lend up to a zero balance, but in the case of any off by
+        // one issues we clear the fCash balance by down to zero.
+        if (vaultAccount.fCash > 0) vaultAccount.fCash = 0;
+        vaultAccount.tempCashBalance = 0;
 
         // Sets the liquidated account account
         vaultAccount.setVaultAccount(vaultConfig);
@@ -316,17 +315,47 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             uint256 totalProfits = _redeemLiquidatorProfits(
                 liquidator, vaultConfig, vaultState, vaultSharesToLiquidator, redeemData
             );
-            Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
             
-            // Both returned values are negative to signify that assets have left the protocol
-            int256 actualTransferExternal;
-            if (useUnderlying) {
-                actualTransferExternal = assetToken.redeem(vaultConfig.borrowCurrencyId, liquidator, totalProfits);
-            } else {
-                actualTransferExternal = assetToken.transfer(liquidator, vaultConfig.borrowCurrencyId, totalProfits.toInt().neg());
-            }
+            // Returns a negative amount to signify assets have left the protocol
+            int256 actualTransferExternal = assetToken.transfer(
+                liquidator, vaultConfig.borrowCurrencyId, totalProfits.toInt().neg()
+            );
 
             return actualTransferExternal.neg().toUint();
+        }
+    }
+
+    function _calculateLiquidatorDeposit(
+        Token memory assetToken,
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        uint256 depositAmountExternal,
+        int256 vaultShareValue
+    ) private returns (uint256) {
+        // Calculates the maximum deleverage amount
+        (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
+            vaultConfig, vaultState, vaultShareValue
+        );
+
+        uint256 maxLiquidatorDepositExternal;
+        if (assetToken.tokenType == TokenType.aToken) {
+            // Handles special accounting requirements for aTokens
+            maxLiquidatorDepositExternal = AaveHandler.convertFromScaledBalanceExternal(
+                TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId).tokenAddress,
+                assetToken.convertToExternal(maxLiquidatorDepositAssetCash)
+            ).toUint();
+        } else {
+            maxLiquidatorDepositExternal = assetToken.convertToExternal(maxLiquidatorDepositAssetCash).toUint();
+        }
+
+        if (depositAmountExternal < maxLiquidatorDepositExternal) {
+            // If this flag is set, the liquidator must deposit more cash to liquidate the account down to a zero
+            // fCash balance
+            require(!mustLiquidateFull, "Must Liquidate All Debt");
+            return depositAmountExternal;
+        } else {
+            return maxLiquidatorDepositExternal;
         }
     }
 
@@ -390,7 +419,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // some fCash balance it does not actually owe any debt anymore.
             collateralRatio = type(int256).max;
         } else {
-            collateralRatio = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
+            (collateralRatio, /* */) = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
                 vaultAccount.fCash, vaultAccount.escrowedAssetCash);
         }
     }

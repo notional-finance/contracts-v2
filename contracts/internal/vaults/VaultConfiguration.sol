@@ -63,7 +63,8 @@ library VaultConfiguration {
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
-        vaultConfig.liquidationRate = s.liquidationRate;
+        // This is used in 1e9 precision on the stack (no overflow possible)
+        vaultConfig.liquidationRate = (int256(uint256(s.liquidationRate)) * Constants.RATE_PRECISION) / Constants.PERCENTAGE_DECIMALS;
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
         vaultConfig.maxBorrowMarketIndex = s.maxBorrowMarketIndex;
     }
@@ -223,19 +224,17 @@ library VaultConfiguration {
         uint256 vaultShares,
         int256 fCash,
         int256 escrowedAssetCash
-    ) internal view returns (int256 collateralRatio) {
-        int256 vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
+    ) internal view returns (int256 collateralRatio, int256 vaultShareValue) {
+        vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
 
         // We do not discount fCash to present value so that we do not introduce interest
         // rate risk in this calculation. The economic benefit of discounting will be very
         // minor relative to the added complexity of accounting for interest rate risk.
 
         // Escrowed asset cash and asset cash held in the vault are both held as payment against
-        // borrowed fCash, so we net them off here.
-
-        // debtOutstanding can either be positive or negative here, if it is positive then
-        // there is more fCash left to repay, if it is negative than we have more than enough asset cash
-        // to repay the debt.
+        // borrowed fCash, so we net them off here. debtOutstanding can either be positive or negative,
+        // if it is positive then there is more fCash left to repay, if it is negative than we have more
+        // than enough asset cash to repay the debt.
         int256 debtOutstanding = escrowedAssetCash
             .add(vaultConfig.assetRate.convertFromUnderlying(fCash))
             .neg();
@@ -267,7 +266,7 @@ library VaultConfiguration {
         int256 fCash,
         int256 escrowedAssetCash
     ) internal view {
-        int256 collateralRatio = calculateCollateralRatio(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash);
+        (int256 collateralRatio, /* */) = calculateCollateralRatio(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash);
         require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
     }
 

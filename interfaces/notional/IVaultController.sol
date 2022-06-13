@@ -191,7 +191,6 @@ interface IVaultAccountAction {
      * @param vault the vault to enter
      * @param liquidator the address that will receive profits from liquidation
      * @param depositAmountExternal amount of cash to deposit
-     * @param useUnderlying true if we should use the underlying token
      * @param redeemData calldata sent to the vault when redeeming liquidator profits
      * @return profitFromLiquidation amount of vaultShares or cash received from liquidation
      */
@@ -200,7 +199,6 @@ interface IVaultAccountAction {
         address vault,
         address liquidator,
         uint256 depositAmountExternal,
-        bool useUnderlying,
         bytes calldata redeemData
     ) external returns (uint256 profitFromLiquidation);
 
