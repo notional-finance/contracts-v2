@@ -148,8 +148,7 @@ contract MockVaultConfiguration {
         (collateralRatio, /* */) = getVaultConfigView(vault).calculateCollateralRatio(
             vaultState,
             vaultAccount.vaultShares,
-            vaultAccount.fCash,
-            vaultAccount.escrowedAssetCash
+            vaultAccount.fCash
         );
     }
 

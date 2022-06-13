@@ -28,23 +28,6 @@ library VaultAccountLib {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
-    // As a storage optimization to keep VaultAccountStorage inside bytes32, we store the maturity as epochs
-    // from an arbitrary start time before we've deployed this feature. This allows us to have 65536 epochs
-    // which is plenty even with the smallest potential term length being 1 month (5461 years).
-    function _convertEpochToMaturity(uint256 vaultEpoch) private pure returns (uint256 maturity) {
-        if (vaultEpoch == 0) return 0;
-        maturity = vaultEpoch.mul(Constants.MONTH).add(Constants.VAULT_EPOCH_START);
-    }
-
-    function _convertMaturityToEpoch(uint256 maturity) private pure returns (uint16) {
-        if (maturity == 0) return 0;
-        require(maturity % Constants.MONTH == 0);
-        uint256 vaultEpoch = maturity.sub(Constants.VAULT_EPOCH_START).div(Constants.MONTH);
-        require(vaultEpoch <= type(uint16).max);
-
-        return uint16(vaultEpoch);
-    }
-
     /// @notice Returns a single account's vault position
     function getVaultAccount(address account, VaultConfig memory vaultConfig)
         internal
@@ -57,8 +40,7 @@ library VaultAccountLib {
 
         // fCash is negative on the stack
         vaultAccount.fCash = -int256(uint256(s.fCash));
-        vaultAccount.escrowedAssetCash = int256(uint256(s.escrowedAssetCash));
-        vaultAccount.maturity = _convertEpochToMaturity(s.vaultEpoch);
+        vaultAccount.maturity = s.maturity;
         vaultAccount.vaultShares = s.vaultShares;
         vaultAccount.account = account;
         vaultAccount.tempCashBalance = 0;
@@ -78,10 +60,9 @@ library VaultAccountLib {
         // transactions.
         require(vaultAccount.fCash == 0 || vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        s.fCash = VaultStateLib.safeUint80(vaultAccount.fCash.neg());
-        s.escrowedAssetCash = VaultStateLib.safeUint80(vaultAccount.escrowedAssetCash);
-        s.vaultShares = VaultStateLib.safeUint80(vaultAccount.vaultShares);
-        s.vaultEpoch = _convertMaturityToEpoch(vaultAccount.maturity);
+        s.fCash = vaultAccount.fCash.neg().toUint().toUint80();
+        s.vaultShares = vaultAccount.vaultShares.toUint80();
+        s.maturity = vaultAccount.maturity.toUint32();
     }
 
     /**
@@ -127,7 +108,7 @@ library VaultAccountLib {
         //     totalfCash debt. All accounts have a proportional claim on this relative to their value at
         //     settlement.
         //
-        //       residualAssetCashBalance = totalAssetCash + totalEscrowedAssetCash - totalfCash
+        //       residualAssetCashBalance = totalAssetCash - totalfCash
         //
         //   - settledUnderlyingValue is the post settlement value of the vault. This is the total amount of
         //     value that accounts can withdraw after settlement.
@@ -135,7 +116,6 @@ library VaultAccountLib {
         //       settledUnderlyingValue = totalAssetCash - totalfCash + strategyTokenValue
     
         int256 residualAssetCashBalance = vaultState.totalAssetCash.toInt()
-            .add(vaultState.totalEscrowedAssetCash.toInt())
             .add(settlementRate.convertFromUnderlying(vaultState.totalfCash));
             
         int256 settledUnderlyingValue = settlementRate.convertToUnderlying(residualAssetCashBalance)
@@ -149,7 +129,6 @@ library VaultAccountLib {
 
         // Update the vault account in memory
         vaultAccount.fCash = 0;
-        vaultAccount.escrowedAssetCash = 0;
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(cashClaim);
         vaultAccount.vaultShares = 0;
         vaultAccount.maturity = 0;
@@ -168,19 +147,6 @@ library VaultAccountLib {
         AssetRateParameters memory settlementRate,
         int256 totalStrategyTokenValueAtSettlement
     ) private returns (int256 accountShareOfSettledPool) {
-        int256 escrowedUnderlyingCash = settlementRate.convertToUnderlying(vaultAccount.escrowedAssetCash);
-        if (escrowedUnderlyingCash > vaultAccount.fCash) {
-            // It is possible that an account has more escrowed asset cash than debt, causing totalAssetCash
-            // to be less than it should be. When we come in to settle other accounts, they will show as insolvent
-            // simply because we did not raise sufficient cash (excl. totalEscrowedAssetCash) to pay off the pooled
-            // debts. The contract is not actually insolvent here, it is just that the attribution is not correct.
-
-            // In this case, the account can "sell" the excess escrowed asset cash back to the pool in exchange
-            // for strategy tokens. Unfortunately, this must be done in order for other accounts to settle
-            // properly.
-            // TODO: implement this, probably requires it to be a different method...
-        }
-
         // This is the total value of all vault shares at settlement as the sum of cash and strategy token
         // assets held in the vault share pool using prices snapshot at settlement. Any future prices changes
         // on these assets will not be relevant in our calculations so there is no incentive to "game" when
@@ -195,7 +161,6 @@ library VaultAccountLib {
         accountShareOfSettledPool = 
             vaultAccount.vaultShares.toInt().mul(settlementVaultShareValue)
                 .div(vaultState.totalVaultShares.toInt())
-            .add(settlementRate.convertToUnderlying(vaultAccount.escrowedAssetCash))
             .add(vaultAccount.fCash);
 
         // TODO: re-examine this....
@@ -229,15 +194,6 @@ library VaultAccountLib {
         // of the parent method borrowAndEnterVault
         require(vaultAccount.maturity == maturity || vaultAccount.fCash == 0);
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
-        bool usedEscrowedAssetCash = false;
-
-        // Put all of the escrowed asset cash into the temp cash balance and attempt to enter with it. This will
-        // trigger a collateral check at the end of the method because the collateral ratio of the account may
-        // decrease as a result.
-        if (vaultAccount.escrowedAssetCash > 0) {
-            usedEscrowedAssetCash = true;
-            removeEscrowedAssetCash(vaultAccount, vaultState);
-        }
 
         // Borrows fCash and puts the cash balance into the vault account's temporary cash balance
         if (fCashToBorrow > 0) {
@@ -262,8 +218,8 @@ library VaultAccountLib {
         // If the account is not using any leverage (fCashToBorrow == 0) we don't check the collateral ratio, no matter
         // what the amount is the collateral ratio will increase. This is useful for accounts that want to quickly and cheaply
         // deleverage their account without paying down debts.
-        if (fCashToBorrow > 0 || usedEscrowedAssetCash) {
-            vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+        if (fCashToBorrow > 0) {
+            vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash);
         }
     }
 
@@ -357,11 +313,9 @@ library VaultAccountLib {
             // case just just net off the the asset cash balance and the account will forgo any money market interest
             // accrued between now and maturity.
             
-            // The alternative to this is to put the assetCashDeposit into escrowed asset cash, however, this adds to
-            // the complexity of the solution and may result in more complex settlement dynamics. If this scenario were
-            // to occur, it is most likely that interest rates are near zero suggesting that money market interest rates
-            // are also near zero (therefore the account is really not giving up much by forgoing money market interest).
-
+            // If this scenario were to occur, it is most likely that interest rates are near zero suggesting that
+            // money market interest rates are also near zero (therefore the account is really not giving up much
+            // by forgoing money market interest).
             assetCashCostToLend = vaultConfig.assetRate.convertFromUnderlying(fCash).neg(); // this is a negative number
         }
         require(assetCashCostToLend <= 0);
@@ -375,33 +329,8 @@ library VaultAccountLib {
         vaultAccount.fCash = vaultAccount.fCash.add(fCash);
         vaultState.totalfCash = vaultState.totalfCash.add(fCash);
 
-        // Apply all of the escrowed asset cash against the account to exit. We don't allow partial
-        // applications of escrowed asset cash because that complicates settlement dynamics.
-        removeEscrowedAssetCash(vaultAccount, vaultState);
-
         // Reduces the total used borrow capacity
         VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, fCash);
-    }
-
-    /**
-     * @notice Called in the two places where escrowed cash is reduced on the account, when an account
-     * re-enters a vault and when it is is able to successfully lend to exit the vault
-     */
-    function removeEscrowedAssetCash(VaultAccount memory vaultAccount, VaultState memory vaultState) internal pure {
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(vaultAccount.escrowedAssetCash);
-        vaultState.totalEscrowedAssetCash = vaultState.totalEscrowedAssetCash.sub(
-            vaultAccount.escrowedAssetCash.toUint()
-        );
-        vaultAccount.escrowedAssetCash = 0;
-    }
-
-    /** @notice Called when deleveraging an account, we place cash to hold against fCash */
-    function increaseEscrowedAssetCash(VaultAccount memory vaultAccount, VaultState memory vaultState) internal pure {
-        vaultAccount.escrowedAssetCash = vaultAccount.escrowedAssetCash.add(vaultAccount.tempCashBalance);
-        vaultState.totalEscrowedAssetCash = vaultState.totalEscrowedAssetCash.add(
-            vaultAccount.tempCashBalance.toUint()
-        );
-        vaultAccount.tempCashBalance = 0;
     }
 
     function calculateDeleverageAmount(
@@ -416,10 +345,7 @@ library VaultAccountLib {
             .mulInRatePrecision(Constants.VAULT_DELEVERAGE_LIMIT)
             .add(Constants.RATE_PRECISION);
 
-        // Both of these are denominated in asset cash
-        int256 debtOutstanding = vaultAccount.escrowedAssetCash
-            .add(vaultConfig.assetRate.convertFromUnderlying(vaultAccount.fCash))
-            .neg();
+        int256 debtOutstanding = vaultConfig.assetRate.convertFromUnderlying(vaultAccount.fCash.neg());
 
         // The post liquidation collateral ratio is calculated as:
         //                          (shareValue - debtOutstanding + deposit * (1 - liquidationRate))

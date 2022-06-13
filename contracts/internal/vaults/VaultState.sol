@@ -46,7 +46,6 @@ library VaultStateLib {
         vaultState.totalAssetCash = s.totalAssetCash;
         vaultState.totalStrategyTokens = s.totalStrategyTokens;
         vaultState.totalVaultShares = s.totalVaultShares;
-        vaultState.totalEscrowedAssetCash = s.totalEscrowedAssetCash;
         vaultState.settlementStrategyTokenValue = s.settlementStrategyTokenValue;
     }
 
@@ -56,11 +55,10 @@ library VaultStateLib {
 
         require(vaultState.isSettled == false); // dev: cannot update vault state after settled
 
-        s.totalfCash = safeUint80(vaultState.totalfCash.neg());
-        s.totalAssetCash = safeUint80(vaultState.totalAssetCash);
-        s.totalStrategyTokens = safeUint80(vaultState.totalStrategyTokens);
-        s.totalVaultShares = safeUint80(vaultState.totalVaultShares);
-        s.totalEscrowedAssetCash = safeUint80(vaultState.totalEscrowedAssetCash);
+        s.totalfCash = vaultState.totalfCash.neg().toUint().toUint80();
+        s.totalAssetCash = vaultState.totalAssetCash.toUint80();
+        s.totalStrategyTokens = vaultState.totalStrategyTokens.toUint80();
+        s.totalVaultShares = vaultState.totalVaultShares.toUint80();
     }
 
     function setSettledVaultState(
@@ -155,10 +153,7 @@ library VaultStateLib {
             //  - when an account is newly established
             //  - when an account is entering a maturity after settlement
             //  - when an account is rolling forward from a previous maturity
-            require(
-                vaultAccount.vaultShares == 0 &&
-                vaultAccount.escrowedAssetCash == 0
-            );
+            require(vaultAccount.vaultShares == 0);
             vaultAccount.maturity = vaultState.maturity;
         } else {
             require(vaultAccount.maturity == vaultState.maturity);
@@ -230,15 +225,4 @@ library VaultStateLib {
             .convertFromUnderlying(underlyingInternalStrategyTokenValue)
             .add(assetCash.toInt());
     }
-
-    function safeUint80(int256 x) internal pure returns (uint80) {
-        require(0 <= x && x < int256(type(uint80).max));
-        return uint80(uint256(x));
-    }
-
-    function safeUint80(uint256 x) internal pure returns (uint80) {
-        require(x < uint256(type(uint80).max));
-        return uint80(x);
-    }
-
 }

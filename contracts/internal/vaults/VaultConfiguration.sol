@@ -222,8 +222,7 @@ library VaultConfiguration {
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         uint256 vaultShares,
-        int256 fCash,
-        int256 escrowedAssetCash
+        int256 fCash
     ) internal view returns (int256 collateralRatio, int256 vaultShareValue) {
         vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, vaultShares);
 
@@ -231,13 +230,8 @@ library VaultConfiguration {
         // rate risk in this calculation. The economic benefit of discounting will be very
         // minor relative to the added complexity of accounting for interest rate risk.
 
-        // Escrowed asset cash and asset cash held in the vault are both held as payment against
-        // borrowed fCash, so we net them off here. debtOutstanding can either be positive or negative,
-        // if it is positive then there is more fCash left to repay, if it is negative than we have more
-        // than enough asset cash to repay the debt.
-        int256 debtOutstanding = escrowedAssetCash
-            .add(vaultConfig.assetRate.convertFromUnderlying(fCash))
-            .neg();
+        // Convert this to a positive number amount of asset cash
+        int256 debtOutstanding = vaultConfig.assetRate.convertFromUnderlying(fCash.neg());
 
         // netAssetValue includes the value held in vaultShares (strategyTokenValue + assetCashHeld) net
         // off against the outstanding debt. netAssetValue can be either positive or negative here. If it
@@ -263,10 +257,9 @@ library VaultConfiguration {
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         uint256 vaultShares,
-        int256 fCash,
-        int256 escrowedAssetCash
+        int256 fCash
     ) internal view {
-        (int256 collateralRatio, /* */) = calculateCollateralRatio(vaultConfig, vaultState, vaultShares, fCash, escrowedAssetCash);
+        (int256 collateralRatio, /* */) = calculateCollateralRatio(vaultConfig, vaultState, vaultShares, fCash);
         require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
     }
 
@@ -277,8 +270,7 @@ library VaultConfiguration {
      * @param cashToTransferInternal amount to transfer in internal precision
      * @param maturity the maturity of the vault shares
      * @param data arbitrary data to pass to the vault
-     * @return strategyTokensMinted the amount of strategy tokens minted and transferred back to the
-     * Notional contract for escrow, will be credited back to the vault account.
+     * @return strategyTokensMinted the amount of strategy tokens minted
      */
     function deposit(
         VaultConfig memory vaultConfig,

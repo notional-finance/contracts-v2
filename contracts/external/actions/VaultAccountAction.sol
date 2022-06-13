@@ -207,8 +207,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             if (vaultAccount.fCash < 0) {
                 // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
                 // will be increasing their collateral ratio here, so we check that this is the case).
-                vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash,
-                    vaultAccount.escrowedAssetCash);
+                vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash);
             }
 
             vaultState.setVaultState(vaultConfig.vault);
@@ -217,7 +216,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Transfers any net deposit or withdraw from the account
         vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
 
-        if (vaultAccount.fCash == 0 && vaultAccount.vaultShares == 0 && vaultAccount.escrowedAssetCash == 0) {
+        if (vaultAccount.fCash == 0 && vaultAccount.vaultShares == 0) {
             // If the account has no position in the vault at this point, set the maturity to zero as well
             vaultAccount.maturity = 0;
         }
@@ -265,7 +264,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Check that the collateral ratio is below the minimum allowed
         (int256 collateralRatio, int256 vaultShareValue) = vaultConfig.calculateCollateralRatio(
-            vaultState, vaultAccount.vaultShares, vaultAccount.fCash, vaultAccount.escrowedAssetCash
+            vaultState, vaultAccount.vaultShares, vaultAccount.fCash
         );
         require(collateralRatio < vaultConfig.minCollateralRatio , "Sufficient Collateral");
 
@@ -419,8 +418,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // some fCash balance it does not actually owe any debt anymore.
             collateralRatio = type(int256).max;
         } else {
-            (collateralRatio, /* */) = vaultConfig.calculateCollateralRatio(vaultState, vaultAccount.vaultShares,
-                vaultAccount.fCash, vaultAccount.escrowedAssetCash);
+            (collateralRatio, /* */) = vaultConfig.calculateCollateralRatio(
+                vaultState, vaultAccount.vaultShares, vaultAccount.fCash
+            );
         }
     }
 

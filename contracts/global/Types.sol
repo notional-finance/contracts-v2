@@ -526,8 +526,6 @@ struct VaultStateStorage {
     // TODO: potentially make total strategy tokens bigger...
     // The total amount of strategy tokens held in the pool
     uint80 totalStrategyTokens;
-    // The total amount of escrowed asset cash held against fCash debt
-    uint80 totalEscrowedAssetCash;
     // Valuation of a strategy token at settlement
     uint80 settlementStrategyTokenValue;
     // NOTE: 16 bits left
@@ -540,7 +538,6 @@ struct VaultState {
     uint256 totalVaultShares;
     uint256 totalAssetCash;
     uint256 totalStrategyTokens;
-    uint256 totalEscrowedAssetCash;
     int256 settlementStrategyTokenValue;
 }
 
@@ -549,21 +546,14 @@ struct VaultAccountStorage {
     // The amount of fCash the account has borrowed from Notional. Stored as a uint but on the stack it
     // is represented as a negative number.
     uint80 fCash;
-    // It's possible that an account may not be able to repay their fCash on the market.
-    // in that case we hold asset cash against their fCash as repayment. When this occurs,
-    // we must also update the totalfCashRequiringSettlement on the VaultState object to ensure
-    // that we do not over-sell vault shares to repay debt.
-    uint80 escrowedAssetCash;
     // Vault shares that the account holds
     uint80 vaultShares;
-    // As a storage optimization, we use epochs to store the vault maturity (each epoch is equal to the
-    // term length of the vault from an arbitrary start time). This keeps the storage under 32 bytes.
-    uint16 vaultEpoch;
+    // Maturity when the vault shares and fCash will mature
+    uint32 maturity;
 }
 
 struct VaultAccount {
     int256 fCash;
-    int256 escrowedAssetCash;
     uint256 maturity;
     uint256 vaultShares;
     address account;
