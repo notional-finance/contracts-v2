@@ -423,4 +423,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         assetCashRequiredToSettle = assetToken.convertToExternal(assetCashInternal);
         underlyingCashRequiredToSettle = underlyingToken.convertToExternal(ar.convertToUnderlying(assetCashInternal));
     }
+
+    function getLibInfo() external pure returns (address) {
+        return address(TradingAction);
+    }
 }
