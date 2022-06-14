@@ -36,7 +36,7 @@ abstract contract BaseStrategyVault is IStrategyVault {
     // This can be overridden if the vault borrows in a secondary currency, but reverts by default.
     function _repaySecondaryBorrowCallback(
         uint256 assetCashRequired, bytes calldata data
-    ) internal returns (bytes memory returnData) {
+    ) internal virtual returns (bytes memory returnData) {
         revert();
     }
 
@@ -166,5 +166,9 @@ abstract contract BaseStrategyVault is IStrategyVault {
         uint256 balanceAfter = ASSET_TOKEN.balanceOf(address(this));
 
         return balanceAfter - balanceBefore;
+    }
+
+    receive() external payable {
+        // Allow ETH transfers to succeed
     }
 }

@@ -79,7 +79,7 @@ interface IVaultAction {
     function repaySecondaryCurrencyFromVault(
         uint16 currencyId,
         uint256 maturity,
-        uint256 netfCash,
+        uint256 fCashToRepay,
         uint32 slippageLimit,
         bytes calldata callbackData
     ) external returns (bytes memory returnData);

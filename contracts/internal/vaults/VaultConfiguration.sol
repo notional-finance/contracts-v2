@@ -115,6 +115,12 @@ library VaultConfiguration {
         require(vaultConfig.maxBorrowMarketIndex != 0);
         // This must be true or else when deleveraging we could put an account further towards insolvency
         require(vaultConfig.minCollateralRatioBPS < vaultConfig.maxDeleverageCollateralRatioBPS);
+        // The borrow currency cannot be duplicated as a secondary borrow currency
+        require(
+            vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[0] &&
+            vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[1] &&
+            vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[2]
+        );
 
         store[vaultAddress] = vaultConfig;
     }
@@ -213,6 +219,21 @@ library VaultConfiguration {
         // Total used borrow capacity can never go negative, this would suggest that we've lent past repayment
         // of the total fCash borrowed.
         cap.totalUsedBorrowCapacity = totalUsedBorrowCapacity.toUint().toUint80();
+    }
+
+    function updateSecondaryBorrowCapacity(
+        address vault,
+        uint16 currencyId,
+        uint256 maturity,
+        int256 netfCash
+    ) internal {
+        // This will revert if we overflow the maximum borrow capacity
+        updateUsedBorrowCapacity(vault, currencyId, netfCash);
+        // Updates storage for the specific maturity so we can track this on chain.
+        VaultSecondaryBorrowStorage storage balance = 
+            LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
+        // This will revert if lending past the total amount borrowed
+        balance.fCashBorrowed = int256(uint256(balance.fCashBorrowed)).sub(netfCash).toUint().toUint80();
     }
 
     /**

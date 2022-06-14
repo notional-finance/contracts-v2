@@ -199,7 +199,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
         );
         // Require that borrow trades succeed
-        require(netAssetCash == 0, "Trade Failed");
+        require(netAssetCash > 0, "Trade Failed");
 
         // Redeem returns a negative number to signify that assets have left the protocol
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
@@ -215,13 +215,22 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint32 minLendRate,
         bytes calldata callbackData
     ) external override returns (bytes memory returnData) {
-        int256 netAssetCash = _executeSecondaryCurrencyTrade(currencyId, maturity, fCashToLend.toInt(), minLendRate);
+        int256 netAssetCash;
+        int256 netfCash = fCashToLend.toInt();
+        if (maturity > block.timestamp) {
+            netAssetCash = _executeSecondaryCurrencyTrade(currencyId, maturity, netfCash, minLendRate);
+        } else {
+            // Post maturity, repayment must be done via the settlement rate
+            AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateView(currencyId, maturity);
+            netAssetCash = settlementRate.convertFromUnderlying(netfCash).neg();
+            VaultConfiguration.updateSecondaryBorrowCapacity(msg.sender, currencyId, maturity, netfCash);
+        }
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
 
         // The vault MUST return exactly this amount of asset tokens to the vault in the callback. We use
         // a callback here because it is more precise and gas efficient than calculating netAssetCash twoice
         uint256 assetCashRequiredExternal = assetToken.convertAssetInternalToNativeExternal(
-            currencyId, netAssetCash
+            currencyId, netAssetCash.neg()
         ).toUint();
 
         uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));
@@ -230,7 +239,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             assetCashRequiredExternal, callbackData
         );
         uint256 balanceAfter = IERC20(assetToken.tokenAddress).balanceOf(address(this));
-        require(balanceAfter.sub(balanceBefore) >= assetCashRequiredExternal);
+        require(balanceAfter.sub(balanceBefore) >= assetCashRequiredExternal, "Insufficient Repay");
     }
 
     function _executeSecondaryCurrencyTrade(
@@ -244,13 +253,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
         require(currencyId != vaultConfig.borrowCurrencyId);
 
-        // This will revert if we overflow the maximum borrow capacity
-        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, currencyId, netfCash);
-        // Updates storage for the specific maturity so we can track this on chain.
-        VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[msg.sender][maturity][currencyId];
-        // This will revert if lending past the total amount borrowed
-        balance.fCashBorrowed = int256(uint256(balance.fCashBorrowed)).sub(netfCash).toUint().toUint80();
+        VaultConfiguration.updateSecondaryBorrowCapacity(msg.sender, currencyId, maturity, netfCash);
 
         netAssetCash = VaultAccountLib.executeTrade(
             currencyId,
@@ -267,8 +270,6 @@ contract VaultAction is ActionGuards, IVaultAction {
             netAssetCash = vaultConfig.assetRate.convertFromUnderlying(netfCash).neg();
         }
     }
-
-
 
     /**
      * @notice Settles an entire vault, can only be called during an emergency stop out or during
@@ -383,7 +384,7 @@ contract VaultAction is ActionGuards, IVaultAction {
     function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
         external view override returns (uint256 totalfCashBorrowed) {
         VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[vault][currencyId][maturity];
+            LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
         totalfCashBorrowed = balance.fCashBorrowed;
     }
 
