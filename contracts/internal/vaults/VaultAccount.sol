@@ -340,14 +340,12 @@ library VaultAccountLib {
     ) internal view returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
         // In the base case, the liquidator can deleverage an account up to minCollateralRatio * VAULT_DELEVERAGE_LIMIT
         // which is a constant value. This assures that a liquidator cannot over-purchase assets on an account.
-        int256 maxCollateralRatioPlusOne = vaultConfig.minCollateralRatio
-            .mulInRatePrecision(Constants.VAULT_DELEVERAGE_LIMIT)
-            .add(Constants.RATE_PRECISION);
+        int256 maxCollateralRatioPlusOne = vaultConfig.maxDeleverageCollateralRatio.add(Constants.RATE_PRECISION);
 
         int256 debtOutstanding = vaultConfig.assetRate.convertFromUnderlying(vaultAccount.fCash.neg());
 
         // The post liquidation collateral ratio is calculated as:
-        //                          (shareValue - debtOutstanding + deposit * (1 - liquidationRate))
+        //                          (shareValue - (debtOutstanding - deposit * (1 - liquidationRate)))
         //   postLiquidationRatio = ----------------------------------------------------------------
         //                                          (debtOutstanding - deposit)
         //
@@ -366,7 +364,9 @@ library VaultAccountLib {
         // a second time. If this occurs at the VAULT_DELEVERAGE_LIMIT then the liquidator must liquidate the account such that
         // it has no net fCash debt.
         int256 postLiquidationDebtRemaining = debtOutstanding.sub(maxLiquidatorDepositAssetCash);
-        int256 minAccountBorrowSizeAssetCash = vaultConfig.assetRate.convertFromUnderlying(vaultConfig.minAccountBorrowSize);
+        int256 minAccountBorrowSizeAssetCash = vaultConfig.assetRate.convertFromUnderlying(
+            vaultConfig.minAccountBorrowSize
+        );
 
         if (postLiquidationDebtRemaining < minAccountBorrowSizeAssetCash) {
             // If the postLiquidationDebtRemaining is negative (over liquidation) or below the minAccountBorrowSize set the

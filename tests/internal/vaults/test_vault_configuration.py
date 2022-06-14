@@ -30,6 +30,12 @@ def test_set_vault_config(vaultConfig, accounts):
         conf[6] = 102
         vaultConfig.setVaultConfig(accounts[0], conf)
 
+    with brownie.reverts():
+        # Fails on min ratio above max deleverage ratio
+        conf = get_vault_config()
+        conf[8] = 1000
+        vaultConfig.setVaultConfig(accounts[0], conf)
+
     conf = get_vault_config()
     vaultConfig.setVaultConfig(accounts[0], conf)
 
@@ -43,6 +49,7 @@ def test_set_vault_config(vaultConfig, accounts):
     assert config["liquidationRate"] == conf[5] * RATE_PRECISION / 100
     assert config["reserveFeeShare"] == conf[6]
     assert config["maxBorrowMarketIndex"] == conf[7]
+    assert config["maxDeleverageCollateralRatio"] == conf[8] * BASIS_POINT
 
 
 def test_pause_and_enable_vault(vaultConfig, accounts):
@@ -55,7 +62,12 @@ def test_pause_and_enable_vault(vaultConfig, accounts):
 
 def test_vault_fee_increases_with_debt(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
-        vault.address, get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
+        vault.address,
+        get_vault_config(
+            maxNTokenFeeRate5BPS=255,
+            minCollateralRatioBPS=11000,
+            maxDeleverageCollateralRatioBPS=12000,
+        ),
     )
 
     txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER)
@@ -86,7 +98,12 @@ def test_vault_fee_increases_with_debt(vaultConfig, vault, accounts):
 
 def test_vault_fee_increases_with_time_to_maturity(vaultConfig, vault, accounts):
     vaultConfig.setVaultConfig(
-        vault.address, get_vault_config(maxNTokenFeeRate5BPS=255, minCollateralRatioBPS=11000)
+        vault.address,
+        get_vault_config(
+            maxNTokenFeeRate5BPS=255,
+            minCollateralRatioBPS=11000,
+            maxDeleverageCollateralRatioBPS=12000,
+        ),
     )
 
     txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER)

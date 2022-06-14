@@ -63,6 +63,7 @@ library VaultConfiguration {
         vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
+        vaultConfig.maxDeleverageCollateralRatio = int256(uint256(s.maxDeleverageCollateralRatioBPS).mul(Constants.BASIS_POINT));
         // This is used in 1e9 precision on the stack (no overflow possible)
         vaultConfig.liquidationRate = (int256(uint256(s.liquidationRate)) * Constants.RATE_PRECISION) / Constants.PERCENTAGE_DECIMALS;
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
@@ -111,6 +112,8 @@ library VaultConfiguration {
         // Reserve fee share must be less than or equal to 100
         require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
         require(vaultConfig.maxBorrowMarketIndex != 0);
+        // This must be true or else when deleveraging we could put an account further towards insolvency
+        require(vaultConfig.minCollateralRatioBPS < vaultConfig.maxDeleverageCollateralRatioBPS);
 
         store[vaultAddress] = vaultConfig;
     }

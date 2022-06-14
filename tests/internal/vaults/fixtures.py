@@ -114,6 +114,7 @@ def get_vault_config(**kwargs):
         kwargs.get("liquidationRate", 104),  # 5: 4% liquidation discount
         kwargs.get("reserveFeeShare", 20),  # 6: 20% reserve fee share
         kwargs.get("maxBorrowMarketIndex", 2),  # 7: 20% reserve fee share
+        kwargs.get("maxDeleverageCollateralRatioBPS", 4000),  # 8: 40% max collateral ratio
     ]
 
 

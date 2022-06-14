@@ -144,8 +144,8 @@ contract MockVaultConfiguration {
         address vault,
         VaultAccount memory vaultAccount,
         VaultState memory vaultState
-    ) external view returns (int256 collateralRatio) {
-        (collateralRatio, /* */) = getVaultConfigView(vault).calculateCollateralRatio(
+    ) external view returns (int256 collateralRatio, int256 vaultShareValue) {
+        (collateralRatio, vaultShareValue) = getVaultConfigView(vault).calculateCollateralRatio(
             vaultState,
             vaultAccount.vaultShares,
             vaultAccount.fCash
@@ -194,6 +194,18 @@ contract MockVaultConfiguration {
         return vaultAccount;
     }
 
+    function calculateDeleverageAmount(
+        VaultAccount memory vaultAccount,
+        address vault,
+        int256 vaultShareValue
+    ) external view returns (
+        int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount
+    ) {
+        return vaultAccount.calculateDeleverageAmount(
+            getVaultConfigView(vault),
+            vaultShareValue
+        );
+    }
 
     /*** Set Other Globals ***/
 

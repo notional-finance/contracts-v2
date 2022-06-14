@@ -476,9 +476,11 @@ struct VaultConfigStorage {
     uint8 reserveFeeShare;
     // Maximum market index where a vault can borrow from
     uint8 maxBorrowMarketIndex;
-    // TODO: consider listing secondary currencies here...
-
-    // 144 bytes left
+    // Maximum collateral ratio that a liquidator can push a an account to during deleveraging
+    uint16 maxDeleverageCollateralRatioBPS;
+    // An optional list of secondary borrow currencies
+    // uint16[3] secondaryBorrowCurrencies;
+    // 80 bytes left
 }
 
 struct VaultBorrowCapacityStorage {
@@ -504,6 +506,8 @@ struct VaultConfig {
     int256 liquidationRate;
     int256 reserveFeeShare;
     uint256 maxBorrowMarketIndex;
+    int256 maxDeleverageCollateralRatio;
+    // uint16[3] secondaryBorrowCurrencies;
     AssetRateParameters assetRate;
 }
 
@@ -528,7 +532,7 @@ struct VaultStateStorage {
     uint80 totalStrategyTokens;
     // Valuation of a strategy token at settlement
     uint80 settlementStrategyTokenValue;
-    // NOTE: 16 bits left
+    // NOTE: 96 bits left
 }
 
 struct VaultState {

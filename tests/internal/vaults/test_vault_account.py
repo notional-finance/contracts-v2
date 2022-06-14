@@ -48,6 +48,47 @@ def test_enforce_temp_cash_balance(vaultConfig, accounts, vault):
         vaultConfig.setVaultAccount(account, vault.address)
 
 
+@given(
+    fCash=strategy("int", min_value=-100_000e8, max_value=-10_000e8),
+    initialRatio=strategy("uint", min_value=0, max_value=30),
+)
+def test_calculate_deleverage_amount(vaultConfig, accounts, vault, fCash, initialRatio):
+    vaultConfig.setVaultConfig(
+        vault.address,
+        get_vault_config(
+            maxDeleverageCollateralRatioBPS=4000, minAccountBorrowSize=10_000, liquidationRate=104
+        ),
+    )
+    vault.setExchangeRate(1e18)
+    vaultShares = -fCash + initialRatio * 1000e8
+    state = get_vault_state(
+        totalfCash=fCash * 10, totalVaultShares=100_000e8, totalStrategyTokens=100_000e8
+    )
+    account = get_vault_account(fCash=fCash, vaultShares=vaultShares)
+
+    (collateralRatio, vaultShareValue) = vaultConfig.calculateCollateralRatio(
+        vault.address, account, state
+    )
+
+    (maxDeposit, mustLiquidate) = vaultConfig.calculateDeleverageAmount(
+        account, vault.address, vaultShareValue
+    )
+
+    if mustLiquidate:
+        # In this case, the entire debt must be repaid
+        assert maxDeposit == -fCash * 50
+    else:
+        vaultSharesPurchased = Wei((maxDeposit * 104 * vaultShares) / (vaultShareValue * 100))
+        accountAfter = get_vault_account(
+            fCash=fCash + maxDeposit / 50, vaultShares=vaultShares - vaultSharesPurchased
+        )
+        (collateralRatioAfter, _) = vaultConfig.calculateCollateralRatio(
+            vault.address, accountAfter, state
+        )
+
+        assert pytest.approx(collateralRatioAfter, abs=2) == 0.4e9
+
+
 def test_settle_fails(vaultConfig, accounts, vault):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
     maturity = START_TIME_TREF + SECONDS_IN_QUARTER
