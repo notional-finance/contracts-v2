@@ -479,7 +479,7 @@ struct VaultConfigStorage {
     // Maximum collateral ratio that a liquidator can push a an account to during deleveraging
     uint16 maxDeleverageCollateralRatioBPS;
     // An optional list of secondary borrow currencies
-    // uint16[3] secondaryBorrowCurrencies;
+    uint16[3] secondaryBorrowCurrencies;
     // 80 bytes left
 }
 
@@ -507,7 +507,7 @@ struct VaultConfig {
     int256 reserveFeeShare;
     uint256 maxBorrowMarketIndex;
     int256 maxDeleverageCollateralRatio;
-    // uint16[3] secondaryBorrowCurrencies;
+    uint16[3] secondaryBorrowCurrencies;
     AssetRateParameters assetRate;
 }
 

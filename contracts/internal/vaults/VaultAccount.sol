@@ -146,7 +146,7 @@ library VaultAccountLib {
         VaultState memory vaultState, 
         AssetRateParameters memory settlementRate,
         int256 totalStrategyTokenValueAtSettlement
-    ) private returns (int256 accountShareOfSettledPool) {
+    ) private pure returns (int256 accountShareOfSettledPool) {
         // This is the total value of all vault shares at settlement as the sum of cash and strategy token
         // assets held in the vault share pool using prices snapshot at settlement. Any future prices changes
         // on these assets will not be relevant in our calculations so there is no incentive to "game" when

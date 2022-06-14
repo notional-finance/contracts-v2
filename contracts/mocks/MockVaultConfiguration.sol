@@ -240,7 +240,7 @@ contract MockVaultConfiguration {
         assetRate = AssetRate.buildAssetRateView(currencyId);
     }
 
-    function getLendingPool() external view returns (address) {
+    function getLendingPool() external pure returns (address) {
         return address(0);
     }
 

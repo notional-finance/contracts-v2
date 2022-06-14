@@ -68,6 +68,7 @@ library VaultConfiguration {
         vaultConfig.liquidationRate = (int256(uint256(s.liquidationRate)) * Constants.RATE_PRECISION) / Constants.PERCENTAGE_DECIMALS;
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
         vaultConfig.maxBorrowMarketIndex = s.maxBorrowMarketIndex;
+        vaultConfig.secondaryBorrowCurrencies = s.secondaryBorrowCurrencies;
     }
 
     function getVaultConfigNoAssetRate(
@@ -285,18 +286,11 @@ library VaultConfiguration {
         if (cashToTransferInternal == 0) return 0;
 
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        int256 transferAmountExternal = assetToken.convertToExternal(cashToTransferInternal);
+        int256 transferAmountExternal = assetToken.convertAssetInternalToNativeExternal(
+            vaultConfig.borrowCurrencyId,
+            cashToTransferInternal
+        );
 
-        if (assetToken.tokenType == TokenType.aToken) {
-            Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
-            // aTokens need to be converted when we handle the transfer since the external balance format
-            // is not the same as the internal balance format that we use
-            transferAmountExternal = AaveHandler.convertFromScaledBalanceExternal(
-                underlyingToken.tokenAddress,
-                transferAmountExternal
-            );
-        }
-        
         // Ensures that transfer amounts are always positive
         uint256 transferAmount = SafeInt256.toUint(transferAmountExternal);
         address vault = vaultConfig.vault;
@@ -330,7 +324,6 @@ library VaultConfiguration {
         bytes calldata data
     ) internal returns (int256 assetCashInternalRaised) {
         if (strategyTokens == 0) return 0;
-
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
 
         uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));

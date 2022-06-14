@@ -306,6 +306,23 @@ library TokenHandler {
         }
     }
 
+    function convertAssetInternalToNativeExternal(
+        Token memory assetToken,
+        uint16 currencyId,
+        int256 assetInternalAmount
+    ) internal view returns (int256 assetNativeExternal) {
+        assetNativeExternal = convertToExternal(assetToken, assetInternalAmount);
+
+        if (assetToken.tokenType == TokenType.aToken) {
+            // Special handling for aTokens, we use scaled balance internally
+            Token memory underlying = getUnderlyingToken(currencyId);
+            assetNativeExternal = AaveHandler.convertFromScaledBalanceExternal(
+                underlying.tokenAddress, assetNativeExternal
+            );
+        }
+    }
+
+
     function transferIncentive(address account, uint256 tokensToTransfer) internal {
         GenericToken.safeTransferOut(Deployments.NOTE_TOKEN_ADDRESS, account, tokensToTransfer);
     }

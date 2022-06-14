@@ -239,8 +239,8 @@ library LibStorage {
         assembly { store.slot := slot }
     }
 
-    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to currency id to
-    /// maturity to VaultSecondaryBorrowStorage object
+    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to maturity to
+    /// currencyId to VaultSecondaryBorrowStorage object
     function getVaultSecondaryBorrow() internal pure returns (
         mapping(address => mapping(uint256 => mapping(uint256 => VaultSecondaryBorrowStorage))) storage store
     ) {

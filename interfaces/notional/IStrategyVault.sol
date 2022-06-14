@@ -23,4 +23,6 @@ interface IStrategyVault {
     ) external;
 
     function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) external view returns (uint256 underlyingValue);
+
+    function repaySecondaryBorrowCallback(uint256 assetCashRequired, bytes calldata data) external returns (bytes memory returnData);
 }

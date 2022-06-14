@@ -80,8 +80,9 @@ interface IVaultAction {
         uint16 currencyId,
         uint256 maturity,
         uint256 netfCash,
-        uint32 slippageLimit
-    ) external returns (uint256 assetTokensRequired);
+        uint32 slippageLimit,
+        bytes calldata callbackData
+    ) external returns (bytes memory returnData);
 
     /// @notice Non-authenticated method that will set settlement values for a vault so that
     /// account holders can withdraw matured assets.

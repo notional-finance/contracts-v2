@@ -91,6 +91,16 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint16 secondaryCurrencyId,
         uint80 maxBorrowCapacity
     ) external override onlyOwner {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vaultAddress);
+        // The secondary borrow currency must be white listed on the configuration before we can set a max
+        // capacity.
+        require(
+            secondaryCurrencyId == vaultConfig.secondaryBorrowCurrencies[0] ||
+            secondaryCurrencyId == vaultConfig.secondaryBorrowCurrencies[1] ||
+            secondaryCurrencyId == vaultConfig.secondaryBorrowCurrencies[2],
+            "Invalid Currency"
+        );
+
         VaultConfiguration.setMaxBorrowCapacity(vaultAddress, secondaryCurrencyId, maxBorrowCapacity);
     }
 
@@ -185,16 +195,42 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 fCashToBorrow,
         uint32 maxBorrowRate
     ) external override returns (uint256 underlyingTokensTransferred) {
-        return _executeSecondaryCurrencyTrade(currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate);
+        int256 netAssetCash = _executeSecondaryCurrencyTrade(
+            currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
+        );
+        // Require that borrow trades succeed
+        require(netAssetCash == 0, "Trade Failed");
+
+        // Redeem returns a negative number to signify that assets have left the protocol
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+        underlyingTokensTransferred = assetToken.redeem(
+            currencyId, msg.sender, assetToken.convertToExternal(netAssetCash).toUint()
+        ).neg().toUint();
     }
 
     function repaySecondaryCurrencyFromVault(
         uint16 currencyId,
         uint256 maturity,
         uint256 fCashToLend,
-        uint32 minLendRate
-    ) external override returns (uint256 assetTokensRequired) {
-        return _executeSecondaryCurrencyTrade(currencyId, maturity, fCashToLend.toInt(), minLendRate);
+        uint32 minLendRate,
+        bytes calldata callbackData
+    ) external override returns (bytes memory returnData) {
+        int256 netAssetCash = _executeSecondaryCurrencyTrade(currencyId, maturity, fCashToLend.toInt(), minLendRate);
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+
+        // The vault MUST return exactly this amount of asset tokens to the vault in the callback. We use
+        // a callback here because it is more precise and gas efficient than calculating netAssetCash twoice
+        uint256 assetCashRequiredExternal = assetToken.convertAssetInternalToNativeExternal(
+            currencyId, netAssetCash
+        ).toUint();
+
+        uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));
+        // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
+        returnData = IStrategyVault(msg.sender).repaySecondaryBorrowCallback(
+            assetCashRequiredExternal, callbackData
+        );
+        uint256 balanceAfter = IERC20(assetToken.tokenAddress).balanceOf(address(this));
+        require(balanceAfter.sub(balanceBefore) >= assetCashRequiredExternal);
     }
 
     function _executeSecondaryCurrencyTrade(
@@ -202,7 +238,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 maturity,
         int256 netfCash,
         uint32 slippageLimit
-    ) internal returns (uint256) {
+    ) internal returns (int256 netAssetCash) {
         // This method call must come from the vault
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
@@ -212,12 +248,11 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, currencyId, netfCash);
         // Updates storage for the specific maturity so we can track this on chain.
         VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[msg.sender][currencyId][maturity];
+            LibStorage.getVaultSecondaryBorrow()[msg.sender][maturity][currencyId];
         // This will revert if lending past the total amount borrowed
         balance.fCashBorrowed = int256(uint256(balance.fCashBorrowed)).sub(netfCash).toUint().toUint80();
 
-        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-        int256 netAssetCash = VaultAccountLib.executeTrade(
+        netAssetCash = VaultAccountLib.executeTrade(
             currencyId,
             maturity,
             netfCash,
@@ -225,24 +260,11 @@ contract VaultAction is ActionGuards, IVaultAction {
             vaultConfig.maxBorrowMarketIndex,
             block.timestamp
         );
-        // TODO: if trade fails on lend ask for the asset rate amount of tokens
-        require(netAssetCash == 0, "Trade Failed");
 
-        if (netAssetCash > 0) {
-            int256 netTokensTransferred = assetToken.redeem(
-                currencyId, msg.sender, assetToken.convertToExternal(netAssetCash).toUint()
-            );
-
-            return netTokensTransferred.neg().toUint();
-        } else {
-            // The vault MUST return exactly this amount of asset tokens to the vault, we don't do
-            // a transfer at this point because it is more gas efficient for the vault to know exactly
-            // how much they owe at this point and transfer it to the NotionalV2 contract. Internal
-            // accounting has already been updated at this point. Since vaults are whitelisted separately
-            // for secondary currency borrows we have to specifically review them to ensure they integrate
-            // repayments properly.
-            // TODO: perhaps issue a repayment callback here?
-            return assetToken.convertToExternal(netAssetCash.neg()).toUint();
+        // If netAssetCash is zero then the contract must lend at 0% interest using the asset cash
+        // exchange rate. In this case, the vault forgoes any money market interest on asset cash
+        if (netfCash > 0 && netAssetCash == 0) {
+            netAssetCash = vaultConfig.assetRate.convertFromUnderlying(netfCash).neg();
         }
     }
 
@@ -276,6 +298,19 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 assetCashRequiredToSettle = settlementRate.convertFromUnderlying(
             vaultState.totalfCash.neg()
         ).toUint();
+
+        // Validate that all secondary currencies have been paid off.
+        mapping(uint256 => VaultSecondaryBorrowStorage) storage perCurrencyBalance =
+            LibStorage.getVaultSecondaryBorrow()[vault][maturity];
+        if (vaultConfig.secondaryBorrowCurrencies[0] != 0) {
+            require(perCurrencyBalance[vaultConfig.secondaryBorrowCurrencies[0]].fCashBorrowed == 0, "Unpaid Borrow");
+        }
+        if (vaultConfig.secondaryBorrowCurrencies[1] != 0) {
+            require(perCurrencyBalance[vaultConfig.secondaryBorrowCurrencies[1]].fCashBorrowed == 0, "Unpaid Borrow");
+        }
+        if (vaultConfig.secondaryBorrowCurrencies[2] != 0) {
+            require(perCurrencyBalance[vaultConfig.secondaryBorrowCurrencies[2]].fCashBorrowed == 0, "Unpaid Borrow");
+        }
 
         if (vaultState.totalAssetCash < assetCashRequiredToSettle) {
             // Don't allow the pooled portion of the vault to have a cash shortfall unless all

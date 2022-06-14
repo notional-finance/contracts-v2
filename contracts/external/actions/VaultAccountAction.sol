@@ -330,22 +330,16 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultConfig memory vaultConfig,
         uint256 depositAmountExternal,
         int256 vaultShareValue
-    ) private returns (uint256) {
+    ) private view returns (uint256) {
         // Calculates the maximum deleverage amount
         (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
             vaultConfig, vaultShareValue
         );
 
-        uint256 maxLiquidatorDepositExternal;
-        if (assetToken.tokenType == TokenType.aToken) {
-            // Handles special accounting requirements for aTokens
-            maxLiquidatorDepositExternal = AaveHandler.convertFromScaledBalanceExternal(
-                TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId).tokenAddress,
-                assetToken.convertToExternal(maxLiquidatorDepositAssetCash)
-            ).toUint();
-        } else {
-            maxLiquidatorDepositExternal = assetToken.convertToExternal(maxLiquidatorDepositAssetCash).toUint();
-        }
+        uint256 maxLiquidatorDepositExternal = assetToken.convertAssetInternalToNativeExternal(
+            vaultConfig.borrowCurrencyId,
+            maxLiquidatorDepositAssetCash
+        ).toUint();
 
         if (depositAmountExternal < maxLiquidatorDepositExternal) {
             // If this flag is set, the liquidator must deposit more cash to liquidate the account down to a zero

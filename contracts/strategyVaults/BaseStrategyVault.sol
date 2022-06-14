@@ -33,6 +33,13 @@ abstract contract BaseStrategyVault is IStrategyVault {
         bytes calldata data
     ) internal virtual returns (uint256 tokensFromRedeem);
 
+    // This can be overridden if the vault borrows in a secondary currency, but reverts by default.
+    function _repaySecondaryBorrowCallback(
+        uint256 assetCashRequired, bytes calldata data
+    ) internal returns (bytes memory returnData) {
+        revert();
+    }
+
     uint16 internal immutable BORROW_CURRENCY_ID;
     bool internal immutable USE_UNDERLYING_TOKEN;
     TokenType internal immutable ASSET_TOKEN_TYPE;
@@ -107,6 +114,12 @@ abstract contract BaseStrategyVault is IStrategyVault {
         uint256 assetTokensToTransfer = USE_UNDERLYING_TOKEN ? _mintAssetTokens(tokensFromRedeem) : tokensFromRedeem;
 
         ASSET_TOKEN.transfer(address(NOTIONAL), assetTokensToTransfer);
+    }
+
+    function repaySecondaryBorrowCallback(
+        uint256 assetCashRequired, bytes calldata data
+    ) external onlyNotional returns (bytes memory returnData) {
+        return _repaySecondaryBorrowCallback(assetCashRequired, data);
     }
 
     function _redeemAssetTokens(uint256 assetTokens) internal returns (uint256 underlyingTokens) {
