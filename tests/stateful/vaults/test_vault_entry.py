@@ -3,6 +3,7 @@ import pytest
 from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
 from fixtures import *
+from tests.constants import SECONDS_IN_QUARTER
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.stateful.invariants import check_system_invariants
 
@@ -107,6 +108,25 @@ def test_no_system_level_accounts(environment, vault, accounts):
             0,
             "",
             {"from": vault.address},
+        )
+
+
+def test_enter_vault_past_maturity(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)), 100_000e8
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    with brownie.reverts("Cannot Enter"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity - SECONDS_IN_QUARTER,
+            True,
+            100_001e8,
+            0,
+            "",
+            {"from": accounts[1]},
         )
 
 
@@ -388,7 +408,7 @@ def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, 
             accounts[1],
             vault.address,
             25_000e18,
-            maturity,
+            maturity + SECONDS_IN_QUARTER,
             True,
             100_000e8,
             0,

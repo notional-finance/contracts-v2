@@ -53,6 +53,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Vaults cannot be entered if they are paused
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Cannot Enter");
+        require(block.timestamp < maturity, "Cannot Enter");
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
 
         uint256 strategyTokens;
