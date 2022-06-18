@@ -192,6 +192,7 @@ interface IVaultAccountAction {
      * @param vault the vault to enter
      * @param liquidator the address that will receive profits from liquidation
      * @param depositAmountExternal amount of cash to deposit
+     * @param transferSharesToLiquidator transfers the shares to the liquidator instead of redeeming them
      * @param redeemData calldata sent to the vault when redeeming liquidator profits
      * @return profitFromLiquidation amount of vaultShares or cash received from liquidation
      */
@@ -200,6 +201,7 @@ interface IVaultAccountAction {
         address vault,
         address liquidator,
         uint256 depositAmountExternal,
+        bool transferSharesToLiquidator,
         bytes calldata redeemData
     ) external returns (uint256 profitFromLiquidation);
 

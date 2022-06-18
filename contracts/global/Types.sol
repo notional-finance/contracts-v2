@@ -461,7 +461,7 @@ struct AccountBalance {
 struct VaultConfigStorage {
     // Vault Flags (documented in VaultConfiguration.sol)
     uint16 flags;
-    // Each vault only borrows in a single currency
+    // Primary currency the vault borrows in
     uint16 borrowCurrencyId;
     // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
     uint32 minAccountBorrowSize;

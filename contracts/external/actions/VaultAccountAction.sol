@@ -232,6 +232,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
      * @param vault the vault to enter
      * @param liquidator the address that will receive profits from liquidation
      * @param depositAmountExternal amount of asset cash to deposit
+     * @param transferSharesToLiquidator transfers the shares to the liquidator instead of redeeming them
      * @param redeemData calldata sent to the vault when redeeming liquidator profits
      * @return profitFromLiquidation amount of vaultShares or cash received from liquidation
      */
@@ -240,6 +241,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         address vault,
         address liquidator,
         uint256 depositAmountExternal,
+        bool transferSharesToLiquidator,
         bytes calldata redeemData
     ) external nonReentrant override returns (uint256 profitFromLiquidation) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
@@ -306,8 +308,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultAccount.setVaultAccount(vaultConfig);
 
         // Redeems the vault shares for asset cash and transfers it to the designated address
-        // TODO: turn this into an option
-        if (vaultConfig.getFlag(VaultConfiguration.TRANSFER_SHARES_ON_DELEVERAGE)) {
+        if (transferSharesToLiquidator) {
             vaultState.setVaultState(vaultConfig.vault);
             return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);
         } else {

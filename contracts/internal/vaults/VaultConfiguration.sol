@@ -43,13 +43,9 @@ library VaultConfiguration {
     uint16 internal constant ONLY_VAULT_ROLL                 = 1 << 4;
     uint16 internal constant ONLY_VAULT_DELEVERAGE           = 1 << 5;
     uint16 internal constant ONLY_VAULT_SETTLE               = 1 << 6;
-    // Some tokens may not be able to be redeemed until certain unlock times,
-    // when this is flag is set vaultShares will be transferred to the liquidator instead
-    // of redeemed
-    uint16 internal constant TRANSFER_SHARES_ON_DELEVERAGE   = 1 << 7;
     // External vault methods will have re-entrancy protection on by default, however, some
     // vaults may need to call back into Notional so we can whitelist them for re-entrancy.
-    uint16 internal constant ALLOW_REENTRANCY                = 1 << 8;
+    uint16 internal constant ALLOW_REENTRANCY                = 1 << 7;
 
     function _getVaultConfig(
         address vaultAddress
