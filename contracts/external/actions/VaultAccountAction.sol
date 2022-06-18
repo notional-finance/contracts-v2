@@ -298,11 +298,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // from asset tokens. Trading on the AMM during liquidation is risky and lending at a zero interest rate is more
         // costly to the the liquidated account but is safer from a protocol perspective. This can be seen as a protocol
         // level liquidation fee.
-        vaultAccount.fCash = vaultAccount.fCash.add(vaultConfig.assetRate.convertToUnderlying(vaultAccount.tempCashBalance));
-        // _calculateLiquidatorDeposit should ensure that we only ever lend up to a zero balance, but in the case of any off by
-        // one issues we clear the fCash balance by down to zero.
-        if (vaultAccount.fCash > 0) vaultAccount.fCash = 0;
-        vaultAccount.tempCashBalance = 0;
+        {
+            int256 fCashToReduce = vaultConfig.assetRate.convertToUnderlying(vaultAccount.tempCashBalance);
+            vaultAccount.updateAccountfCash(vaultConfig, vaultState, fCashToReduce, vaultAccount.tempCashBalance.neg());
+            // _calculateLiquidatorDeposit should ensure that we only ever lend up to a zero balance, but in the
+            // case of any off by one issues we clear the fCash balance by down to zero.
+            if (vaultAccount.fCash > 0) vaultAccount.fCash = 0;
+        }
 
         // Sets the liquidated account account
         vaultAccount.setVaultAccount(vaultConfig);
@@ -400,7 +402,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
     function getVaultAccountCollateralRatio(address account, address vault) external override view returns (
         int256 collateralRatio,
-        int256 minCollateralRatio
+        int256 minCollateralRatio,
+        int256 maxLiquidatorDepositAssetCash,
+        bool mustLiquidateFull
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
@@ -412,9 +416,17 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // some fCash balance it does not actually owe any debt anymore.
             collateralRatio = type(int256).max;
         } else {
-            (collateralRatio, /* */) = vaultConfig.calculateCollateralRatio(
+            int256 vaultShareValue;
+            (collateralRatio, vaultShareValue) = vaultConfig.calculateCollateralRatio(
                 vaultState, vaultAccount.vaultShares, vaultAccount.fCash
             );
+
+            // Calculates liquidation factors if the account is eligible
+            if (collateralRatio < minCollateralRatio) {
+                (maxLiquidatorDepositAssetCash, mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
+                    vaultConfig, vaultShareValue
+                );
+            }
         }
     }
 

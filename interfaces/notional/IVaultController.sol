@@ -209,7 +209,9 @@ interface IVaultAccountAction {
     function getVaultAccountMaturity(address account, address vault) external view returns (uint256 maturity);
     function getVaultAccountCollateralRatio(address account, address vault) external view returns (
         int256 collateralRatio,
-        int256 minCollateralRatio
+        int256 minCollateralRatio,
+        int256 maxLiquidatorDepositAssetCash,
+        bool mustLiquidateFull
     );
 }
 

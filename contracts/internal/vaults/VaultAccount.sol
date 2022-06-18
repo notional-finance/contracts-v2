@@ -244,22 +244,17 @@ library VaultAccountLib {
     ) private {
         require(fCash < 0); // dev: fcash must be negative
 
-        {
-            int256 assetCashBorrowed  = executeTrade(
-                vaultConfig.borrowCurrencyId,
-                maturity,
-                fCash,
-                maxBorrowRate,
-                vaultConfig.maxBorrowMarketIndex,
-                blockTime
-            );
-            require(assetCashBorrowed > 0, "Borrow failed");
+        int256 assetCashBorrowed  = executeTrade(
+            vaultConfig.borrowCurrencyId,
+            maturity,
+            fCash,
+            maxBorrowRate,
+            vaultConfig.maxBorrowMarketIndex,
+            blockTime
+        );
+        require(assetCashBorrowed > 0, "Borrow failed");
 
-            // Update the account and vault state to account for the borrowing
-            vaultState.totalfCash = vaultState.totalfCash.add(fCash);
-            vaultAccount.fCash = vaultAccount.fCash.add(fCash);
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashBorrowed);
-        }
+        updateAccountfCash(vaultAccount, vaultConfig, vaultState, fCash, assetCashBorrowed);
 
         // Ensure that we are above the minimum borrow size. Accounts smaller than this are not profitable
         // to unwind if we need to liquidate.
@@ -268,9 +263,6 @@ library VaultAccountLib {
         // Will reduce the tempCashBalance based on the assessed vault fee
         uint256 timeToMaturity = maturity.sub(blockTime);
         vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
-
-        // This will check if the vault can sustain the total borrow capacity
-        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, fCash);
     }
 
     /**
@@ -320,17 +312,24 @@ library VaultAccountLib {
         }
         require(assetCashCostToLend <= 0);
 
-        // Net off the cash balance required and remove the fcash. It's possible
-        // that cash balance is negative here. If that is the case then we need to
-        // transfer in sufficient cash to get the balance up to 0.
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashCostToLend);
+        updateAccountfCash(vaultAccount, vaultConfig, vaultState, fCash, assetCashCostToLend);
+    }
+
+    function updateAccountfCash(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        int256 netfCash,
+        int256 netAssetCash
+    ) internal {
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(netAssetCash);
 
         // Update fCash state on the account and the vault
-        vaultAccount.fCash = vaultAccount.fCash.add(fCash);
-        vaultState.totalfCash = vaultState.totalfCash.add(fCash);
+        vaultAccount.fCash = vaultAccount.fCash.add(netfCash);
+        vaultState.totalfCash = vaultState.totalfCash.add(netfCash);
 
-        // Reduces the total used borrow capacity
-        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, fCash);
+        // Updates the total borrow capacity
+        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, netfCash);
     }
 
     function calculateDeleverageAmount(

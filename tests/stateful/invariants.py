@@ -282,7 +282,7 @@ def check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides=[]):
 
     for (_, netfCash) in fCash.items():
         # Assert that all fCash balances net off to zero
-        assert netfCash == 0
+        assert Wei(netfCash) == 0
 
 
 def check_account_context(env, accounts):

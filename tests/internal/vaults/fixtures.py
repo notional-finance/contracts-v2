@@ -97,10 +97,8 @@ def set_flags(flags, **kwargs):
         binList[5] = "1"
     if "ONLY_VAULT_SETTLE" in kwargs:
         binList[6] = "1"
-    if "TRANSFER_SHARES_ON_DELEVERAGE" in kwargs:
+    if "ALLOW_REENTRANCY" in kwargs:
         binList[7] = "1"
-    if "ALLOW_REENTRNACY" in kwargs:
-        binList[8] = "1"
     return int("".join(reversed(binList)), 2)
 
 

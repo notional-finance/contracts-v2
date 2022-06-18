@@ -247,7 +247,9 @@ def test_enter_vault_with_dai(environment, vault, accounts):
     )
 
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatio, _) = environment.notional.getVaultAccountCollateralRatio(accounts[1], vault)
+    (collateralRatio, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
     vaultState = environment.notional.getVaultState(vault, maturity)
 
     assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
@@ -324,7 +326,7 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
         {"from": accounts[1]},
     )
 
-    (collateralRatioBefore, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
 
@@ -342,7 +344,7 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
-    (collateralRatioAfter, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
 
