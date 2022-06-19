@@ -86,16 +86,6 @@ def upgrade_checks():
         m = re.search("address constant NOTE_TOKEN_ADDRESS = (.*);", constants)
         assert m.group(1) == output["note"]
 
-    router = update_contract(
-        deployer,
-        output,
-        [
-            "nTokenRedeemAction",
-            "AccountAction",
-            "BatchAction",
-            "InitializeMarketsAction",
-            "ERC1155Action",
-        ],
-    )
+    router = update_contract(deployer, output, ["BatchAction"])
 
     print("New Router Implementation At: ", router.address)
