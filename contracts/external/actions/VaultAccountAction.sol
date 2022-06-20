@@ -178,24 +178,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // Past maturity, a vault cannot lend anymore. When they exit they will just be settling.
             uint256 strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
 
-            // Redeems all strategy tokens and updates temp cash balance
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-                vaultConfig.redeem(account, strategyTokens, maturity, exitVaultData)
-            );
+            // Redeems all strategy tokens and any profits are sent back to the account
+            vaultConfig.redeem(account, strategyTokens, maturity, vaultAccount.tempCashBalance, exitVaultData);
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
-
-            if (vaultSharesToRedeem > 0) {
-                // When an account exits the maturity pool it may get some asset cash credited to its temp
-                // cash balance and it will sell the strategy tokens it has a claim on.
-                uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
-
-                // Redeems and updates temp cash balance
-                vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-                    vaultConfig.redeem(account, strategyTokens, vaultState.maturity, exitVaultData)
-                );
-            }
-
             vaultAccount.lendToExitVault(
                 vaultConfig,
                 vaultState,
@@ -203,7 +189,16 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 minLendRate,
                 block.timestamp
             );
-                
+
+            if (vaultSharesToRedeem > 0) {
+                // When an account exits the maturity pool it may get some asset cash credited to its temp
+                // cash balance and it will sell the strategy tokens it has a claim on.
+                uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
+
+                // Redeems the strategy tokens to repay the tempCashBalance.
+                vaultConfig.redeem(account, strategyTokens, vaultState.maturity, vaultAccount.tempCashBalance, exitVaultData);
+            }
+
             if (vaultAccount.fCash < 0) {
                 // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
                 // will be increasing their collateral ratio here, so we check that this is the case).
@@ -212,9 +207,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             vaultState.setVaultState(vaultConfig.vault);
         }
-
-        // Transfers any net deposit or withdraw from the account
-        vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
 
         if (vaultAccount.fCash == 0 && vaultAccount.vaultShares == 0) {
             // If the account has no position in the vault at this point, set the maturity to zero as well
@@ -401,7 +393,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         Token memory assetToken
     ) private returns (uint256) {
         (uint256 assetCash, uint256 strategyTokens) = vaultState.exitMaturityPoolDirect(vaultShares);
-        int256 assetCashInternal = vaultConfig.redeem(liquidator, strategyTokens, vaultState.maturity, redeemData);
+        int256 assetCashInternal = vaultConfig.redeemWithoutDebtRepayment(
+            liquidator, strategyTokens, vaultState.maturity, redeemData
+        );
         assetCashInternal = assetCashInternal.add(assetCash.toInt());
 
         vaultState.setVaultState(vaultConfig.vault);

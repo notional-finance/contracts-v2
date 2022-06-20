@@ -144,7 +144,9 @@ contract VaultAction is ActionGuards, IVaultAction {
         }
 
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
-        int256 assetCashReceived = vaultConfig.redeem(vaultConfig.vault, strategyTokensToRedeem, maturity, vaultData);
+        int256 assetCashReceived = vaultConfig.redeemWithoutDebtRepayment(
+            vaultConfig.vault, strategyTokensToRedeem, maturity, vaultData
+        );
         require(assetCashReceived > 0);
 
         vaultState.totalAssetCash = vaultState.totalAssetCash.add(uint256(assetCashReceived));

@@ -355,6 +355,16 @@ library VaultConfiguration {
         );
     }
 
+    function redeemWithoutDebtRepayment(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint256 strategyTokens,
+        uint256 maturity,
+        bytes calldata data
+    ) internal returns (int256 assetCashInternalRaised) {
+        return redeem(vaultConfig, account, strategyTokens, maturity, 0, data);
+    }
+
     /**
      * @notice This will call the strategy vault and have it redeem the specified amount of Notional strategy tokens
      * for asset tokens. The vault will transfer tokens to Notional.
@@ -370,27 +380,50 @@ library VaultConfiguration {
         address account,
         uint256 strategyTokens,
         uint256 maturity,
+        int256 assetInternalToRepayDebt,
         bytes calldata data
     ) internal returns (int256 assetCashInternalRaised) {
-        if (strategyTokens == 0) return 0;
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
 
-        uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));
-        // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
-        IStrategyVault(vaultConfig.vault).redeemFromNotional(account, strategyTokens, maturity, data);
-        uint256 balanceAfter = IERC20(assetToken.tokenAddress).balanceOf(address(this));
-
-        // Subtraction is done inside uint256 so a negative amount will revert.
-        int256 assetCashExternal = SafeInt256.toInt(balanceAfter.sub(balanceBefore));
-        if (assetToken.tokenType == TokenType.aToken) {
-            // Special handling for aave aTokens which are rebasing
-            assetCashExternal = AaveHandler.convertToScaledBalanceExternal(
-                vaultConfig.borrowCurrencyId,
-                assetCashExternal
-            );
+        uint256 underlyingExternalToRepay;
+        if (assetInternalToRepayDebt < 0) {
+            underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                vaultConfig.assetRate.convertToUnderlying(assetInternalToRepayDebt).neg()
+            ).toUint();
         }
 
-        assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
+        uint256 amountTransferred;
+        if (strategyTokens > 0) {
+            uint256 balanceBefore = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+            // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
+            IStrategyVault(vaultConfig.vault).redeemFromNotional(
+                account, strategyTokens, maturity, underlyingExternalToRepay, data
+            );
+            uint256 balanceAfter = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+            amountTransferred = balanceAfter.sub(balanceBefore);
+        }
+
+        if (amountTransferred < underlyingExternalToRepay) {
+            int256 residualRequired = (underlyingExternalToRepay - amountTransferred).toInt();
+
+            if (underlyingToken.tokenType == TokenType.Ether) {
+                require(msg.value >= uint256(residualRequired), "Insufficient ETH");
+                // Transfer out the unused part of msg.value
+                residualRequired = residualRequired - msg.value.toInt();
+            }
+
+            int256 actualTransferExternal = underlyingToken.transfer(
+                account, vaultConfig.borrowCurrencyId, residualRequired
+            );
+
+            amountTransferred = amountTransferred.add(actualTransferExternal.toUint());
+        }
+        require(amountTransferred >= underlyingExternalToRepay);
+
+        assetCashInternalRaised = assetToken.convertToInternal(
+            assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred)
+        );
     }
 
     function resolveShortfallWithReserve(

@@ -88,11 +88,13 @@ contract MockVaultConfiguration {
         address account,
         uint256 strategyTokens,
         uint256 maturity,
+        int256 assetAmountToRepay,
         bytes calldata data
     ) external returns (int256 assetCashInternalRaised) {
-        return VaultConfiguration.getVaultConfigView(vault).redeem(account, strategyTokens, maturity, data);
+        return VaultConfiguration.getVaultConfigView(vault).redeem(
+            account, strategyTokens, maturity, assetAmountToRepay, data
+        );
     }
-    
 
     /*** Vault State Methods ***/
 
@@ -177,28 +179,28 @@ contract MockVaultConfiguration {
         return (vaultAccount, strategyTokens);
     }
 
-    function depositIntoAccount(
-        VaultAccount memory vaultAccount,
-        address transferFrom,
-        uint16 borrowCurrencyId,
-        uint256 _depositAmountExternal,
-        bool useUnderlying
-    ) external returns (VaultAccount memory) {
-        vaultAccount.depositIntoAccount(transferFrom, borrowCurrencyId, _depositAmountExternal, useUnderlying);
-        return vaultAccount;
-    }
+    // function depositIntoAccount(
+    //     VaultAccount memory vaultAccount,
+    //     address transferFrom,
+    //     uint16 borrowCurrencyId,
+    //     uint256 _depositAmountExternal,
+    //     bool useUnderlying
+    // ) external returns (VaultAccount memory) {
+    //     vaultAccount.depositIntoAccount(transferFrom, borrowCurrencyId, _depositAmountExternal, useUnderlying);
+    //     return vaultAccount;
+    // }
 
-    function transferTempCashBalance(
-        VaultAccount memory vaultAccount,
-        uint16 borrowCurrencyId,
-        bool useUnderlying
-    ) external returns (VaultAccount memory) {
-        VaultConfig memory vaultConfig;
-        vaultConfig.borrowCurrencyId = borrowCurrencyId;
-        vaultConfig.assetRate = AssetRate.buildAssetRateStateful(borrowCurrencyId);
-        vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
-        return vaultAccount;
-    }
+    // function transferTempCashBalance(
+    //     VaultAccount memory vaultAccount,
+    //     uint16 borrowCurrencyId,
+    //     bool useUnderlying
+    // ) external returns (VaultAccount memory) {
+    //     VaultConfig memory vaultConfig;
+    //     vaultConfig.borrowCurrencyId = borrowCurrencyId;
+    //     vaultConfig.assetRate = AssetRate.buildAssetRateStateful(borrowCurrencyId);
+    //     vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
+    //     return vaultAccount;
+    // }
 
     function calculateDeleverageAmount(
         VaultAccount memory vaultAccount,

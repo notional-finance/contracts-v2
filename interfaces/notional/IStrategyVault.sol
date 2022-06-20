@@ -19,6 +19,7 @@ interface IStrategyVault {
         address account,
         uint256 strategyTokens,
         uint256 maturity,
+        uint256 underlyingToRepayDebt,
         bytes calldata data
     ) external;
 

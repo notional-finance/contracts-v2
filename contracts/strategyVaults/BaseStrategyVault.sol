@@ -41,11 +41,9 @@ abstract contract BaseStrategyVault is IStrategyVault {
     }
 
     uint16 internal immutable BORROW_CURRENCY_ID;
-    TokenType internal immutable ASSET_TOKEN_TYPE;
-    ERC20 public immutable ASSET_TOKEN;
-    ERC20 public immutable UNDERLYING_TOKEN;
+    ERC20 internal immutable UNDERLYING_TOKEN;
+    bool internal immutable UNDERLYING_IS_ETH;
     NotionalProxy public immutable NOTIONAL;
-    ILendingPool public immutable AAVE_LENDING_POOL;
 
     uint8 constant internal INTERNAL_TOKEN_DECIMALS = 8;
     string public override name;
@@ -64,19 +62,16 @@ abstract contract BaseStrategyVault is IStrategyVault {
         name = name_;
         NOTIONAL = NotionalProxy(notional_);
         BORROW_CURRENCY_ID = borrowCurrencyId_;
-        address lendingPool = NotionalProxy(notional_).getLendingPool(); 
-        AAVE_LENDING_POOL = ILendingPool(lendingPool);
 
         (
-            Token memory assetToken,
+            /* Token memory assetToken */,
             Token memory underlyingToken,
             /* ETHRate memory ethRate */,
             /* AssetRateParameters memory assetRate */
         ) = NotionalProxy(notional_).getCurrencyAndRates(borrowCurrencyId_);
 
-        ASSET_TOKEN = ERC20(assetToken.tokenAddress);
-        ASSET_TOKEN_TYPE = assetToken.tokenType;
         UNDERLYING_TOKEN = ERC20(underlyingToken.tokenAddress);
+        UNDERLYING_IS_ETH = underlyingToken.tokenType == TokenType.Ether;
     }
 
     // External methods are authenticated to be just Notional
@@ -93,14 +88,33 @@ abstract contract BaseStrategyVault is IStrategyVault {
         address account,
         uint256 strategyTokens,
         uint256 maturity,
+        uint256 underlyingToRepayDebt,
         bytes calldata data
     ) external onlyNotional {
         uint256 tokensFromRedeem = _redeemFromNotional(account, strategyTokens, maturity, data);
 
-        // // TODO: handle ETH
-        // // TODO: do not revert on underflow
-        // UNDERLYING_TOKEN.transfer(account, tokensFromRedeem - underlyingTokensRequiredForRepayment);
-        // UNDERLYING_TOKEN.transfer(address(NOTIONAL), underlyingTokensRequiredForRepayment);
+        uint256 transferToNotional;
+        uint256 transferToAccount;
+        if (account == address(this) || tokensFromRedeem <= underlyingToRepayDebt) {
+            // It may be the case that insufficient tokens were redeemed to repay the debt. If this
+            // happens the Notional will attempt to recover the shortfall from the account directly.
+            // This can happen if an account wants to reduce their leverage by paying off debt but
+            // does not want to sell strategy tokens to do so.
+            // The other situation would be that the vault is calling redemption to deleverage or
+            // settle. In that case all tokens go back to Notional.
+            transferToNotional = tokensFromRedeem;
+        } else {
+            transferToNotional = underlyingToRepayDebt;
+            unchecked { transferToAccount = tokensFromRedeem - underlyingToRepayDebt; }
+        }
+
+        if (UNDERLYING_IS_ETH) {
+            if (transferToAccount > 0) payable(account).transfer(transferToAccount);
+            if (transferToNotional > 0) payable(address(NOTIONAL)).transfer(transferToNotional);
+        } else {
+            if (transferToAccount > 0) UNDERLYING_TOKEN.safeTransfer(account, transferToAccount);
+            if (transferToNotional > 0) UNDERLYING_TOKEN.safeTransfer(address(NOTIONAL), transferToNotional);
+        }
     }
 
     function repaySecondaryBorrowCallback(
