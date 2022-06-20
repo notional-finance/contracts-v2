@@ -141,6 +141,7 @@ library VaultStateLib {
      * @param vaultConfig vault config
      * @param vaultState vault state for the maturity we are entering
      * @param strategyTokenDeposit any existing amount of strategy tokens to deposit from settlement
+     * @param additionalUnderlyingExternal any additional tokens already deposited to the vault in enterVault
      * @param vaultData calldata to pass to the vault
      */
     function enterMaturityPool(
@@ -148,6 +149,7 @@ library VaultStateLib {
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         uint256 strategyTokenDeposit,
+        uint256 additionalUnderlyingExternal,
         bytes calldata vaultData
     ) internal {
         // If the vault state is holding asset cash this would mean that there is some sort of emergency de-risking
@@ -168,9 +170,9 @@ library VaultStateLib {
 
         // This will transfer the cash amount to the vault and mint strategy tokens which will be transferred
         // to the current contract.
-        strategyTokenDeposit = strategyTokenDeposit.add(
-            vaultConfig.deposit(vaultAccount.account, vaultAccount.tempCashBalance, vaultState.maturity, vaultData)
-        );
+        strategyTokenDeposit = strategyTokenDeposit.add(vaultConfig.deposit(
+            vaultAccount.account, vaultAccount.tempCashBalance, vaultState.maturity, additionalUnderlyingExternal, vaultData
+        ));
         // Clear the cash balance after the deposit
         vaultAccount.tempCashBalance = 0;
 

@@ -178,7 +178,9 @@ contract VaultAction is ActionGuards, IVaultAction {
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
 
         int256 assetCashInternal = assetToken.convertToInternal(SafeInt256.toInt(assetCashToDepositExternal));
-        uint256 strategyTokensMinted = vaultConfig.deposit(vaultConfig.vault, assetCashInternal, maturity, vaultData);
+        uint256 strategyTokensMinted = vaultConfig.deposit(
+            vaultConfig.vault, assetCashInternal, maturity, 0, vaultData
+        );
 
         vaultState.totalAssetCash = vaultState.totalAssetCash.sub(SafeInt256.toUint(assetCashInternal));
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokensMinted);

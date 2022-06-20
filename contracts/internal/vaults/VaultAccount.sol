@@ -245,12 +245,11 @@ library VaultAccountLib {
         uint256 fCashToBorrow,
         uint32 maxBorrowRate,
         bytes calldata vaultData,
-        uint256 strategyTokenDeposit
+        uint256 strategyTokenDeposit,
+        uint256 additionalUnderlyingExternal
     ) internal {
         // The vault account can only be increasing their borrow position or not have one set. If they
-        // are increasing their position they will be in the current maturity. We won't update the
-        // maturity in this method, it will be updated when we enter the maturity pool at the end
-        // of the parent method borrowAndEnterVault
+        // are increasing their position they must be borrowing from the same maturity.
         require(vaultAccount.maturity == maturity || vaultAccount.fCash == 0);
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
 
@@ -269,7 +268,9 @@ library VaultAccountLib {
 
         // Migrates the account from its old pool to the new pool if required, updates the current
         // pool and deposits asset tokens into the vault
-        vaultState.enterMaturityPool(vaultAccount, vaultConfig, strategyTokenDeposit, vaultData);
+        vaultState.enterMaturityPool(
+            vaultAccount, vaultConfig, strategyTokenDeposit, additionalUnderlyingExternal, vaultData
+        );
 
         // Set the vault state and account in storage and check the vault's collateral ratio
         vaultState.setVaultState(vaultConfig.vault);

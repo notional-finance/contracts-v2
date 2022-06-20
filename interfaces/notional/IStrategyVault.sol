@@ -12,7 +12,7 @@ interface IStrategyVault {
         uint256 depositAmount,
         uint256 maturity,
         bytes calldata data
-    ) external returns (uint256 strategyTokensMinted);
+    ) external payable returns (uint256 strategyTokensMinted);
 
     // Tells a vault to redeem some amount of strategy tokens from Notional and transfer the resulting asset cash
     function redeemFromNotional(

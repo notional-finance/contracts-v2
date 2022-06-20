@@ -18,7 +18,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
         string memory name_,
         address notional_,
         uint16 borrowCurrencyId_
-    ) BaseStrategyVault(name_, notional_, borrowCurrencyId_, true, true) { }
+    ) BaseStrategyVault(name_, notional_, borrowCurrencyId_) { }
 
     // Vaults need to implement these two methods
     function _depositFromNotional(

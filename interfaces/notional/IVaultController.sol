@@ -121,7 +121,6 @@ interface IVaultAccountAction {
      * @param depositAmountExternal some amount of additional collateral in the borrowed currency
      * to be transferred to vault
      * @param maturity the maturity to borrow at
-     * @param useUnderlying true if the account will transfer underlying tokens
      * @param fCash amount to borrow
      * @param maxBorrowRate maximum interest rate to borrow at
      * @param vaultData additional data to pass to the vault contract
@@ -131,11 +130,10 @@ interface IVaultAccountAction {
         address vault,
         uint256 depositAmountExternal,
         uint256 maturity,
-        bool useUnderlying,
         uint256 fCash,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external;
+    ) external payable;
 
     /**
      * @notice Re-enters the vault at a longer dated maturity. The account's existing borrow

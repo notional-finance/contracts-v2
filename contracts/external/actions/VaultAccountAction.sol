@@ -26,7 +26,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
      * @param depositAmountExternal some amount of additional collateral in the borrowed currency
      * to be transferred to vault
      * @param maturity the maturity to borrow at
-     * @param useUnderlying true if the account will transfer underlying tokens
      * @param fCash amount to borrow
      * @param maxBorrowRate maximum interest rate to borrow at
      * @param vaultData additional data to pass to the vault contract
@@ -36,11 +35,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         address vault,
         uint256 depositAmountExternal,
         uint256 maturity,
-        bool useUnderlying,
         uint256 fCash,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external override nonReentrant { 
+    ) external payable override nonReentrant { 
         // Ensure that system level accounts cannot enter vaults
         requireValidAccount(account);
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
@@ -60,13 +58,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         if (vaultAccount.maturity != 0 && vaultAccount.maturity <= block.timestamp) {
             strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
         }
-        // This will update the account's cash balance in memory, this will establish the amount of
-        // collateral that the vault account has. This method only transfers from the account, so approvals
-        // must be set accordingly.
-        // TODO: this should transfer directly to the vault...
-        vaultAccount.depositIntoAccount(account, vaultConfig.borrowCurrencyId, depositAmountExternal, useUnderlying);
 
-        vaultAccount.borrowAndEnterVault(vaultConfig, maturity, fCash, maxBorrowRate, vaultData, strategyTokens);
+        // Deposits some amount of underlying tokens into the vault directly to serve as additional collateral when
+        // entering the vault.
+        uint256 additionalUnderlyingExternal = vaultConfig.transferUnderlyingToVaultDirect(account, depositAmountExternal);
+        vaultAccount.borrowAndEnterVault(
+            vaultConfig, maturity, fCash, maxBorrowRate, vaultData, strategyTokens, additionalUnderlyingExternal
+        );
     }
 
     /**
@@ -133,7 +131,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             fCashToBorrow,
             opts.maxBorrowRate,
             opts.enterVaultData,
-            strategyTokens
+            strategyTokens,
+            0 // No additional tokens deposited in this method
         );
     }
 

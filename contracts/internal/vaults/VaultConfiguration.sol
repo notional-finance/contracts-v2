@@ -289,12 +289,47 @@ library VaultConfiguration {
         require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
     }
 
+    /// @notice Transfers underlying tokens directly from the account into the vault, used in enterVault
+    /// to deposit collateral from the account into the vault directly to skip additional ERC20 transfers.
+    /// @param vaultConfig the vault configuration
+    /// @param transferFrom the address to transfer from
+    /// @param depositAmountExternal the amount to transfer from the account to the vault
+    /// @return the amount of underlying external transferred to the valut
+    function transferUnderlyingToVaultDirect(
+        VaultConfig memory vaultConfig,
+        address transferFrom,
+        uint256 depositAmountExternal
+    ) internal returns (uint256) {
+        if (depositAmountExternal == 0) return 0;
+
+        Token memory underlying = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+        address vault = vaultConfig.vault;
+        if (underlying.tokenType == TokenType.Ether) {
+            require(msg.value == depositAmountExternal, "Invalid ETH");
+
+            // Forward all the ETH to the vault
+            GenericToken.transferNativeTokenOut(vault, msg.value);
+            return msg.value;
+        } else if (underlying.hasTransferFee) {
+            uint256 balanceBefore = IERC20(underlying.tokenAddress).balanceOf(vault);
+            GenericToken.safeTransferFrom(underlying.tokenAddress, transferFrom, vault, depositAmountExternal);
+            uint256 balanceAfter = IERC20(underlying.tokenAddress).balanceOf(vault);
+
+            return balanceAfter.sub(balanceBefore);
+        } else {
+            GenericToken.safeTransferFrom(underlying.tokenAddress, transferFrom, vault, depositAmountExternal);
+            return depositAmountExternal;
+        }
+    }
+
     /**
      * @notice This will transfer asset tokens to the strategy vault and mint strategy tokens back to Notional.
-     * Vaults cannot pull tokens from Notional (they are never granted approval) for security reasons.
      * @param vaultConfig vault config
-     * @param cashToTransferInternal amount to transfer in internal precision
+     * @param account account to pass to the vault
+     * @param cashToTransferInternal amount of asset cash to  transfer in internal precision
      * @param maturity the maturity of the vault shares
+     * @param additionalUnderlyingExternal amount of additional underlying tokens already transferred to
+     * the vault in enterVault
      * @param data arbitrary data to pass to the vault
      * @return strategyTokensMinted the amount of strategy tokens minted
      */
@@ -303,28 +338,20 @@ library VaultConfiguration {
         address account,
         int256 cashToTransferInternal,
         uint256 maturity,
+        uint256 additionalUnderlyingExternal,
         bytes calldata data
     ) internal returns (uint256 strategyTokensMinted) {
-        if (cashToTransferInternal == 0) return 0;
-
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        int256 transferAmountExternal = assetToken.convertAssetInternalToNativeExternal(
-            vaultConfig.borrowCurrencyId,
-            cashToTransferInternal
-        );
+        uint256 transferAmountExternal = assetToken.convertToExternal(cashToTransferInternal).toUint();
 
-        // Ensures that transfer amounts are always positive
-        uint256 transferAmount = SafeInt256.toUint(transferAmountExternal);
-        address vault = vaultConfig.vault;
-        IERC20 token = IERC20(assetToken.tokenAddress);
+        // Redeem returns the amount of underlying tokens transferred to the vault, this is a negative value
+        // to signify that assets have left the protocol. Flip it to a positive integer here.
+        uint256 actualTransferExternal = assetToken.redeem(
+            vaultConfig.borrowCurrencyId, vaultConfig.vault, transferAmountExternal
+        ).neg().toUint();
 
-        // Do the transfer, ensuring that we get the most accurate accounting of the amount transferred to the vault
-        uint256 balanceBefore = token.balanceOf(vault);
-        GenericToken.safeTransferOut(address(token), vault, transferAmount);
-        uint256 balanceAfter = token.balanceOf(vault);
-
-        strategyTokensMinted = IStrategyVault(vault).depositFromNotional(
-            account, balanceAfter.sub(balanceBefore), maturity, data
+        strategyTokensMinted = IStrategyVault(vaultConfig.vault).depositFromNotional(
+            account, actualTransferExternal.add(additionalUnderlyingExternal), maturity, data
         );
     }
 
