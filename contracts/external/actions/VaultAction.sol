@@ -321,30 +321,11 @@ contract VaultAction is ActionGuards, IVaultAction {
             // After this point, we have a cash shortfall and will need to resolve it.
             // Underflow checked above
             int256 assetCashShortfall = (assetCashRequiredToSettle - vaultState.totalAssetCash).toInt();
-            uint16 currencyId = vaultConfig.borrowCurrencyId;
-            emit VaultShortfall(currencyId, vaultConfig.vault, assetCashShortfall);
+            uint256 assetCashRaised = VaultConfiguration.resolveShortfallWithReserve(
+                vaultConfig.vault, vaultConfig.borrowCurrencyId, assetCashShortfall
+            ).toUint();
 
-            // Attempt to resolve the cash balance using the reserve
-            (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(
-                Constants.RESERVE, currencyId
-            );
-
-            if (assetCashShortfall <= reserveInternal) {
-                BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - assetCashShortfall);
-                vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashShortfall.toUint());
-            } else {
-                // At this point the protocol needs to raise funds from sNOTE since the reserve is
-                // insufficient to cover
-                BalanceHandler.setReserveCashBalance(currencyId, 0);
-                vaultState.totalAssetCash = vaultState.totalAssetCash.add(reserveInternal.toUint());
-                emit ProtocolInsolvency(currencyId, vaultConfig.vault, assetCashShortfall - reserveInternal);
-            }
-
-            // If there is any cash shortfall, we automatically disable the vault. Accounts can still
-            // exit but no one can enter. Governance can re-enable the vault.
-            VaultConfiguration.setVaultEnabledStatus(vaultConfig.vault, false);
-            emit VaultPauseStatus(vaultConfig.vault, false);
-
+            vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashRaised);
             vaultState.setVaultState(vault);
         }
 

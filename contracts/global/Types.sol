@@ -535,6 +535,14 @@ struct VaultStateStorage {
     // NOTE: 96 bits left
 }
 
+/// @notice Represents the remaining assets in a vault post settlement
+struct VaultSettledAssetsStorage {
+    // Remaining strategy tokens that have not been withdrawn
+    uint80 remainingStrategyTokens;
+    // Remaining asset cash that has not been withdrawn
+    uint80 remainingAssetCash;
+}
+
 struct VaultState {
     uint256 maturity;
     int256 totalfCash;
@@ -542,7 +550,7 @@ struct VaultState {
     uint256 totalVaultShares;
     uint256 totalAssetCash;
     uint256 totalStrategyTokens;
-    int256 settlementStrategyTokenValue;
+    uint256 settlementStrategyTokenValue;
 }
 
 /// @notice Represents an account's position within an individual vault

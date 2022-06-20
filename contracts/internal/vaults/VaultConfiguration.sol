@@ -31,8 +31,13 @@ library VaultConfiguration {
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
 
-    /// @notice Emitted when a vault is unable to repay its debt
-    event ProtocolInsolvency(uint16 currencyId, address vault, int256 shortfall);
+    /// @notice Emitted when a vault's status is updated
+    event VaultPauseStatus(address indexed vault, bool enabled);
+    /// @notice Emitted when a vault has a shortfall upon settlement
+    event VaultShortfall(uint16 indexed currencyId, address indexed vault, int256 shortfall);
+    /// @notice Emitted when a vault has an insolvency that cannot be covered by the
+    /// cash reserve
+    event ProtocolInsolvency(uint16 indexed currencyId, address indexed vault, int256 shortfall);
 
     uint16 internal constant ENABLED                         = 1 << 0;
     uint16 internal constant ALLOW_ROLL_POSITION             = 1 << 1;
@@ -359,6 +364,34 @@ library VaultConfiguration {
         }
 
         assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
+    }
+
+    function resolveShortfallWithReserve(
+        address vault,
+        uint16 currencyId,
+        int256 assetCashShortfall
+    ) internal returns (int256 assetCashRaised) {
+        // If there is any cash shortfall, we automatically disable the vault. Accounts can still
+        // exit but no one can enter. Governance can re-enable the vault.
+        setVaultEnabledStatus(vault, false);
+        emit VaultPauseStatus(vault, false);
+        emit VaultShortfall(currencyId, vault, assetCashShortfall);
+
+        // Attempt to resolve the cash balance using the reserve
+        (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(
+            Constants.RESERVE, currencyId
+        );
+
+        if (assetCashShortfall <= reserveInternal) {
+            BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - assetCashShortfall);
+            assetCashRaised = assetCashShortfall;
+        } else {
+            // At this point the protocol needs to raise funds from sNOTE since the reserve is
+            // insufficient to cover
+            BalanceHandler.setReserveCashBalance(currencyId, 0);
+            emit ProtocolInsolvency(currencyId, vault, assetCashShortfall - reserveInternal);
+            assetCashRaised = reserveInternal;
+        }
     }
 
 }

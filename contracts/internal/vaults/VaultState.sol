@@ -6,7 +6,8 @@ import {
     VaultAccount,
     VaultConfig,
     VaultState,
-    VaultStateStorage
+    VaultStateStorage,
+    VaultSettledAssetsStorage
 } from "../../global/Types.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {Token, TokenHandler} from "../balances/TokenHandler.sol";
@@ -82,6 +83,12 @@ library VaultStateLib {
         s.isSettled = true;
         // Save off the value of a single strategy token at settlement
         s.settlementStrategyTokenValue = singleTokenValueInternal.toUint().toUint80();
+
+        // Initializes the settled assets counters for individual vault settlement
+        VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
+            [vaultConfig.vault][maturity];
+        settledAssets.remainingStrategyTokens = s.totalStrategyTokens;
+        settledAssets.remainingAssetCash = s.totalAssetCash;
     }
 
     /**

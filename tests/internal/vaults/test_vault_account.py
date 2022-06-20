@@ -173,9 +173,7 @@ def test_settle_asset_cash_with_residual(vaultConfig, accounts, vault, residual)
     )
 
 
-@pytest.mark.skip
-@given(escrowedAssetCash=strategy("uint", min_value=100_000e8, max_value=300_000e8))
-def test_settle_insolvent_account(vaultConfig, accounts, vault, escrowedAssetCash):
+def test_settle_insolvent_account(vaultConfig, accounts, vault):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
     maturity = START_TIME_TREF + SECONDS_IN_QUARTER
     vault.setExchangeRate(1e18)
@@ -185,16 +183,13 @@ def test_settle_insolvent_account(vaultConfig, accounts, vault, escrowedAssetCas
             maturity=maturity,
             totalVaultShares=1_000_000e8,
             totalStrategyTokens=100_000e8,  # This represents profits
-            totalAssetCash=50_000_000e8 - escrowedAssetCash,
+            totalAssetCash=50_000_000e8,
             totalfCash=-1_000_000e8,
-            totalEscrowedAssetCash=escrowedAssetCash,
         ),
     )
     vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
 
-    account = get_vault_account(
-        maturity=maturity, fCash=-10_000e8, escrowedAssetCash=escrowedAssetCash, vaultShares=0
-    )
+    account = get_vault_account(maturity=maturity, fCash=-10_000e8, vaultShares=0)
     account2 = get_vault_account(
         maturity=maturity,
         fCash=-1_000_000e8 + 10_000e8,
@@ -210,19 +205,17 @@ def test_settle_insolvent_account(vaultConfig, accounts, vault, escrowedAssetCas
 
     assert accountAfter["fCash"] == 0
     assert accountAfter["maturity"] == 0
-    assert accountAfter["escrowedAssetCash"] == 0
     assert accountAfter["vaultShares"] == 0
     assert accountAfter2["fCash"] == 0
     assert accountAfter2["maturity"] == 0
-    assert accountAfter2["escrowedAssetCash"] == 0
     assert accountAfter2["vaultShares"] == 0
 
     # Account gets their share of strategy tokens here, nothing else
     assert strategyTokens == 0
     assert strategyTokens2 == 100_000e8
     # Account gets their share of the residuals
-    assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == -500_000e8 + escrowedAssetCash
-    assert accountAfter2["tempCashBalance"] == 0
+    assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == -500_000e8
+    assert accountAfter2["tempCashBalance"] == 500_000e8
 
 
 @given(
