@@ -245,20 +245,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bool transferSharesToLiquidator,
         bytes calldata redeemData
     ) external nonReentrant override returns (uint256 profitFromLiquidation) {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
-        // If the vault allows further re-entrancy then set the status back to the default
-        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
-            reentrancyStatus = _NOT_ENTERED;
-        }
-
-        // Authorization rules for deleveraging
-        if (vaultConfig.getFlag(VaultConfiguration.ONLY_VAULT_DELEVERAGE)) {
-            require(msg.sender == vault, "Unauthorized");
-        }
-        // Cannot liquidate self, if a vault needs to deleverage itself as a whole it has other methods 
-        // in VaultAction to do so.
-        require(account != msg.sender && account != liquidator, "Unauthorized");
-
+        VaultConfig memory vaultConfig = _authenticateDeleverage(account, vault, liquidator);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
@@ -272,13 +259,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(collateralRatio < vaultConfig.minCollateralRatio , "Sufficient Collateral");
 
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        depositAmountExternal =_calculateLiquidatorDeposit(
-            assetToken, vaultAccount, vaultConfig, depositAmountExternal, vaultShareValue
+        // This will deposit some amount of cash into vaultAccount.tempCashBalance
+        _depositLiquidatorAmount(
+            liquidator, assetToken, vaultAccount, vaultConfig, depositAmountExternal, vaultShareValue
         );
-
-        // Vault account will receive some deposit from the liquidator, the liquidator will be able to purchase their
-        // vault shares at a discount to the deposited amount
-        vaultAccount.depositIntoAccount(liquidator, vaultConfig.borrowCurrencyId, depositAmountExternal, false);
 
         // The liquidator will purchase vault shares from the vault account at discount. The calculation is:
         // (cashDeposited / assetCashValueOfShares) * liquidationRate * vaultShares
@@ -315,46 +299,79 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             vaultState.setVaultState(vaultConfig.vault);
             return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);
         } else {
-            uint256 totalProfits = _redeemLiquidatorProfits(
-                liquidator, vaultConfig, vaultState, vaultSharesToLiquidator, redeemData
+            return _redeemLiquidatorProfits(
+                liquidator, vaultConfig, vaultState, vaultSharesToLiquidator, redeemData, assetToken
             );
-            
-            // Returns a negative amount to signify assets have left the protocol
-            int256 actualTransferExternal = assetToken.transfer(
-                liquidator, vaultConfig.borrowCurrencyId, totalProfits.toInt().neg()
-            );
-
-            return actualTransferExternal.neg().toUint();
         }
     }
 
-    function _calculateLiquidatorDeposit(
+    /// @notice Authenticates a call to the deleverage method
+    function _authenticateDeleverage(
+        address account,
+        address vault,
+        address liquidator
+    ) private returns (VaultConfig memory vaultConfig) {
+        vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        // If the vault allows further re-entrancy then set the status back to the default
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
+            reentrancyStatus = _NOT_ENTERED;
+        }
+
+        // Authorization rules for deleveraging
+        if (vaultConfig.getFlag(VaultConfiguration.ONLY_VAULT_DELEVERAGE)) {
+            require(msg.sender == vault, "Unauthorized");
+        }
+        // Cannot liquidate self, if a vault needs to deleverage itself as a whole it has other methods 
+        // in VaultAction to do so.
+        require(account != msg.sender && account != liquidator, "Unauthorized");
+    }
+
+    /// @notice Calculates the amount the liquidator must deposit and then transfers it into Notional,
+    /// crediting the account's temporary cash balance. Deposits must be in the form of asset cash.
+    function _depositLiquidatorAmount(
+        address liquidator,
         Token memory assetToken,
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        uint256 depositAmountExternal,
+        uint256 _depositAmountExternal,
         int256 vaultShareValue
-    ) private view returns (uint256) {
+    ) private {
+        int256 depositAmountExternal = _depositAmountExternal.toInt();
+        if (assetToken.tokenType == TokenType.aToken) {
+            // Handles special accounting requirements for aTokens
+            depositAmountExternal = AaveHandler.convertToScaledBalanceExternal(
+                vaultConfig.borrowCurrencyId, depositAmountExternal
+            );
+        }
+
         // Calculates the maximum deleverage amount
         (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
             vaultConfig, vaultShareValue
         );
+        // For aTokens this amount is in scaled balance external precision (the same as depositAmountExternal)
+        int256 maxLiquidatorDepositExternal = assetToken.convertToExternal(maxLiquidatorDepositAssetCash);
 
-        uint256 maxLiquidatorDepositExternal = assetToken.convertAssetInternalToNativeExternal(
-            vaultConfig.borrowCurrencyId,
-            maxLiquidatorDepositAssetCash
-        ).toUint();
-
+        // NOTE: deposit amount external is always positive in this method
         if (depositAmountExternal < maxLiquidatorDepositExternal) {
-            // If this flag is set, the liquidator must deposit more cash to liquidate the account down to a zero
-            // fCash balance
+            // If this flag is set, the liquidator must deposit more cash in ordert to liquidate the account
+            // down to a zero fCash balance because it will fall under the minimum borrowing limit.
             require(!mustLiquidateFull, "Must Liquidate All Debt");
-            return depositAmountExternal;
         } else {
-            return maxLiquidatorDepositExternal;
+            // In the other case, limit the deposited amount to the maximum
+            depositAmountExternal = maxLiquidatorDepositExternal;
         }
+
+        // Transfers the amount of asset tokens into Notional and credit it to the account's temp cash balance
+        int256 assetAmountExternalTransferred = assetToken.transfer(
+            liquidator, vaultConfig.borrowCurrencyId, depositAmountExternal
+        );
+
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+            assetToken.convertToInternal(assetAmountExternalTransferred)
+        );
     }
 
+    /// @notice Transfers liquidator profits in the form of vault shares to be returned to the liquidator
     function _transferLiquidatorProfits(
         address receiver,
         VaultConfig memory vaultConfig,
@@ -375,21 +392,37 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         return vaultSharesToLiquidator;
     }
 
+    /// @notice Redeems liquidator profits back to asset cash and transfers it to the liquidator
     function _redeemLiquidatorProfits(
-        address receiver,
+        address liquidator,
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
-        uint256 vaultSharesToLiquidator,
-        bytes calldata redeemData
+        uint256 vaultShares,
+        bytes calldata redeemData,
+        Token memory assetToken
     ) private returns (uint256) {
-        (uint256 totalProfits, uint256 strategyTokensWithdrawn) = vaultState.exitMaturityPoolDirect(vaultSharesToLiquidator);
-        // Redeem returns an int, but we ensure that it is positive here
-        totalProfits = totalProfits.add(vaultConfig.redeem(
-            receiver, strategyTokensWithdrawn, vaultState.maturity, redeemData
-        ).toUint());
+        (uint256 assetCash, uint256 strategyTokens) = vaultState.exitMaturityPoolDirect(vaultShares);
+        int256 assetCashInternal = vaultConfig.redeem(liquidator, strategyTokens, vaultState.maturity, redeemData);
+        assetCashInternal = assetCashInternal.add(assetCash.toInt());
 
         vaultState.setVaultState(vaultConfig.vault);
-        return totalProfits;
+
+        // Returns a negative amount to signify assets have left the protocol. For aTokens this is the scaled
+        // balance external.
+        int256 actualTransferExternal = assetToken.transfer(
+            liquidator, vaultConfig.borrowCurrencyId, assetToken.convertToExternal(assetCashInternal.neg())
+        );
+
+        if (assetToken.tokenType == TokenType.aToken) {
+            // Convert this back to aToken balanceOf amount to return back to the liquidator
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+            actualTransferExternal = AaveHandler.convertFromScaledBalanceExternal(
+                underlyingToken.tokenAddress, actualTransferExternal
+            );
+        }
+
+        // actualTransferExternal is negative to signify assets have left the protocol
+        return actualTransferExternal.neg().toUint();
     }
 
     /** View Methods **/

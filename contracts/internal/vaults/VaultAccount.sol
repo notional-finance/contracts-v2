@@ -395,7 +395,7 @@ library VaultAccountLib {
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         int256 vaultShareValue
-    ) internal view returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
+    ) internal pure returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
         // In the base case, the liquidator can deleverage an account up to minCollateralRatio * VAULT_DELEVERAGE_LIMIT
         // which is a constant value. This assures that a liquidator cannot over-purchase assets on an account.
         int256 maxCollateralRatioPlusOne = vaultConfig.maxDeleverageCollateralRatio.add(Constants.RATE_PRECISION);
