@@ -199,7 +199,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 fCashToBorrow,
         uint32 maxBorrowRate
     ) external override returns (uint256 underlyingTokensTransferred) {
-        int256 netAssetCash = _executeSecondaryCurrencyTrade(
+        (int256 netAssetCash, /* */) = _executeSecondaryCurrencyTrade(
             currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
         );
         // Require that borrow trades succeed
@@ -221,29 +221,40 @@ contract VaultAction is ActionGuards, IVaultAction {
     ) external override returns (bytes memory returnData) {
         int256 netAssetCash;
         int256 netfCash = fCashToLend.toInt();
+        AssetRateParameters memory assetRate;
         if (maturity > block.timestamp) {
-            netAssetCash = _executeSecondaryCurrencyTrade(currencyId, maturity, netfCash, minLendRate);
+            (netAssetCash, assetRate) = _executeSecondaryCurrencyTrade(currencyId, maturity, netfCash, minLendRate);
         } else {
             // Post maturity, repayment must be done via the settlement rate
-            AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateView(currencyId, maturity);
-            netAssetCash = settlementRate.convertFromUnderlying(netfCash).neg();
+            assetRate = AssetRate.buildSettlementRateStateful(currencyId, maturity, block.timestamp);
+            netAssetCash = assetRate.convertFromUnderlying(netfCash).neg();
             VaultConfiguration.updateSecondaryBorrowCapacity(msg.sender, currencyId, maturity, netfCash);
+
+            // However, for the next step when we calculate the underlying amount to repay, we have to use
+            // the most current asset rate.
+            assetRate = AssetRate.buildAssetRateStateful(currencyId);
         }
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
 
-        // The vault MUST return exactly this amount of asset tokens to the vault in the callback. We use
-        // a callback here because it is more precise and gas efficient than calculating netAssetCash twoice
-        uint256 assetCashRequiredExternal = assetToken.convertAssetInternalToNativeExternal(
-            currencyId, netAssetCash.neg()
-        ).toUint();
+        // The vault MUST return exactly this amount of underlying tokens to the vault in the callback. We use
+        // a callback here because it is more precise and gas efficient than calculating netAssetCash twice
+        uint256 balanceTransferred;
+        {
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
+            uint256 underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                assetRate.convertToUnderlying(netAssetCash).neg()
+            ).toUint();
 
-        uint256 balanceBefore = IERC20(assetToken.tokenAddress).balanceOf(address(this));
-        // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
-        returnData = IStrategyVault(msg.sender).repaySecondaryBorrowCallback(
-            assetCashRequiredExternal, callbackData
-        );
-        uint256 balanceAfter = IERC20(assetToken.tokenAddress).balanceOf(address(this));
-        require(balanceAfter.sub(balanceBefore) >= assetCashRequiredExternal, "Insufficient Repay");
+            uint256 balanceBefore = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+            // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
+            returnData = IStrategyVault(msg.sender).repaySecondaryBorrowCallback(
+                underlyingExternalToRepay, callbackData
+            );
+            uint256 balanceAfter = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+            uint256 balanceTransferred = balanceAfter.sub(balanceBefore);
+            require(balanceTransferred >= underlyingExternalToRepay, "Insufficient Repay");
+        }
+        assetToken.mint(currencyId, balanceTransferred);
     }
 
     function _executeSecondaryCurrencyTrade(
@@ -251,7 +262,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 maturity,
         int256 netfCash,
         uint32 slippageLimit
-    ) internal returns (int256 netAssetCash) {
+    ) internal returns (int256, AssetRateParameters memory) {
         // This method call must come from the vault
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
@@ -259,7 +270,7 @@ contract VaultAction is ActionGuards, IVaultAction {
 
         VaultConfiguration.updateSecondaryBorrowCapacity(msg.sender, currencyId, maturity, netfCash);
 
-        netAssetCash = VaultAccountLib.executeTrade(
+        int256 netAssetCash = VaultAccountLib.executeTrade(
             currencyId,
             maturity,
             netfCash,
@@ -273,6 +284,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         if (netfCash > 0 && netAssetCash == 0) {
             netAssetCash = vaultConfig.assetRate.convertFromUnderlying(netfCash).neg();
         }
+
+        return (netAssetCash, vaultConfig.assetRate);
     }
 
     /**
