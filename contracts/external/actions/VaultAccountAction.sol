@@ -17,19 +17,16 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
-    /**
-     * @notice Borrows a specified amount of fCash in the vault's borrow currency and deposits it
-     * all plus the depositAmountExternal into the vault to mint strategy tokens.
-     *
-     * @param account the address that will enter the vault
-     * @param vault the vault to enter
-     * @param depositAmountExternal some amount of additional collateral in the borrowed currency
-     * to be transferred to vault
-     * @param maturity the maturity to borrow at
-     * @param fCash amount to borrow
-     * @param maxBorrowRate maximum interest rate to borrow at
-     * @param vaultData additional data to pass to the vault contract
-     */
+    /// @notice Borrows a specified amount of fCash in the vault's borrow currency and deposits it
+    /// all plus the depositAmountExternal into the vault to mint strategy tokens.
+    /// @param account the address that will enter the vault
+    /// @param vault the vault to enter
+    /// @param depositAmountExternal some amount of additional collateral in the borrowed currency
+    /// to be transferred to vault
+    /// @param maturity the maturity to borrow at
+    /// @param fCash amount to borrow
+    /// @param maxBorrowRate maximum interest rate to borrow at
+    /// @param vaultData additional data to pass to the vault contract
     function enterVault(
         address account,
         address vault,
@@ -49,13 +46,14 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             reentrancyStatus = _NOT_ENTERED;
         }
 
-        // Vaults cannot be entered if they are paused
+        // Vaults cannot be entered if they are paused or matured
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Cannot Enter");
         require(block.timestamp < maturity, "Cannot Enter");
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
 
         uint256 strategyTokens;
         if (vaultAccount.maturity != 0 && vaultAccount.maturity <= block.timestamp) {
+            // These strategy tokens will be transferred to the new maturity
             strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
         }
 
@@ -67,23 +65,21 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         );
     }
 
-    /**
-     * @notice Re-enters the vault at a longer dated maturity. The account's existing borrow
-     * position will be closed and a new borrow position at the specified maturity will be
-     * opened. All strategy token holdings will be rolled forward.
-     *
-     * @param account the address that will reenter the vault
-     * @param vault the vault to reenter
-     * @param fCashToBorrow amount of fCash to borrow in the next maturity
-     * @param maturity new maturity to borrow at
-     * @param opts struct with slippage limits and data to send to vault
-     */
+    /// @notice Re-enters the vault at a longer dated maturity. The account's existing borrow position will be closed
+    /// and a new borrow position at the specified maturity will be opened. Strategy token holdings will transfer to
+    /// the longer dated maturity.
+    /// @param account the address that will reenter the vault
+    /// @param vault the vault to reenter
+    /// @param fCashToBorrow amount of fCash to borrow in the next maturity
+    /// @param maturity new maturity to borrow at
     function rollVaultPosition(
         address account,
         address vault,
         uint256 fCashToBorrow,
         uint256 maturity,
-        RollVaultOpts calldata opts
+        uint32 minLendRate,
+        uint32 maxBorrowRate,
+        bytes calldata enterVaultData
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ROLL);
@@ -107,15 +103,14 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
         // Exit the maturity pool by removing all the vault shares. All of the strategy tokens will be
         // re-deposited into the new maturity
-        uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultAccount.vaultShares);
+        uint256 strategyTokens = vaultState.exitMaturity(vaultAccount, vaultAccount.vaultShares);
 
-        // Exit the vault first, redeeming the amount of vault shares and crediting the amount raised
-        // back into the cash balance.
+        // Exit the vault first and debit the temporary cash balance with the cost to exit
         vaultAccount.lendToExitVault(
             vaultConfig,
             vaultState,
             vaultAccount.fCash.neg(), // must fully exit the fCash position
-            opts.minLendRate,
+            minLendRate,
             block.timestamp
         );
 
@@ -124,44 +119,38 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(vaultAccount.fCash == 0, "Failed Lend");
         vaultState.setVaultState(vaultConfig.vault);
 
-        // Borrows into the vault, paying nToken fees and checks borrow capacity
+        // Enters the vault at the longer dated maturity
         vaultAccount.borrowAndEnterVault(
             vaultConfig,
             maturity, // This is the new maturity to enter
             fCashToBorrow,
-            opts.maxBorrowRate,
-            opts.enterVaultData,
+            maxBorrowRate,
+            enterVaultData,
             strategyTokens,
             0 // No additional tokens deposited in this method
         );
     }
 
-    /**
-     * @notice Prior to maturity, allows an account to withdraw their position from the vault. Will
-     * redeem some number of vault shares to the borrow currency and close the borrow position by
-     * lending `fCashToLend`. Any shortfall in cash from lending will be transferred from the account,
-     * any excess profits will be transferred to the account.
-     *
-     * Post maturity, will net off the account's debt against vault cash balances and redeem all remaining
-     * strategy tokens back to the borrowed currency and transfer the profits to the account.
-     *
-     * @param account the address that will exit the vault
-     * @param vault the vault to enter
-     * @param vaultSharesToRedeem amount of vault tokens to exit, only relevant when exiting pre-maturity
-     * @param fCashToLend amount of fCash to lend
-     * @param minLendRate the minimum rate to lend at
-     * @param useUnderlying if vault shares should be redeemed to underlying
-     * @param exitVaultData passed to the vault during exit
-     */
+    /// @notice Prior to maturity, allows an account to withdraw their position from the vault. Will
+    /// redeem some number of vault shares to the borrow currency and close the borrow position by
+    /// lending `fCashToLend`. Any shortfall in cash from lending will be transferred from the account,
+    /// any excess profits will be transferred to the account.
+    /// Post maturity, will net off the account's debt against vault cash balances and redeem all remaining
+    /// strategy tokens back to the borrowed currency and transfer the profits to the account.
+    /// @param account the address that will exit the vault
+    /// @param vault the vault to enter
+    /// @param vaultSharesToRedeem amount of vault tokens to exit, only relevant when exiting pre-maturity
+    /// @param fCashToLend amount of fCash to lend
+    /// @param minLendRate the minimum rate to lend at
+    /// @param exitVaultData passed to the vault during exit
     function exitVault(
         address account,
         address vault,
         uint256 vaultSharesToRedeem,
         uint256 fCashToLend,
         uint32 minLendRate,
-        bool useUnderlying,
         bytes calldata exitVaultData
-    ) external override nonReentrant { 
+    ) external payable override nonReentrant { 
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_EXIT);
 
@@ -173,36 +162,48 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
 
         if (vaultAccount.maturity <= block.timestamp) {
-            // Safe this off because settleVaultAccount will clear the maturity
+            // Save this off because settleVaultAccount will clear the maturity
             uint256 maturity = vaultAccount.maturity;
-            // Past maturity, a vault cannot lend anymore. When they exit they will just be settling.
+            // Past maturity, an account will be settled instead
             uint256 strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
 
-            // Redeems all strategy tokens and any profits are sent back to the account
+            if (vaultAccount.tempCashBalance > 0) {
+                // Transfer asset cash back to the account
+                vaultConfig.transferFromNotional(account, vaultAccount.tempCashBalance);
+                vaultAccount.tempCashBalance = 0;
+            }
+
+            // Redeems all strategy tokens and any profits are sent back to the account, it is possible for temp
+            // cash balance to be negative here if the account is insolvent
             vaultConfig.redeem(account, strategyTokens, maturity, vaultAccount.tempCashBalance, exitVaultData);
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
+            // Puts a negative cash balance on the vault's temporary cash balance
             vaultAccount.lendToExitVault(
-                vaultConfig,
-                vaultState,
-                SafeInt256.toInt(fCashToLend),
-                minLendRate,
-                block.timestamp
+                vaultConfig, vaultState, fCashToLend.toInt(), minLendRate, block.timestamp
             );
 
             if (vaultSharesToRedeem > 0) {
-                // When an account exits the maturity pool it may get some asset cash credited to its temp
+                // When an account exits the maturity it may get some asset cash credited to its temp
                 // cash balance and it will sell the strategy tokens it has a claim on.
-                uint256 strategyTokens = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
+                uint256 strategyTokens = vaultState.exitMaturity(vaultAccount, vaultSharesToRedeem);
 
-                // Redeems the strategy tokens to repay the tempCashBalance.
-                vaultConfig.redeem(account, strategyTokens, vaultState.maturity, vaultAccount.tempCashBalance, exitVaultData);
+                if (vaultAccount.tempCashBalance > 0) {
+                    // Transfer asset cash back to the account, this is possible if there is asset cash
+                    // when the vault exits the maturity
+                    vaultConfig.transferFromNotional(account, vaultAccount.tempCashBalance);
+                    vaultAccount.tempCashBalance = 0;
+                }
+
+                vaultConfig.redeem(
+                    account, strategyTokens, vaultState.maturity, vaultAccount.tempCashBalance, exitVaultData
+                );
             }
 
             if (vaultAccount.fCash < 0) {
-                // It's possible that the user redeems more vault shares than they lend (it is not always the case that they
-                // will be increasing their collateral ratio here, so we check that this is the case).
-                vaultConfig.checkCollateralRatio(vaultState, vaultAccount.vaultShares, vaultAccount.fCash);
+                // It's possible that the user redeems more vault shares than they lend (it is not always the case
+                // that they will be increasing their collateral ratio here, so we check that this is the case).
+                vaultConfig.checkCollateralRatio(vaultState, vaultAccount);
             }
 
             vaultState.setVaultState(vaultConfig.vault);
@@ -215,19 +216,17 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultAccount.setVaultAccount(vaultConfig);
     }
 
-    /**
-     * @notice If an account is below the minimum collateral ratio, this method wil deleverage (liquidate)
-     * that account. `depositAmountExternal` in the borrow currency will be transferred from the liquidator
-     * and used to offset the account's debt position. The liquidator will receive either vaultShares or
-     * cash depending on the vault's configuration.
-     * @param account the address that will exit the vault
-     * @param vault the vault to enter
-     * @param liquidator the address that will receive profits from liquidation
-     * @param depositAmountExternal amount of asset cash to deposit
-     * @param transferSharesToLiquidator transfers the shares to the liquidator instead of redeeming them
-     * @param redeemData calldata sent to the vault when redeeming liquidator profits
-     * @return profitFromLiquidation amount of vaultShares or cash received from liquidation
-     */
+    /// @notice If an account is below the minimum collateral ratio, this method wil deleverage (liquidate)
+    /// that account. `depositAmountExternal` in the borrow currency will be transferred from the liquidator
+    /// and used to offset the account's debt position. The liquidator will receive either vaultShares or
+    /// cash depending.
+    /// @param account the address that will exit the vault
+    /// @param vault the vault to enter
+    /// @param liquidator the address that will receive profits from liquidation
+    /// @param depositAmountExternal amount of asset cash to deposit
+    /// @param transferSharesToLiquidator transfers the shares to the liquidator instead of redeeming them
+    /// @param redeemData calldata sent to the vault when redeeming liquidator profits
+    /// @return profitFromLiquidation amount of vaultShares or cash received from liquidation
     function deleverageAccount(
         address account,
         address vault,
@@ -245,7 +244,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Check that the collateral ratio is below the minimum allowed
         (int256 collateralRatio, int256 vaultShareValue) = vaultConfig.calculateCollateralRatio(
-            vaultState, vaultAccount.vaultShares, vaultAccount.fCash
+            vaultState, account, vaultAccount.vaultShares, vaultAccount.fCash
         );
         require(collateralRatio < vaultConfig.minCollateralRatio , "Sufficient Collateral");
 
@@ -262,7 +261,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         //      and liquidationRate is a percentage greater than 100% that represents their bonus
         uint256 vaultSharesToLiquidator;
         {
-            vaultSharesToLiquidator = SafeInt256.toUint(vaultAccount.tempCashBalance)
+            vaultSharesToLiquidator = vaultAccount.tempCashBalance.toUint()
                 .mul(vaultConfig.liquidationRate.toUint())
                 .mul(vaultAccount.vaultShares)
                 .div(vaultShareValue.toUint())
@@ -312,6 +311,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         if (vaultConfig.getFlag(VaultConfiguration.ONLY_VAULT_DELEVERAGE)) {
             require(msg.sender == vault, "Unauthorized");
         }
+
         // Cannot liquidate self, if a vault needs to deleverage itself as a whole it has other methods 
         // in VaultAction to do so.
         require(account != msg.sender && account != liquidator, "Unauthorized");
@@ -344,7 +344,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // NOTE: deposit amount external is always positive in this method
         if (depositAmountExternal < maxLiquidatorDepositExternal) {
-            // If this flag is set, the liquidator must deposit more cash in ordert to liquidate the account
+            // If this flag is set, the liquidator must deposit more cash in order to liquidate the account
             // down to a zero fCash balance because it will fall under the minimum borrowing limit.
             require(!mustLiquidateFull, "Must Liquidate All Debt");
         } else {
@@ -392,7 +392,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bytes calldata redeemData,
         Token memory assetToken
     ) private returns (uint256) {
-        (uint256 assetCash, uint256 strategyTokens) = vaultState.exitMaturityPoolDirect(vaultShares);
+        (uint256 assetCash, uint256 strategyTokens) = vaultState.exitMaturityDirect(vaultShares);
         int256 assetCashInternal = vaultConfig.redeemWithoutDebtRepayment(
             liquidator, strategyTokens, vaultState.maturity, redeemData
         );
@@ -445,7 +445,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         } else {
             int256 vaultShareValue;
             (collateralRatio, vaultShareValue) = vaultConfig.calculateCollateralRatio(
-                vaultState, vaultAccount.vaultShares, vaultAccount.fCash
+                vaultState, account, vaultAccount.vaultShares, vaultAccount.fCash
             );
 
             // Calculates liquidation factors if the account is eligible

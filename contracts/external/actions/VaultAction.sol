@@ -20,13 +20,10 @@ contract VaultAction is ActionGuards, IVaultAction {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
-    /**
-     * @notice Updates or lists a deployed vault along with its configuration.
-     *
-     * @param vaultAddress address of deployed vault
-     * @param vaultConfig struct of vault configuration
-     * @param maxPrimaryBorrowCapacity maximum borrow capacity
-     */
+    /// @notice Updates or lists a deployed vault along with its configuration.
+    /// @param vaultAddress address of deployed vault
+    /// @param vaultConfig struct of vault configuration
+    /// @param maxPrimaryBorrowCapacity maximum borrow capacity
     function updateVault(
         address vaultAddress,
         VaultConfigStorage calldata vaultConfig,
@@ -38,13 +35,10 @@ contract VaultAction is ActionGuards, IVaultAction {
         emit VaultChange(vaultAddress, enabled);
     }
 
-    /**
-     * @notice Enables or disables a vault. If a vault is disabled, no one can enter
-     * the vault anymore.
-     *
-     * @param vaultAddress address of deployed vault
-     * @param enable bool if the vault should be enabled immediately
-     */
+    /// @notice Enables or disables a vault. If a vault is disabled, no one can enter
+    /// the vault but exits are still possible.
+    /// @param vaultAddress address of deployed vault
+    /// @param enable true if the vault should be enabled immediately
     function setVaultPauseStatus(
         address vaultAddress,
         bool enable
@@ -53,39 +47,13 @@ contract VaultAction is ActionGuards, IVaultAction {
         emit VaultPauseStatus(vaultAddress, enable);
     }
 
-    /**
-     * @notice Allows the owner to reduce the max borrow capacity on the vault and force
-     * the redemption of strategy tokens to cash to reduce the overall risk of the vault.
-     * This method is intended to be used in emergencies to mitigate insolvency risk.
-     * @param vaultAddress address of the vault
-     * @param maxVaultBorrowCapacity the new max vault borrow capacity on the primary currency
-     * @param maturity the maturity to redeem tokens in, will generally be either the current
-     * maturity or the next maturity.
-     * @param strategyTokensToRedeem how many tokens we would want to redeem in the maturity
-     * @param vaultData vault data to pass to the vault
-     */
-    function reduceMaxBorrowCapacity(
-        address vaultAddress,
-        uint80 maxVaultBorrowCapacity,
-        uint256 maturity,
-        uint256 strategyTokensToRedeem,
-        bytes calldata vaultData
-    ) external override onlyOwner {
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vaultAddress);
-        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, vaultConfig.borrowCurrencyId, maxVaultBorrowCapacity);
-        _redeemStrategyTokensToCashInternal(vaultConfig, maturity, strategyTokensToRedeem, vaultData);
-    }
-
-    /**
-     * @notice Whitelists a secondary borrow currency for a vault, vaults can borrow up to the capacity
-     * using the `borrowSecondaryCurrencyToVault` and `repaySecondaryCurrencyToVault` methods. Vaults that
-     * use a secondary currency must ALWAYS repay the secondary debt during redemption and handle accounting
-     * for the secondary currency themselves.
-     *
-     * @param vaultAddress address of deployed vault
-     * @param secondaryCurrencyId struct of vault configuration
-     * @param maxBorrowCapacity maximum borrow capacity
-     */
+    /// @notice Whitelists a secondary borrow currency for a vault, vaults can borrow up to the capacity
+    /// using the `borrowSecondaryCurrencyToVault` and `repaySecondaryCurrencyToVault` methods. Vaults that
+    /// use a secondary currency must ALWAYS repay the secondary debt during redemption and handle accounting
+    /// for the secondary currency themselves.
+    /// @param vaultAddress address of deployed vault
+    /// @param secondaryCurrencyId struct of vault configuration
+    /// @param maxBorrowCapacity maximum borrow capacity
     function updateSecondaryBorrowCapacity(
         address vaultAddress,
         uint16 secondaryCurrencyId,
@@ -104,24 +72,42 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfiguration.setMaxBorrowCapacity(vaultAddress, secondaryCurrencyId, maxBorrowCapacity);
     }
 
-    /**
-     * @notice Strategy vaults can call this method to redeem strategy tokens to cash
-     * and hold them as asset cash within the pool. This should typically be used
-     * during settlement but can also be used for vault-wide deleveraging.
-     * @param maturity the maturity of the vault where the redemption will take place
-     * @param strategyTokensToRedeem the number of strategy tokens redeemed
-     * @param vaultData arbitrary data to pass back to the vault
-     * @return assetCashRequiredToSettle amount of asset cash still remaining to settle the debt
-     * @return underlyingCashRequiredToSettle amount of underlying cash still remaining to settle the debt
-     */
+    /// @notice Allows the owner to reduce the max borrow capacity on the vault and force
+    /// the redemption of strategy tokens to cash to reduce the overall risk of the vault.
+    /// This method is intended to be used in emergencies to mitigate insolvency risk.
+    /// @param vaultAddress address of the vault
+    /// @param maxVaultBorrowCapacity the new max vault borrow capacity on the primary currency
+    /// @param maturity the maturity to redeem tokens in, will generally be either the current
+    /// maturity or the next maturity.
+    /// @param strategyTokensToRedeem how many tokens we would want to redeem in the maturity
+    /// @param vaultData vault data to pass to the vault
+    function reduceMaxBorrowCapacity(
+        address vaultAddress,
+        uint80 maxVaultBorrowCapacity,
+        uint256 maturity,
+        uint256 strategyTokensToRedeem,
+        bytes calldata vaultData
+    ) external override onlyOwner {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vaultAddress);
+        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, vaultConfig.borrowCurrencyId, maxVaultBorrowCapacity);
+
+        // Redeems strategy tokens to be held against fCash debt
+        _redeemStrategyTokensToCashInternal(vaultConfig, maturity, strategyTokensToRedeem, vaultData);
+    }
+
+    /// @notice Strategy vaults can call this method to redeem strategy tokens to cash and hold them
+    /// as asset cash within the pool. This should typically be used during settlement but can also be
+    /// used for vault-wide deleveraging.
+    /// @param maturity the maturity of the vault where the redemption will take place
+    /// @param strategyTokensToRedeem the number of strategy tokens redeemed
+    /// @param vaultData arbitrary data to pass back to the vault
+    /// @return assetCashRequiredToSettle amount of asset cash still remaining to settle the debt
+    /// @return underlyingCashRequiredToSettle amount of underlying cash still remaining to settle the debt
     function redeemStrategyTokensToCash(
         uint256 maturity,
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
-    ) external override returns (
-        int256 assetCashRequiredToSettle,
-        int256 underlyingCashRequiredToSettle
-    ) {
+    ) external override returns (int256 assetCashRequiredToSettle, int256 underlyingCashRequiredToSettle) {
         // NOTE: this call must come from the vault itself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         // NOTE: if the msg.sender is not the vault itself this will revert
@@ -129,15 +115,13 @@ contract VaultAction is ActionGuards, IVaultAction {
         return _redeemStrategyTokensToCashInternal(vaultConfig, maturity, strategyTokensToRedeem, vaultData);
     }
 
+    /// @notice Redeems strategy tokens to cash
     function _redeemStrategyTokensToCashInternal(
         VaultConfig memory vaultConfig,
         uint256 maturity,
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
-    ) private nonReentrant returns (
-        int256 assetCashRequiredToSettle,
-        int256 underlyingCashRequiredToSettle
-    ) {
+    ) private nonReentrant returns (int256 assetCashRequiredToSettle, int256 underlyingCashRequiredToSettle) {
         // If the vault allows further re-entrancy then set the status back to the default
         if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
             reentrancyStatus = _NOT_ENTERED;
@@ -156,12 +140,10 @@ contract VaultAction is ActionGuards, IVaultAction {
         return _getCashRequiredToSettle(vaultConfig, vaultState, maturity);
     }
 
-    /**
-     * @notice Strategy vaults can call this method to deposit asset cash into strategy tokens.
-     * @param maturity the maturity of the vault where the redemption will take place
-     * @param assetCashToDepositExternal the number of asset cash tokens to deposit (external)
-     * @param vaultData arbitrary data to pass back to the vault for deposit
-     */
+    /// @notice Strategy vaults can call this method to deposit asset cash into strategy tokens.
+    /// @param maturity the maturity of the vault where the redemption will take place
+    /// @param assetCashToDepositExternal the number of asset cash tokens to deposit (external)
+    /// @param vaultData arbitrary data to pass back to the vault for deposit
     function depositVaultCashToStrategyTokens(
         uint256 maturity,
         uint256 assetCashToDepositExternal,
@@ -190,28 +172,40 @@ contract VaultAction is ActionGuards, IVaultAction {
 
         // When exchanging asset cash for strategy tokens we will decrease the vault's collateral, ensure that
         // we don't go under the configured minimum here.
-        vaultConfig.checkCollateralRatio(vaultState, vaultState.totalVaultShares, vaultState.totalfCash);
+        (int256 collateralRatio, /* */) = vaultConfig.calculateCollateralRatio(
+            vaultState, msg.sender, vaultState.totalVaultShares, vaultState.totalfCash
+        );
+        require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
     }
 
+    /// @notice Allows a vault to borrow a secondary currency if it is whitelisted to do so
+    /// @param currencyId currency id of the secondary currency
+    /// @param maturity the maturity to borrow at
+    /// @param fCashToBorrow amount of fCash to borrow
+    /// @param maxBorrowRate maximum rate annualized rate to borrow
+    /// @return underlyingTokensTransferred amount of tokens transferred back to the vault
     function borrowSecondaryCurrencyToVault(
         uint16 currencyId,
         uint256 maturity,
         uint256 fCashToBorrow,
         uint32 maxBorrowRate
     ) external override returns (uint256 underlyingTokensTransferred) {
-        (int256 netAssetCash, /* */) = _executeSecondaryCurrencyTrade(
+        (int256 netAssetCash, VaultConfig memory vaultConfig) = _executeSecondaryCurrencyTrade(
             currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
         );
         // Require that borrow trades succeed
         require(netAssetCash > 0, "Trade Failed");
 
-        // Redeem returns a negative number to signify that assets have left the protocol
-        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-        underlyingTokensTransferred = assetToken.redeem(
-            currencyId, msg.sender, assetToken.convertToExternal(netAssetCash).toUint()
-        ).neg().toUint();
+        underlyingTokensTransferred = vaultConfig.transferFromNotional(vaultConfig.vault, netAssetCash);
     }
 
+    /// @notice Allows a vault to repay a secondary currency that it has borrowed. Will be executed via a callback
+    /// which will request that the vault repay a specific amount of underlying tokens.
+    /// @param currencyId currency id of the secondary currency
+    /// @param maturity the maturity to lend at
+    /// @param fCashToLend amount of fCash to lend
+    /// @param minLendRate minimum lend rate
+    /// @return returnData arbitrary return data to pass back to the vault
     function repaySecondaryCurrencyFromVault(
         uint16 currencyId,
         uint256 maturity,
@@ -223,7 +217,9 @@ contract VaultAction is ActionGuards, IVaultAction {
         int256 netfCash = fCashToLend.toInt();
         AssetRateParameters memory assetRate;
         if (maturity > block.timestamp) {
-            (netAssetCash, assetRate) = _executeSecondaryCurrencyTrade(currencyId, maturity, netfCash, minLendRate);
+            VaultConfig memory vaultConfig;
+            (netAssetCash, vaultConfig) = _executeSecondaryCurrencyTrade(currencyId, maturity, netfCash, minLendRate);
+            assetRate = vaultConfig.assetRate;
         } else {
             // Post maturity, repayment must be done via the settlement rate
             assetRate = AssetRate.buildSettlementRateStateful(currencyId, maturity, block.timestamp);
@@ -240,21 +236,29 @@ contract VaultAction is ActionGuards, IVaultAction {
         // a callback here because it is more precise and gas efficient than calculating netAssetCash twice
         uint256 balanceTransferred;
         {
-            Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
+            // If the asset token is NonMintable then the underlying is the same object.
+            Token memory underlyingToken = assetToken.tokenType == TokenType.NonMintable ? 
+                assetToken :
+                TokenHandler.getUnderlyingToken(currencyId);
+
             uint256 underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(
                 assetRate.convertToUnderlying(netAssetCash).neg()
             ).toUint();
 
-            uint256 balanceBefore = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
+            uint256 balanceBefore = underlyingToken.balanceOf(address(this));
             // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
             returnData = IStrategyVault(msg.sender).repaySecondaryBorrowCallback(
                 underlyingExternalToRepay, callbackData
             );
-            uint256 balanceAfter = IERC20(underlyingToken.tokenAddress).balanceOf(address(this));
-            uint256 balanceTransferred = balanceAfter.sub(balanceBefore);
+            uint256 balanceAfter = underlyingToken.balanceOf(address(this));
+            balanceTransferred = balanceAfter.sub(balanceBefore);
             require(balanceTransferred >= underlyingExternalToRepay, "Insufficient Repay");
         }
-        assetToken.mint(currencyId, balanceTransferred);
+
+        // NonMintable tokens do not require minting
+        if (assetToken.tokenType != TokenType.NonMintable) {
+            assetToken.mint(currencyId, balanceTransferred);
+        }
     }
 
     function _executeSecondaryCurrencyTrade(
@@ -262,15 +266,15 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 maturity,
         int256 netfCash,
         uint32 slippageLimit
-    ) internal returns (int256, AssetRateParameters memory) {
+    ) internal returns (int256 netAssetCash, VaultConfig memory vaultConfig) {
         // This method call must come from the vault
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
         require(currencyId != vaultConfig.borrowCurrencyId);
 
         VaultConfiguration.updateSecondaryBorrowCapacity(msg.sender, currencyId, maturity, netfCash);
 
-        int256 netAssetCash = VaultAccountLib.executeTrade(
+        netAssetCash = VaultAccountLib.executeTrade(
             currencyId,
             maturity,
             netfCash,
@@ -284,18 +288,11 @@ contract VaultAction is ActionGuards, IVaultAction {
         if (netfCash > 0 && netAssetCash == 0) {
             netAssetCash = vaultConfig.assetRate.convertFromUnderlying(netfCash).neg();
         }
-
-        return (netAssetCash, vaultConfig.assetRate);
     }
 
-    /**
-     * @notice Settles an entire vault, can only be called during an emergency stop out or during
-     * the vault's defined settlement period. May be called multiple times during a vault term if
-     * the vault has been stopped out early.
-     *
-     * @param vault the vault to settle
-     * @param maturity the maturity of the vault
-     */
+    /// @notice Settles a vault and sets the final settlement rates
+    /// @param vault the vault to settle
+    /// @param maturity the maturity of the vault
     function settleVault(address vault, uint256 maturity) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         // Allow anyone to call this method unless it must be authorized by the vault. Generally speaking,
@@ -417,9 +414,18 @@ contract VaultAction is ActionGuards, IVaultAction {
             .neg();
 
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+        // If the asset token is NonMintable then the underlying is the same object.
         assetCashRequiredToSettle = assetToken.convertToExternal(assetCashInternal);
-        underlyingCashRequiredToSettle = underlyingToken.convertToExternal(ar.convertToUnderlying(assetCashInternal));
+
+        if (assetToken.tokenType == TokenType.NonMintable) {
+            // In this case both values are the same, there is no underlying token
+            underlyingCashRequiredToSettle = assetCashRequiredToSettle;
+        } else {
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+            underlyingCashRequiredToSettle = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                ar.convertToUnderlying(assetCashInternal)
+            );
+        }
     }
 
     function getLibInfo() external pure returns (address) {

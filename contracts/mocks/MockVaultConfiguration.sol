@@ -110,16 +110,16 @@ contract MockVaultConfiguration {
         return VaultStateLib.setSettledVaultState(getVaultConfigView(vault), maturity, blockTime);
     }
 
-    function exitMaturityPool(
+    function exitMaturity(
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
         uint256 vaultSharesToRedeem
     ) external pure returns (uint256 strategyTokensWithdrawn, VaultState memory, VaultAccount memory) {
-        strategyTokensWithdrawn = vaultState.exitMaturityPool(vaultAccount, vaultSharesToRedeem);
+        strategyTokensWithdrawn = vaultState.exitMaturity(vaultAccount, vaultSharesToRedeem);
         return (strategyTokensWithdrawn, vaultState, vaultAccount);
     }
 
-    function enterMaturityPool(
+    function enterMaturity(
         address vault,
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
@@ -127,7 +127,7 @@ contract MockVaultConfiguration {
         uint256 additionalTokenDeposit,
         bytes calldata vaultData
     ) external returns (VaultState memory, VaultAccount memory) {
-        vaultState.enterMaturityPool(
+        vaultState.enterMaturity(
             vaultAccount, getVaultConfigView(vault), strategyTokenDeposit, additionalTokenDeposit, vaultData
         );
         return (vaultState, vaultAccount);
@@ -135,10 +135,11 @@ contract MockVaultConfiguration {
 
     function getCashValueOfShare(
         address vault,
+        address account,
         VaultState memory vaultState,
         uint256 vaultShares
     ) external view returns (int256 assetCashValue) {
-        assetCashValue = vaultState.getCashValueOfShare(getVaultConfigView(vault), vaultShares);
+        assetCashValue = vaultState.getCashValueOfShare(getVaultConfigView(vault), account, vaultShares);
     }
 
     function getPoolShare(
@@ -155,6 +156,7 @@ contract MockVaultConfiguration {
     ) external view returns (int256 collateralRatio, int256 vaultShareValue) {
         (collateralRatio, vaultShareValue) = getVaultConfigView(vault).calculateCollateralRatio(
             vaultState,
+            vaultAccount.account,
             vaultAccount.vaultShares,
             vaultAccount.fCash
         );

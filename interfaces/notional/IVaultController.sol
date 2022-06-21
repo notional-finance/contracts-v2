@@ -6,8 +6,7 @@ import {
     VaultConfigStorage,
     VaultConfig,
     VaultState,
-    VaultAccount,
-    RollVaultOpts
+    VaultAccount
 } from "../../contracts/global/Types.sol";
 
 interface IVaultAction {
@@ -144,14 +143,15 @@ interface IVaultAccountAction {
      * @param vault the vault to reenter
      * @param fCashToBorrow amount of fCash to borrow in the next maturity
      * @param maturity new maturity to borrow at
-     * @param opts struct with slippage limits and data to send to vault
      */
     function rollVaultPosition(
         address account,
         address vault,
         uint256 fCashToBorrow,
         uint256 maturity,
-        RollVaultOpts calldata opts
+        uint32 minLendRate,
+        uint32 maxBorrowRate,
+        bytes calldata enterVaultData
     ) external;
 
     /**
@@ -168,7 +168,6 @@ interface IVaultAccountAction {
      * @param vaultSharesToRedeem amount of vault tokens to exit, only relevant when exiting pre-maturity
      * @param fCashToLend amount of fCash to lend
      * @param minLendRate the minimum rate to lend at
-     * @param useUnderlying if vault shares should be redeemed to underlying
      * @param exitVaultData passed to the vault during exit
      */
     function exitVault(
@@ -177,9 +176,8 @@ interface IVaultAccountAction {
         uint256 vaultSharesToRedeem,
         uint256 fCashToLend,
         uint32 minLendRate,
-        bool useUnderlying,
         bytes calldata exitVaultData
-    ) external;
+    ) external payable;
 
     /**
      * @notice If an account is below the minimum collateral ratio, this method wil deleverage (liquidate)

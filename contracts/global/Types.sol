@@ -573,9 +573,3 @@ struct VaultAccount {
     // and withdraws for an account. Must be zeroed by the time we store the account
     int256 tempCashBalance;
 }
-
-struct RollVaultOpts {
-    uint32 minLendRate;
-    uint32 maxBorrowRate;
-    bytes enterVaultData;
-}

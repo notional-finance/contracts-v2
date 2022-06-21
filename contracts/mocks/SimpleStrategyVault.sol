@@ -46,7 +46,9 @@ contract SimpleStrategyVault is BaseStrategyVault {
         ERC20(cETH).transfer(address(NOTIONAL), assetCashRequired);
     }
 
-    function convertStrategyToUnderlying(uint256 strategyTokens, uint256 maturity) public view override returns (uint256 underlyingValue) {
+    function convertStrategyToUnderlying(
+        address account, uint256 strategyTokens, uint256 maturity
+    ) public view override returns (uint256 underlyingValue) {
         return (strategyTokens * _tokenExchangeRate * 1e10) / 1e18;
     }
 
