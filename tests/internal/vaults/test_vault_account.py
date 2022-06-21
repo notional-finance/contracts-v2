@@ -8,8 +8,6 @@ from brownie.test import given, strategy
 from fixtures import *
 from tests.constants import SECONDS_IN_MONTH, SECONDS_IN_QUARTER, START_TIME_TREF
 
-VAULT_EPOCH_START = 1640736000
-
 
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
@@ -46,6 +44,10 @@ def test_enforce_temp_cash_balance(vaultConfig, accounts, vault):
         # Any temp cash balance should fail
         account = get_vault_account(tempCashBalance=100e8)
         vaultConfig.setVaultAccount(account, vault.address)
+
+
+def test_update_account_fcash(vaultConfig, accounts, vault):
+    pass
 
 
 @given(
@@ -100,33 +102,6 @@ def test_settle_fails(vaultConfig, accounts, vault):
         )
 
 
-def test_set_vault_settled_state(vaultConfig, accounts, vault):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
-    vault.setExchangeRate(1e18)
-    vaultConfig.setVaultState(
-        vault.address,
-        get_vault_state(
-            maturity=maturity,
-            totalVaultShares=1_000_000e8,
-            totalStrategyTokens=100_000e8,  # This represents profits
-            totalAssetCash=50_000_000e8,
-            totalfCash=-1_000_000e8,
-        ),
-    )
-
-    with brownie.reverts():
-        vaultConfig.setSettledVaultState(vault.address, maturity, START_TIME_TREF + 100)
-
-    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
-    state = vaultConfig.getVaultState(vault.address, maturity)
-    assert state["isSettled"]
-    assert state["settlementStrategyTokenValue"] == 1e8
-
-    with brownie.reverts():
-        vaultConfig.setSettledVaultState(vault.address, maturity, START_TIME_TREF + 200)
-
-
 @given(residual=strategy("uint", max_value=100_000e8))
 def test_settle_asset_cash_with_residual(vaultConfig, accounts, vault, residual):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
@@ -171,6 +146,8 @@ def test_settle_asset_cash_with_residual(vaultConfig, accounts, vault, residual)
         pytest.approx(accountAfter["tempCashBalance"] + accountAfter2["tempCashBalance"], abs=3)
         == residual
     )
+
+    # TODO: test remaining amounts view
 
 
 def test_settle_insolvent_account(vaultConfig, accounts, vault):
@@ -217,131 +194,79 @@ def test_settle_insolvent_account(vaultConfig, accounts, vault):
     assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == -500_000e8
     assert accountAfter2["tempCashBalance"] == 500_000e8
 
-
-@given(
-    currencyId=strategy("uint16", min_value=1, max_value=3),
-    tempCashBalance=strategy("uint88", min_value=100_000e8, max_value=100_000_000e8),
-    useUnderlying=strategy("bool"),
-)
-def test_transfer_cash_underlying_positive(
-    cTokenVaultConfig, accounts, currencyId, useUnderlying, tempCashBalance
-):
-    account = get_vault_account(tempCashBalance=Wei(tempCashBalance))
-    (assetToken, underlyingToken, _, _) = cTokenVaultConfig.getCurrencyAndRates(currencyId)
-    cToken = MockCToken.at(assetToken["tokenAddress"])
-    cToken.transfer(cTokenVaultConfig.address, 125_000_000e8, {"from": accounts[0]})
-
-    if useUnderlying:
-        token = MockERC20.at(underlyingToken["tokenAddress"])
-        balanceBefore = token.balanceOf(accounts[0])
-        expectedBalanceChange = Wei((tempCashBalance * cToken.exchangeRateStored()) / 1e18)
-    else:
-        token = MockCToken.at(assetToken["tokenAddress"])
-        balanceBefore = token.balanceOf(accounts[0])
-        expectedBalanceChange = tempCashBalance
-
-    accountAfter = cTokenVaultConfig.transferTempCashBalance(
-        account, currencyId, useUnderlying
-    ).return_value
-    balanceAfter = token.balanceOf(accounts[0])
-
-    if useUnderlying and currencyId == 1:
-        assert pytest.approx(balanceAfter - balanceBefore, abs=1e11) == expectedBalanceChange
-    elif useUnderlying:
-        assert pytest.approx(balanceAfter - balanceBefore, abs=2) == expectedBalanceChange
-    else:
-        assert balanceAfter - balanceBefore == expectedBalanceChange
-
-    underlyingToken = MockERC20.at(underlyingToken["tokenAddress"])
-    assert underlyingToken.balanceOf(cTokenVaultConfig) == 0
-    assert accountAfter["tempCashBalance"] == 0
+    # TODO: test settled assets values
 
 
-@given(
-    currencyId=strategy("uint16", min_value=1, max_value=3),
-    tempCashBalance=strategy("uint88", min_value=100_000e8, max_value=100_000_000e8),
-    useUnderlying=strategy("bool"),
-)
-def test_transfer_cash_underlying_negative(
-    cTokenVaultConfig, accounts, currencyId, useUnderlying, tempCashBalance
-):
-    account = get_vault_account(tempCashBalance=-Wei(tempCashBalance))
-    (assetToken, underlyingToken, _, _) = cTokenVaultConfig.getCurrencyAndRates(currencyId)
+def get_collateral_ratio(vaultConfig, vault, **kwargs):
+    vault.setExchangeRate(kwargs.get("exchangeRate", 1.2e28))
 
-    if useUnderlying:
-        token = MockERC20.at(underlyingToken["tokenAddress"])
-        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
-        balanceBefore = token.balanceOf(accounts[0])
-        cToken = MockCToken.at(assetToken["tokenAddress"])
-        expectedBalanceChange = Wei((tempCashBalance * cToken.exchangeRateStored()) / 1e18)
-    else:
-        token = MockCToken.at(assetToken["tokenAddress"])
-        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
-        balanceBefore = token.balanceOf(accounts[0])
-        expectedBalanceChange = tempCashBalance
+    account = get_vault_account(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        fCash=kwargs.get("fCash", -100_000e8),
+        tempCashBalance=kwargs.get("tempCashBalance", 100e8),
+        vaultShares=kwargs.get("accountVaultShares", 100_000e8),
+    )
 
-    accountAfter = cTokenVaultConfig.transferTempCashBalance(
-        account, currencyId, useUnderlying
-    ).return_value
-    balanceAfter = token.balanceOf(accounts[0])
+    state = get_vault_state(
+        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
+        totalAssetCash=kwargs.get("totalAssetCash", 100_000e8),
+        totalVaultShares=kwargs.get("totalVaultShares", 100_000e8),
+        totalStrategyTokens=kwargs.get("totalStrategyTokens", 100_000e8),
+    )
 
-    if useUnderlying and currencyId == 1:
-        assert pytest.approx(balanceBefore - balanceAfter, abs=1e11) == expectedBalanceChange
-    elif useUnderlying:
-        assert pytest.approx(balanceBefore - balanceAfter, abs=2) == expectedBalanceChange
-    else:
-        assert balanceBefore - balanceAfter == expectedBalanceChange
-
-    underlyingToken = MockERC20.at(underlyingToken["tokenAddress"])
-    assert underlyingToken.balanceOf(cTokenVaultConfig) == 0
-    assert accountAfter["tempCashBalance"] == 0
+    (collateralRatio, _) = vaultConfig.calculateCollateralRatio(vault.address, account, state)
+    return collateralRatio
 
 
-@given(
-    currencyId=strategy("uint16", min_value=1, max_value=3),
-    depositAmount=strategy("uint88", min_value=100_000, max_value=100_000_000),
-    useUnderlying=strategy("bool"),
-)
-def test_deposit_into_account(
-    cTokenVaultConfig, accounts, currencyId, useUnderlying, depositAmount
-):
-    account = get_vault_account()
-    (assetToken, underlyingToken, _, _) = cTokenVaultConfig.getCurrencyAndRates(currencyId)
+def test_collateral_ratio_decreases_with_debt(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
 
-    if useUnderlying:
-        token = MockERC20.at(underlyingToken["tokenAddress"])
-        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
-        balanceBefore = token.balanceOf(accounts[0])
-        cToken = MockCToken.at(assetToken["tokenAddress"])
-        depositAmount = depositAmount * (10 ** token.decimals())
-        expectedTempCash = Wei((depositAmount * 1e18) / cToken.exchangeRateStored())
-    else:
-        token = MockCToken.at(assetToken["tokenAddress"])
-        token.approve(cTokenVaultConfig, 2 ** 255, {"from": accounts[0]})
-        balanceBefore = token.balanceOf(accounts[0])
-        depositAmount = depositAmount * (10 ** token.decimals())
-        expectedTempCash = depositAmount
-
-    accountAfter = cTokenVaultConfig.depositIntoAccount(
-        account, accounts[0], currencyId, depositAmount, useUnderlying
-    ).return_value
-    balanceAfter = token.balanceOf(accounts[0])
-    assert balanceBefore - balanceAfter == depositAmount
-
-    underlyingToken = MockERC20.at(underlyingToken["tokenAddress"])
-    assert underlyingToken.balanceOf(cTokenVaultConfig) == 0
-    assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == expectedTempCash
+    fCash = 0
+    decrement = -10_000e8
+    lastCollateral = 2 ** 255
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(vaultConfig, vault, fCash=fCash)
+        fCash += decrement
+        assert ratio < lastCollateral
+        lastCollateral = ratio
 
 
-# def test_deposit_aave_token_larger_decimals(vaultState):
-#     pass
+def test_collateral_ratio_increases_with_exchange_rate(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
 
-# def test_deposit_aave_token_smaller_decimals(vaultState):
-#     pass
+    exchangeRate = 1.2e28
+    increment = 0.01e28
+    lastCollateral = 0
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(vaultConfig, vault, exchangeRate=exchangeRate)
+        exchangeRate += increment
+        assert ratio > lastCollateral
+        lastCollateral = ratio
 
 
-# def test_transfer_cash_aave_token_larger_decimals(vaultState):
-#     pass
+def test_collateral_ratio_increases_with_vault_shares(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
 
-# def test_transfer_cash_aave_token_smaller_decimals(vaultState):
-#     pass
+    vaultShares = 1000e8
+    increment = 1000e8
+    lastCollateral = 0
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(
+            vaultConfig, vault, fCash=-100e8, accountVaultShares=vaultShares, totalAssetCash=0
+        )
+        vaultShares += increment
+        assert ratio > lastCollateral
+        lastCollateral = ratio
+
+
+def test_collateral_ratio_increases_with_vault_asset_cash(vaultConfig, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+
+    assetCashHeld = 0
+    increment = 10_000e8
+    lastCollateral = 0
+    for i in range(0, 20):
+        ratio = get_collateral_ratio(vaultConfig, vault, totalAssetCash=assetCashHeld)
+        assetCashHeld += increment
+        assert ratio > lastCollateral
+        lastCollateral = ratio

@@ -104,6 +104,10 @@ def test_roll_vault_over_maximum_capacity(environment, vault, roll_account, acco
     check_system_invariants(environment, accounts, [vault])
 
 
+def test_roll_vault_past_max_market(environment, vault, roll_account, accounts):
+    pass
+
+
 def test_roll_vault_success(environment, vault, roll_account, accounts):
     environment.notional.updateVault(
         vault.address,

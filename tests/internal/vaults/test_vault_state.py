@@ -38,6 +38,33 @@ def test_get_and_set_vault_state(vaultConfig, vault):
     assert state == vaultConfig.getVaultState(vault.address, state[0])
 
 
+def test_set_vault_settled_state(vaultConfig, accounts, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000_000e8,
+            totalStrategyTokens=100_000e8,  # This represents profits
+            totalAssetCash=50_000_000e8,
+            totalfCash=-1_000_000e8,
+        ),
+    )
+
+    with brownie.reverts():
+        vaultConfig.setSettledVaultState(vault.address, maturity, START_TIME_TREF + 100)
+
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
+    state = vaultConfig.getVaultState(vault.address, maturity)
+    assert state["isSettled"]
+    assert state["settlementStrategyTokenValue"] == 1e8
+
+    with brownie.reverts():
+        vaultConfig.setSettledVaultState(vault.address, maturity, START_TIME_TREF + 200)
+
+
 def test_exit_maturity_pool_failures(vaultConfig, vault):
     account = get_vault_account(vaultShares=100e8, tempCashBalance=0)
     state = get_vault_state(
@@ -165,78 +192,3 @@ def test_enter_maturity_with_asset_cash(vaultConfig, vault):
     # Cannot enter a maturity pool with asset cash
     with brownie.reverts():
         vaultConfig.enterMaturityPool(vault.address, state, account, 0, "")
-
-
-def get_collateral_ratio(vaultConfig, vault, **kwargs):
-    vault.setExchangeRate(kwargs.get("exchangeRate", 1.2e28))
-
-    account = get_vault_account(
-        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
-        fCash=kwargs.get("fCash", -100_000e8),
-        tempCashBalance=kwargs.get("tempCashBalance", 100e8),
-        vaultShares=kwargs.get("accountVaultShares", 100_000e8),
-    )
-
-    state = get_vault_state(
-        maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
-        totalAssetCash=kwargs.get("totalAssetCash", 100_000e8),
-        totalVaultShares=kwargs.get("totalVaultShares", 100_000e8),
-        totalStrategyTokens=kwargs.get("totalStrategyTokens", 100_000e8),
-    )
-
-    (collateralRatio, _) = vaultConfig.calculateCollateralRatio(vault.address, account, state)
-    return collateralRatio
-
-
-def test_collateral_ratio_decreases_with_debt(vaultConfig, vault):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-
-    fCash = 0
-    decrement = -10_000e8
-    lastCollateral = 2 ** 255
-    for i in range(0, 20):
-        ratio = get_collateral_ratio(vaultConfig, vault, fCash=fCash)
-        fCash += decrement
-        assert ratio < lastCollateral
-        lastCollateral = ratio
-
-
-def test_collateral_ratio_increases_with_exchange_rate(vaultConfig, vault):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-
-    exchangeRate = 1.2e28
-    increment = 0.01e28
-    lastCollateral = 0
-    for i in range(0, 20):
-        ratio = get_collateral_ratio(vaultConfig, vault, exchangeRate=exchangeRate)
-        exchangeRate += increment
-        assert ratio > lastCollateral
-        lastCollateral = ratio
-
-
-def test_collateral_ratio_increases_with_vault_shares(vaultConfig, vault):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-
-    vaultShares = 1000e8
-    increment = 1000e8
-    lastCollateral = 0
-    for i in range(0, 20):
-        ratio = get_collateral_ratio(
-            vaultConfig, vault, fCash=-100e8, accountVaultShares=vaultShares, totalAssetCash=0
-        )
-        vaultShares += increment
-        assert ratio > lastCollateral
-        lastCollateral = ratio
-
-
-def test_collateral_ratio_increases_with_vault_asset_cash(vaultConfig, vault):
-    vaultConfig.setVaultConfig(vault.address, get_vault_config())
-
-    assetCashHeld = 0
-    increment = 10_000e8
-    lastCollateral = 0
-    for i in range(0, 20):
-        ratio = get_collateral_ratio(vaultConfig, vault, totalAssetCash=assetCashHeld)
-        assetCashHeld += increment
-        assert ratio > lastCollateral
-        lastCollateral = ratio

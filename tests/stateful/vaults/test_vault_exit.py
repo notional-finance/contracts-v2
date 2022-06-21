@@ -77,7 +77,6 @@ def test_exit_vault_min_borrow(environment, vault, accounts):
     check_system_invariants(environment, accounts, [vault])
 
 
-# TODO: test useUnderlying
 def test_exit_vault_transfer_from_account(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
@@ -135,7 +134,6 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     check_system_invariants(environment, accounts, [vault])
 
 
-# TODO: test underlying
 def test_exit_vault_transfer_to_account(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,

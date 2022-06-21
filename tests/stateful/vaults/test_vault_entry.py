@@ -421,9 +421,9 @@ def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, 
     check_system_invariants(environment, accounts, [vault])
 
 
-# def test_enter_vault_with_cdai(environment, accounts):
-# def test_enter_vault_with_usdc(environment, accounts):
-# def test_enter_vault_with_cusdc(environment, accounts):
-# def test_enter_vault_with_frax(environment, accounts):
-# def test_enter_vault_with_afrax(environment, accounts):
-# def test_enter_vault_with_eth(environment, accounts):
+def test_enter_vault_with_usdc(environment, accounts):
+    pass
+
+
+def test_enter_vault_with_eth(environment, accounts):
+    pass

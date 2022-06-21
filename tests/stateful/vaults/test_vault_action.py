@@ -236,7 +236,7 @@ def test_deposit_asset_cash_fails_collateral_ratio(environment, vault, accounts)
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_settle_vault_vault(environment, accounts, vault):
+def test_settle_vault(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
