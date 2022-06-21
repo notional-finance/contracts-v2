@@ -48,8 +48,8 @@ contract SimpleStrategyVault is BaseStrategyVault {
 
     function convertStrategyToUnderlying(
         address account, uint256 strategyTokens, uint256 maturity
-    ) public view override returns (uint256 underlyingValue) {
-        return (strategyTokens * _tokenExchangeRate * 1e10) / 1e18;
+    ) public view override returns (int256 underlyingValue) {
+        return int256((strategyTokens * _tokenExchangeRate * 1e10) / 1e18);
     }
 
     function borrowSecondaryCurrency(

@@ -10,7 +10,7 @@ import {SafeUint256} from "../../math/SafeUint256.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
-import {Token, TokenType, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
+import {Token, TokenType, TokenHandler} from "../balances/TokenHandler.sol";
 import {GenericToken} from "../balances/protocols/GenericToken.sol";
 import {BalanceHandler} from "../balances/BalanceHandler.sol";
 

@@ -27,7 +27,7 @@ interface IStrategyVault {
         address account,
         uint256 strategyTokens,
         uint256 maturity
-    ) external view returns (uint256 underlyingValue);
+    ) external view returns (int256 underlyingValue);
 
     function repaySecondaryBorrowCallback(
         uint256 underlyingRequired,

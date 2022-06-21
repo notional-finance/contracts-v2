@@ -17,7 +17,7 @@ import {DateTime} from "../markets/DateTime.sol";
 
 import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
-import {TokenType, Token, TokenHandler, AaveHandler} from "../balances/TokenHandler.sol";
+import {TokenType, Token, TokenHandler} from "../balances/TokenHandler.sol";
 
 import {VaultConfig, VaultConfiguration} from "./VaultConfiguration.sol";
 import {VaultStateLib, VaultState} from "./VaultState.sol";
@@ -351,9 +351,9 @@ library VaultAccountLib {
         // prices and should not be manipulate-able via flash loans. This is a requirement in strategy vault design.
         // Even if the settlement price was manipulated, it's not clear how it would be used to anyone's advantage
         // here since all accounts in the pool will face the same price.
-        int256 totalStrategyTokenValueAtSettlement = vaultState.totalStrategyTokens
+        int256 totalStrategyTokenValueAtSettlement = vaultState.totalStrategyTokens.toInt()
             .mul(vaultState.settlementStrategyTokenValue)
-            .div(uint256(Constants.INTERNAL_TOKEN_PRECISION)).toInt();
+            .div(Constants.INTERNAL_TOKEN_PRECISION);
 
         int256 totalAccountValue = _getTotalAccountValueAtSettlement(
             vaultAccount,
@@ -455,9 +455,9 @@ library VaultAccountLib {
             // account insolvency. The initial accounts to settle will be ok but the last account to settle will have to
             // take their profits in cash, not strategy tokens.
             assetCashClaim = assetCashClaim.add(settlementRate.convertFromUnderlying(
-                (strategyTokenClaim - remainingStrategyTokens) // overflow checked above
+                (strategyTokenClaim - remainingStrategyTokens).toInt() // overflow checked above
                     .mul(vaultState.settlementStrategyTokenValue)
-                    .div(uint256(Constants.INTERNAL_TOKEN_PRECISION)).toInt()
+                    .div(Constants.INTERNAL_TOKEN_PRECISION)
             ));
             strategyTokenClaim = remainingStrategyTokens;
 

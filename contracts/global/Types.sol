@@ -531,7 +531,7 @@ struct VaultStateStorage {
     // The total amount of strategy tokens held in the pool
     uint80 totalStrategyTokens;
     // Valuation of a strategy token at settlement
-    uint80 settlementStrategyTokenValue;
+    int80 settlementStrategyTokenValue;
     // NOTE: 96 bits left
 }
 
@@ -550,7 +550,7 @@ struct VaultState {
     uint256 totalVaultShares;
     uint256 totalAssetCash;
     uint256 totalStrategyTokens;
-    uint256 settlementStrategyTokenValue;
+    int256 settlementStrategyTokenValue;
 }
 
 /// @notice Represents an account's position within an individual vault

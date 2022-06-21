@@ -2,11 +2,12 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./ActionGuards.sol";
+import {ActionGuards} from "./ActionGuards.sol";
 import {IVaultAccountAction} from "../../../../interfaces/notional/IVaultController.sol";
 import "../../internal/vaults/VaultConfiguration.sol";
 import "../../internal/vaults/VaultAccount.sol";
 import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";
+import {TokenHandler, Token, AaveHandler} from "../../internal/balances/TokenHandler.sol";
 
 contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     using VaultConfiguration for VaultConfig;

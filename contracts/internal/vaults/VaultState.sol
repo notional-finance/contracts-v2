@@ -78,8 +78,9 @@ library VaultStateLib {
         );
 
         s.isSettled = true;
-        // Save off the value of a single strategy token at settlement
-        s.settlementStrategyTokenValue = singleTokenValueInternal.toUint().toUint80();
+        // Save off the value of a single strategy token at settlement. This is possibly negative if a strategy
+        // itself has become insolvent.
+        s.settlementStrategyTokenValue = singleTokenValueInternal.toInt80();
 
         // Initializes the settled assets counters for individual account settlement. If these are reduced below
         // zero then they signify an account insolvency within the vault maturity.
@@ -207,7 +208,7 @@ library VaultStateLib {
         if (token.decimals == 0) token = TokenHandler.getAssetToken(currencyId);
 
         return token.convertToInternal(
-            IStrategyVault(vault).convertStrategyToUnderlying(account, strategyTokens, maturity).toInt()
+            IStrategyVault(vault).convertStrategyToUnderlying(account, strategyTokens, maturity)
         );
     }
 
