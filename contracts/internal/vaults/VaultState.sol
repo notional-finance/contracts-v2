@@ -59,7 +59,13 @@ library VaultStateLib {
 
     /// @notice Settles a vault state by taking a snapshot of relevant values at settlement. This can only happen once
     /// per maturity.
-    function setSettledVaultState(VaultConfig memory vaultConfig, uint256 maturity, uint256 blockTime) internal {
+    function setSettledVaultState(
+        VaultState memory vaultState,
+        VaultConfig memory vaultConfig,
+        AssetRateParameters memory settlementRate,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
         VaultStateStorage storage s = store[vaultConfig.vault][maturity];
 
@@ -87,7 +93,21 @@ library VaultStateLib {
         VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
             [vaultConfig.vault][maturity];
         settledAssets.remainingStrategyTokens = s.totalStrategyTokens;
-        settledAssets.remainingAssetCash = s.totalAssetCash;
+
+        // This is the amount of residual asset cash left in the vault after repaying the fCash debt,
+        // it can be negative if the entire vault is insolvent.
+        settledAssets.remainingAssetCash = vaultState.totalAssetCash.toInt()
+            .add(settlementRate.convertFromUnderlying(vaultState.totalfCash)).toInt80();
+    }
+
+    function getRemainingSettledTokens(
+        address vault,
+        uint256 maturity
+    ) internal view returns (uint256 remainingStrategyTokens, int256 remainingAssetCash) {
+        VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
+            [vault][maturity];
+        remainingStrategyTokens = settledAssets.remainingStrategyTokens;
+        remainingAssetCash = settledAssets.remainingAssetCash;
     }
 
     /// @notice Exits a maturity for an account given the shares to redeem. Asset cash will be credited

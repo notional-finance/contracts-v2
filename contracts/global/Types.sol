@@ -540,7 +540,7 @@ struct VaultSettledAssetsStorage {
     // Remaining strategy tokens that have not been withdrawn
     uint80 remainingStrategyTokens;
     // Remaining asset cash that has not been withdrawn
-    uint80 remainingAssetCash;
+    int80 remainingAssetCash;
 }
 
 struct VaultState {

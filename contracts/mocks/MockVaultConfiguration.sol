@@ -12,6 +12,10 @@ contract MockVaultConfiguration {
     using VaultConfiguration for VaultConfig;
     using VaultStateLib for VaultState;
     using VaultAccountLib for VaultAccount;
+    event VaultChange(address indexed vault, bool enabled);
+    event VaultPauseStatus(address indexed vault, bool enabled);
+    event VaultShortfall(uint16 indexed currencyId, address indexed vault, int256 shortfall);
+    event ProtocolInsolvency(uint16 indexed currencyId, address indexed vault, int256 shortfall);
 
     function getVaultConfigView(
         address vault
@@ -98,8 +102,14 @@ contract MockVaultConfiguration {
 
     /*** Vault State Methods ***/
 
-    function getVaultState(address vault, uint256 maturity) external view returns (VaultState memory) {
+    function getVaultState(address vault, uint256 maturity) public view returns (VaultState memory) {
         return VaultStateLib.getVaultState(vault, maturity);
+    }
+
+    function getRemainingSettledTokens(address vault, uint256 maturity) external view returns (
+        uint256 remainingStrategyTokens, int256 remainingAssetCash
+    ) {
+        return VaultStateLib.getRemainingSettledTokens(vault, maturity);
     }
 
     function setVaultState(address vault, VaultState memory vaultState) external {
@@ -107,7 +117,13 @@ contract MockVaultConfiguration {
     }
 
     function setSettledVaultState(address vault, uint256 maturity, uint256 blockTime) external {
-        return VaultStateLib.setSettledVaultState(getVaultConfigView(vault), maturity, blockTime);
+        return VaultStateLib.setSettledVaultState(
+            getVaultState(vault, maturity),
+            getVaultConfigView(vault),
+            getVaultConfigView(vault).assetRate,
+            maturity,
+            blockTime
+        );
     }
 
     function exitMaturity(
@@ -218,6 +234,13 @@ contract MockVaultConfiguration {
     }
 
     /*** Set Other Globals ***/
+    function setReserveBalance(uint16 currencyId, int256 balance) external {
+        BalanceHandler.setReserveCashBalance(currencyId, balance);
+    }
+
+    function getReserveBalance(uint16 currencyId) external view returns (int256 cashBalance) {
+        (cashBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(address(0), currencyId);
+    }
 
     function setToken(
         uint16 currencyId,

@@ -46,10 +46,6 @@ def test_enforce_temp_cash_balance(vaultConfig, accounts, vault):
         vaultConfig.setVaultAccount(account, vault.address)
 
 
-def test_update_account_fcash(vaultConfig, accounts, vault):
-    pass
-
-
 @given(
     fCash=strategy("int", min_value=-100_000e8, max_value=-10_000e8),
     initialRatio=strategy("uint", min_value=0, max_value=30),
@@ -147,7 +143,13 @@ def test_settle_asset_cash_with_residual(vaultConfig, accounts, vault, residual)
         == residual
     )
 
-    # TODO: test remaining amounts view
+    (remainingStrategyTokens, remainingAssetCash) = vaultConfig.getRemainingSettledTokens(
+        vault.address, maturity
+    )
+    assert pytest.approx(remainingStrategyTokens, abs=5) == 0
+    assert pytest.approx(remainingAssetCash, abs=5) == 0
+    assert remainingStrategyTokens >= 0
+    assert remainingAssetCash >= 0
 
 
 def test_settle_insolvent_account(vaultConfig, accounts, vault):
@@ -168,11 +170,11 @@ def test_settle_insolvent_account(vaultConfig, accounts, vault):
 
     account = get_vault_account(maturity=maturity, fCash=-10_000e8, vaultShares=0)
     account2 = get_vault_account(
-        maturity=maturity,
-        fCash=-1_000_000e8 + 10_000e8,
-        escrowedAssetCash=0,
-        vaultShares=1_000_000e8,
+        maturity=maturity, fCash=-1_000_000e8 + 10_000e8, vaultShares=1_000_000e8
     )
+
+    assert vaultConfig.getRemainingSettledTokens(vault.address, maturity) == (100_000e8, 0)
+    vaultConfig.setReserveBalance(1, 50_000_000e8)
 
     txn1 = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
     (accountAfter, strategyTokens) = txn1.return_value
@@ -194,7 +196,54 @@ def test_settle_insolvent_account(vaultConfig, accounts, vault):
     assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == -500_000e8
     assert accountAfter2["tempCashBalance"] == 500_000e8
 
-    # TODO: test settled assets values
+    assert vaultConfig.getRemainingSettledTokens(vault.address, maturity) == (0, 0)
+    assert vaultConfig.getReserveBalance(1) == 50_000_000e8 - 500_000e8
+
+
+def test_settle_insolvent_vault(vaultConfig, accounts, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000_000e8,
+            totalStrategyTokens=0,
+            totalAssetCash=49_500_000e8,
+            totalfCash=-1_000_000e8,
+        ),
+    )
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
+
+    account = get_vault_account(maturity=maturity, fCash=-10_000e8, vaultShares=0)
+    account2 = get_vault_account(maturity=maturity, fCash=-900_000e8, vaultShares=1_000_000e8)
+
+    assert vaultConfig.getRemainingSettledTokens(vault.address, maturity) == (0, -500_000e8)
+    vaultConfig.setReserveBalance(1, 50_000_000e8)
+
+    txn1 = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
+    (accountAfter, strategyTokens) = txn1.return_value
+
+    txn2 = vaultConfig.settleVaultAccount(vault.address, account2, maturity + 100)
+    (accountAfter2, strategyTokens2) = txn2.return_value
+
+    assert accountAfter["fCash"] == 0
+    assert accountAfter["maturity"] == 0
+    assert accountAfter["vaultShares"] == 0
+    assert accountAfter2["fCash"] == 0
+    assert accountAfter2["maturity"] == 0
+    assert accountAfter2["vaultShares"] == 0
+
+    # No strategy tokens remaining
+    assert strategyTokens == 0
+    assert strategyTokens2 == 0
+    # Account gets their share of the residuals
+    assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == -500_000e8
+    assert accountAfter2["tempCashBalance"] == 4_500_000e8
+
+    assert vaultConfig.getRemainingSettledTokens(vault.address, maturity) == (0, -500_000e8)
+    assert vaultConfig.getReserveBalance(1) == 50_000_000e8 - 4_500_000e8
 
 
 def get_collateral_ratio(vaultConfig, vault, **kwargs):

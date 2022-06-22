@@ -435,6 +435,11 @@ library VaultAccountLib {
             int256 settledVaultValue = settlementRate.convertToUnderlying(residualAssetCashBalance)
                 .add(totalStrategyTokenValueAtSettlement);
             
+            // If the vault is insolvent (meaning residualAssetCashBalance < 0), it is necessarily
+            // true that totalStrategyTokens == 0 (meaning all tokens were sold in an attempt to
+            // repay the debt). That means settledVaultValue == residualAssetCashBalance, strategyTokenClaim == 0
+            // and assetCashClaim == totalAccountValue. Accounts that are still solvent will be paid from the
+            // reserve, accounts that are insolvent will have a totalAccountValue == 0.
             strategyTokenClaim = totalAccountValue.mul(vaultState.totalStrategyTokens.toInt())
                 .div(settledVaultValue).toUint();
 
@@ -447,7 +452,7 @@ library VaultAccountLib {
         VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
             [vaultConfig.vault][vaultState.maturity];
         uint256 remainingStrategyTokens = settledAssets.remainingStrategyTokens;
-        int256 remainingAssetCash = int256(uint256(settledAssets.remainingAssetCash));
+        int256 remainingAssetCash = settledAssets.remainingAssetCash;
         
         if (remainingStrategyTokens < strategyTokenClaim) {
             // If there are insufficient strategy tokens to repay the account, we convert it to a cash claim at the
@@ -467,20 +472,35 @@ library VaultAccountLib {
             // Underflow checked above, cannot overflow uint80
             settledAssets.remainingStrategyTokens = uint80(remainingStrategyTokens - strategyTokenClaim);
         }
-
+        
+        // This is purely a defensive check, this should always be true based on the logic above
+        require(assetCashClaim >= 0);
+        // Since the assetCashClaim calculation above rounds down, there should never be a situation where the
+        // assetCashClaim goes into shortfall due to a rounding error.
         if (remainingAssetCash < assetCashClaim) {
-            // If there is insufficient asset cash to repay the account then we need to raise cash from the reserve.
+            // If remaining asset cash < 0 then we don't try to pull more cash from the reserve to cover it
+            // in whole, we just pull the portion to cover what's required for this account to exit.
+            int256 shortfall = remainingAssetCash > 0 ? assetCashClaim - remainingAssetCash : assetCashClaim;
+            
+            // It is possible that asset cash raised is not sufficient to cover the cash claim, there's nothing
+            // we can do about that at this point. If there is a governance action to recover the rest of the cash
+            // than the account could wait until that is completed. However, we don't revert here to allow solvent
+            // accounts to withdraw whatever they can if they want to.
             int256 assetCashRaised = VaultConfiguration.resolveShortfallWithReserve(
-                vaultConfig.vault, vaultConfig.borrowCurrencyId, (assetCashClaim - remainingAssetCash)
+                vaultConfig.vault, vaultConfig.borrowCurrencyId, shortfall
             );
 
-            assetCashClaim = remainingAssetCash.add(assetCashRaised);
-
-            // Clear the remaining asset cash
-            settledAssets.remainingAssetCash = 0;
+            if (remainingAssetCash > 0) {
+                // Here the account gets what is left in the cash pool and what was raised
+                assetCashClaim = remainingAssetCash.add(assetCashRaised);
+                settledAssets.remainingAssetCash = 0;
+            } else {
+                // If remaining asset cash is negative then the account only gets what is raised
+                assetCashClaim = assetCashRaised;
+            }
         } else {
-            // Underflow checked above, cannot overflow uint80
-            settledAssets.remainingAssetCash = uint80(remainingAssetCash - assetCashClaim);
+            // remainingAssetCash and assetCashClaim are always positive in this branch
+            settledAssets.remainingAssetCash = remainingAssetCash.sub(assetCashClaim).toInt80();
         }
     }
 }
