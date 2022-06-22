@@ -20,7 +20,7 @@ def test_cash_value_of_shares(vaultConfig, vault, accounts):
     )
     vault.setExchangeRate(1.2e18)
 
-    assetCashValue = vaultConfig.getCashValueOfShare(vault.address, state, 100e8)
+    assetCashValue = vaultConfig.getCashValueOfShare(vault.address, accounts[0], state, 100e8)
 
     assert assetCashValue == 6001e8
 
@@ -76,14 +76,14 @@ def test_exit_maturity_pool_failures(vaultConfig, vault):
 
     with brownie.reverts():
         # fails due to mismatched maturities
-        vaultConfig.exitMaturityPool(state, account, 1e8)
+        vaultConfig.exitMaturity(state, account, 1e8)
 
     with brownie.reverts():
         account = get_vault_account(
             maturity=START_TIME_TREF + SECONDS_IN_QUARTER, vaultShares=100e8, tempCashBalance=0
         )
         # fails due to insufficient balance
-        vaultConfig.exitMaturityPool(state, account, 150e8)
+        vaultConfig.exitMaturity(state, account, 150e8)
 
 
 def test_exit_maturity_pool(vaultConfig, vault):
@@ -106,7 +106,7 @@ def test_exit_maturity_pool(vaultConfig, vault):
         totalStrategyTokens=totalStrategyTokens,
     )
 
-    (tokens, newState, newAccount) = vaultConfig.exitMaturityPool(state, account, sharesRedeem)
+    (tokens, newState, newAccount) = vaultConfig.exitMaturity(state, account, sharesRedeem)
     # Total Vault Shares Net Off
     assert totalVaultShares - newState.dict()["totalVaultShares"] == sharesRedeem
     # Total Cash Balance Nets Off
@@ -143,8 +143,8 @@ def test_enter_maturity(vaultConfig, vault, cToken, accounts, strategyTokenDepos
     cToken.transfer(vaultConfig.address, tempCashBalance, {"from": accounts[0]})
     vault.setExchangeRate(2e18)
 
-    (newState, newAccount) = vaultConfig.enterMaturityPool(
-        vault.address, state, account, strategyTokenDeposit, ""
+    (newState, newAccount) = vaultConfig.enterMaturity(
+        vault.address, state, account, strategyTokenDeposit, tempCashBalance / 50, ""
     ).return_value
     # Total Vault Shares Net Off
     assert (
@@ -174,14 +174,14 @@ def test_enter_maturity_with_old_maturity(vaultConfig, vault):
 
     # Cannot enter a maturity pool with a mismatched maturity
     with brownie.reverts():
-        vaultConfig.enterMaturityPool(vault.address, state, account, 0, "")
+        vaultConfig.enterMaturity(vault.address, state, account, 0, 0, "")
 
     account = get_vault_account(maturity=START_TIME_TREF + SECONDS_IN_QUARTER, vaultShares=100e8)
     state = get_vault_state(maturity=START_TIME_TREF + 2 * SECONDS_IN_QUARTER)
 
     # Cannot enter a maturity pool with a mismatched maturity
     with brownie.reverts():
-        vaultConfig.enterMaturityPool(vault.address, state, account, 0, "")
+        vaultConfig.enterMaturity(vault.address, state, account, 0, 0, "")
 
 
 def test_enter_maturity_with_asset_cash(vaultConfig, vault):
@@ -191,4 +191,4 @@ def test_enter_maturity_with_asset_cash(vaultConfig, vault):
 
     # Cannot enter a maturity pool with asset cash
     with brownie.reverts():
-        vaultConfig.enterMaturityPool(vault.address, state, account, 0, "")
+        vaultConfig.enterMaturity(vault.address, state, account, 0, 0, "")
