@@ -60,6 +60,12 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint80 maxBorrowCapacity
     ) external override onlyOwner {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vaultAddress);
+        // Tokens with transfer fees create lots of issues with vault mechanics, we prevent them
+        // from being listed here.
+        Token memory assetToken = TokenHandler.getAssetToken(secondaryCurrencyId);
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(secondaryCurrencyId);
+        require(!assetToken.hasTransferFee && !underlyingToken.hasTransferFee); 
+
         // The secondary borrow currency must be white listed on the configuration before we can set a max
         // capacity.
         require(

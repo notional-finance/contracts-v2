@@ -14,9 +14,9 @@ library CompoundHandler {
     // Return code for cTokens that represents no error
     uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;
 
-    function mintCETH(Token memory token) internal {
+    function mintCETH(Token memory token, uint256 underlyingAmountExternal) internal {
         // Reverts on error
-        CEtherInterface(token.tokenAddress).mint{value: msg.value}();
+        CEtherInterface(token.tokenAddress).mint{value: underlyingAmountExternal}();
     }
 
     function mint(Token memory token, uint256 underlyingAmountExternal) internal {

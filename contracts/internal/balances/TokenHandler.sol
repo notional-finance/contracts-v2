@@ -139,7 +139,9 @@ library TokenHandler {
         } else if (assetToken.tokenType == TokenType.cToken) {
             CompoundHandler.mint(assetToken, underlyingAmountExternal);
         } else if (assetToken.tokenType == TokenType.cETH) {
-            CompoundHandler.mintCETH(assetToken);
+            // NOTE: current deployed contracts rely on msg.value but this has been updated for
+            // strategy vaults.
+            CompoundHandler.mintCETH(assetToken, underlyingAmountExternal);
         } else {
             revert(); // dev: non mintable token
         }

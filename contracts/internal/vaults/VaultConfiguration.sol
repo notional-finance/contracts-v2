@@ -124,6 +124,12 @@ library VaultConfiguration {
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[1]);
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[2]);
 
+        // Tokens with transfer fees create lots of issues with vault mechanics, we prevent them
+        // from being listed here.
+        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+        require(!assetToken.hasTransferFee && !underlyingToken.hasTransferFee); 
+
         store[vaultAddress] = vaultConfig;
     }
 
@@ -362,7 +368,7 @@ library VaultConfiguration {
         );
     }
 
-    /// @notice Redeems and transfers asset cash to the vault
+    /// @notice Redeems and transfers asset cash to the vault from Notional
     /// @param vaultConfig vault config
     /// @param receiver address that receives the token
     /// @param cashToTransferInternal amount of asset cash to  transfer in internal precision
@@ -393,7 +399,7 @@ library VaultConfiguration {
         }
     }
 
-    /// @notice Convenience method for redeem to resolve some stack issues
+    /// @notice Redeems 
     function redeemWithoutDebtRepayment(
         VaultConfig memory vaultConfig,
         address account,
@@ -402,7 +408,24 @@ library VaultConfiguration {
         bytes calldata data
     ) internal returns (int256 assetCashInternalRaised) {
         /// NOTE: assetInternalToRepayDebt is set to zero here
-        return redeem(vaultConfig, account, strategyTokens, maturity, 0, data);
+        return _redeem(vaultConfig, account, strategyTokens, maturity, 0, data);
+    }
+
+    function redeemWithDebtRepayment(
+        VaultConfig memory vaultConfig,
+        VaultAccount memory vaultAccount,
+        uint256 strategyTokens,
+        uint256 maturity,
+        bytes calldata data
+    ) internal {
+        require(vaultAccount.tempCashBalance <= 0);
+        // This method will revert if the tempCashBalance is not repaid, although the return value will be greater
+        // than tempCashBalance due to rounding adjustments. Just clear tempCashBalance to remove the dust from
+        // internal accounting (the dust will accrue to the protocol).
+        _redeem(
+            vaultConfig, vaultAccount.account, strategyTokens, maturity, vaultAccount.tempCashBalance, data
+        );
+        vaultAccount.tempCashBalance = 0;
     }
 
     /// @notice This will call the strategy vault and have it redeem the specified amount of strategy tokens
@@ -410,12 +433,13 @@ library VaultConfiguration {
     /// and any excess will be returned to the account. If the account does not redeem sufficient strategy tokens to repay
     /// debts then this method will attempt to recover the remaining underlying tokens from the account directly.
     /// @param vaultConfig vault config
+    /// @param account address of the account to pass to the vault
     /// @param strategyTokens amount of strategy tokens to redeem
     /// @param maturity the maturity of the vault shares
     /// @param assetInternalToRepayDebt amount of asset cash in internal denomination required to repay debts
     /// @param data arbitrary data to pass to the vault
     /// @return assetCashInternalRaised the amount of asset cash (positive) that was returned to repay debts
-    function redeem(
+    function _redeem(
         VaultConfig memory vaultConfig,
         address account,
         uint256 strategyTokens,
@@ -433,45 +457,54 @@ library VaultConfiguration {
         // dust values.
         uint256 underlyingExternalToRepay;
         if (assetInternalToRepayDebt < 0) {
-            underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(
-                vaultConfig.assetRate.convertToUnderlying(assetInternalToRepayDebt).neg()
-            ).toUint();
+            if (assetToken.tokenType == TokenType.NonMintable) {
+                // NonMintable token amounts are exact and don't require any asset rate conversions or adjustments
+                underlyingExternalToRepay = assetInternalToRepayDebt.neg().toUint();
+            } else {
+                // Mintable tokens require an off by one adjustment to account for rounding errors between
+                // transfer and minting
+                underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                    vaultConfig.assetRate.convertToUnderlying(assetInternalToRepayDebt).neg()
+                ).toUint();
+            }
         }
 
         uint256 amountTransferred;
         if (strategyTokens > 0) {
-            uint256 balanceBefore = underlyingToken.balanceOf(address(this));
+            bool isETH = underlyingToken.tokenType == TokenType.Ether;
+            uint256 balanceBefore = isETH ? address(this).balance : underlyingToken.balanceOf(address(this));
             // The vault will either transfer underlyingExternalToRepay back to Notional or it will
             // transfer all the underlying tokens it has redeemed and we will have to recover any remaining
             // underlying from the account directly.
             IStrategyVault(vaultConfig.vault).redeemFromNotional(
                 account, strategyTokens, maturity, underlyingExternalToRepay, data
             );
-            uint256 balanceAfter = underlyingToken.balanceOf(address(this));
+            uint256 balanceAfter = isETH ? address(this).balance : underlyingToken.balanceOf(address(this));
             amountTransferred = balanceAfter.sub(balanceBefore);
         }
 
         if (amountTransferred < underlyingExternalToRepay) {
             // Recover any unpaid debt amount from the account directly
-            int256 residualRequired = (underlyingExternalToRepay - amountTransferred).toInt();
+            uint256 residualRequired = underlyingExternalToRepay - amountTransferred;
 
             // Since ETH does not allow pull payment, the account needs to transfer sufficient
             // ETH to repay the debt. We don't use WETH here since the rest of Notional does not
             // use WETH. Any residual ETH is transferred back to the account. Vault actions that
             // do not repay debt during redeem will not enter this code block.
             if (underlyingToken.tokenType == TokenType.Ether) {
-                require(msg.value >= uint256(residualRequired), "Insufficient ETH");
-                // Transfer out the unused part of msg.value
-                residualRequired = residualRequired - msg.value.toInt();
+                require(residualRequired <= msg.value, "Insufficient repayment");
+                // Transfer out the unused part of msg.value, we've received all underlying external required
+                // at this point
+                GenericToken.transferNativeTokenOut(account, msg.value - residualRequired);
+                amountTransferred = underlyingExternalToRepay;
+            } else {
+                // actualTransferExternal is a positive number here to signify assets have entered
+                // the protocol
+                int256 actualTransferExternal = underlyingToken.transfer(
+                    account, vaultConfig.borrowCurrencyId, residualRequired.toInt()
+                );
+                amountTransferred = amountTransferred.add(actualTransferExternal.toUint());
             }
-
-            // actualTransferExternal is a positive number here to signify assets have entered
-            // the protocol
-            int256 actualTransferExternal = underlyingToken.transfer(
-                account, vaultConfig.borrowCurrencyId, residualRequired
-            );
-
-            amountTransferred = amountTransferred.add(actualTransferExternal.toUint());
         }
         require(amountTransferred >= underlyingExternalToRepay, "Insufficient repayment");
 
@@ -481,6 +514,8 @@ library VaultConfiguration {
             amountTransferred.toInt() :
             assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred);
 
+        // Due to the adjustment in underlyingExternalToRepay, this returns a dust amount more
+        // than the value of assetInternalToRepayDebt.
         assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
     }
 

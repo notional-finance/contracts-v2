@@ -50,6 +50,10 @@ contract MockCToken is ERC20 {
         return address(0);
     }
 
+    function mint() external payable {
+        _mint(msg.sender, (msg.value * 1e18) / _answer);
+    }
+
     function mint(uint mintAmount) external returns (uint) {
         ERC20(underlying).transferFrom(msg.sender, address(this), mintAmount);
         _mint(msg.sender, (mintAmount * 1e18) / _answer);

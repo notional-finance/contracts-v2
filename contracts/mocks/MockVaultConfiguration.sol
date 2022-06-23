@@ -87,19 +87,6 @@ contract MockVaultConfiguration {
         );
     }
 
-    function redeem(
-        address vault,
-        address account,
-        uint256 strategyTokens,
-        uint256 maturity,
-        int256 assetAmountToRepay,
-        bytes calldata data
-    ) external returns (int256 assetCashInternalRaised) {
-        return VaultConfiguration.getVaultConfigView(vault).redeem(
-            account, strategyTokens, maturity, assetAmountToRepay, data
-        );
-    }
-
     /*** Vault State Methods ***/
 
     function getVaultState(address vault, uint256 maturity) public view returns (VaultState memory) {
@@ -205,25 +192,22 @@ contract MockVaultConfiguration {
         return getVaultConfigView(vault).transferUnderlyingToVaultDirect(transferFrom, depositAmountExternal);
     }
 
-    // function transferTempCashBalance(
-    //     VaultAccount memory vaultAccount,
-    //     uint16 borrowCurrencyId,
-    //     bool useUnderlying
-    // ) external returns (VaultAccount memory) {
-    //     VaultConfig memory vaultConfig;
-    //     vaultConfig.borrowCurrencyId = borrowCurrencyId;
-    //     vaultConfig.assetRate = AssetRate.buildAssetRateStateful(borrowCurrencyId);
-    //     vaultAccount.transferTempCashBalance(vaultConfig, useUnderlying);
-    //     return vaultAccount;
-    // }
+    function redeem(
+        address vault,
+        uint256 strategyTokens,
+        int256 assetInternalToRepayDebt,
+        address account,
+        bytes calldata data
+    ) external payable returns (int256 assetCashInternalRaised) {
+        // maturity and data are just forwarded to the vault, not relevant for this unit test
+        return getVaultConfigView(vault)._redeem(account, strategyTokens, 0, assetInternalToRepayDebt, data);
+    }
 
     function calculateDeleverageAmount(
         VaultAccount memory vaultAccount,
         address vault,
         int256 vaultShareValue
-    ) external view returns (
-        int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount
-    ) {
+    ) external view returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
         return vaultAccount.calculateDeleverageAmount(
             getVaultConfigView(vault),
             vaultShareValue
@@ -284,4 +268,5 @@ contract MockVaultConfiguration {
         return address(0);
     }
 
+    receive() external payable { }
 }

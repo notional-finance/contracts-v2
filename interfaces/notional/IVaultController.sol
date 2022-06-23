@@ -173,6 +173,7 @@ interface IVaultAccountAction {
     function exitVault(
         address account,
         address vault,
+        address receiver,
         uint256 vaultSharesToRedeem,
         uint256 fCashToLend,
         uint32 minLendRate,

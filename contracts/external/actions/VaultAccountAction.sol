@@ -140,6 +140,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     /// strategy tokens back to the borrowed currency and transfer the profits to the account.
     /// @param account the address that will exit the vault
     /// @param vault the vault to enter
+    /// @param receiver the address that will receive profits
     /// @param vaultSharesToRedeem amount of vault tokens to exit, only relevant when exiting pre-maturity
     /// @param fCashToLend amount of fCash to lend
     /// @param minLendRate the minimum rate to lend at
@@ -147,6 +148,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     function exitVault(
         address account,
         address vault,
+        address receiver,
         uint256 vaultSharesToRedeem,
         uint256 fCashToLend,
         uint32 minLendRate,
@@ -170,13 +172,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             if (vaultAccount.tempCashBalance > 0) {
                 // Transfer asset cash back to the account
-                vaultConfig.transferFromNotional(account, vaultAccount.tempCashBalance);
+                vaultConfig.transferFromNotional(receiver, vaultAccount.tempCashBalance);
                 vaultAccount.tempCashBalance = 0;
             }
 
             // Redeems all strategy tokens and any profits are sent back to the account, it is possible for temp
             // cash balance to be negative here if the account is insolvent
-            vaultConfig.redeem(account, strategyTokens, maturity, vaultAccount.tempCashBalance, exitVaultData);
+            vaultConfig.redeemWithDebtRepayment(vaultAccount, strategyTokens, maturity, exitVaultData);
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
             // Puts a negative cash balance on the vault's temporary cash balance
@@ -192,12 +194,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 if (vaultAccount.tempCashBalance > 0) {
                     // Transfer asset cash back to the account, this is possible if there is asset cash
                     // when the vault exits the maturity
-                    vaultConfig.transferFromNotional(account, vaultAccount.tempCashBalance);
+                    vaultConfig.transferFromNotional(receiver, vaultAccount.tempCashBalance);
                     vaultAccount.tempCashBalance = 0;
                 }
 
-                vaultConfig.redeem(
-                    account, strategyTokens, vaultState.maturity, vaultAccount.tempCashBalance, exitVaultData
+                vaultConfig.redeemWithDebtRepayment(
+                    vaultAccount, strategyTokens, vaultState.maturity, exitVaultData
                 );
             }
 

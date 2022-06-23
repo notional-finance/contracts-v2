@@ -28,7 +28,7 @@ def vaultConfig(MockVaultConfiguration, cToken, cTokenV2Aggregator, accounts, un
         aggregator.address,
         18,
         (cToken.address, False, TokenType["cToken"], 8, 0),
-        (underlying.address, True, TokenType["UnderlyingToken"], 18, 0),
+        (underlying.address, False, TokenType["UnderlyingToken"], 18, 0),
         accounts[9].address,
         {"from": accounts[0]},
     )
@@ -46,7 +46,7 @@ def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenV2Aggregator, Mo
         aggregator.address,
         18,
         (cETH.address, False, TokenType["cETH"], 8, 0),
-        (HexString(0, "bytes20"), True, TokenType["Ether"], 18, 0),
+        (HexString(0, "bytes20"), False, TokenType["Ether"], 18, 0),
         accounts[9].address,
         {"from": accounts[0]},
     )
@@ -93,7 +93,7 @@ def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenV2Aggregator, Mo
         5,
         HexString(0, "bytes20"),
         underlying.decimals(),
-        (underlying.address, False, TokenType["NonMintable"], 8, 0),
+        (underlying.address, False, TokenType["NonMintable"], 18, 0),
         (HexString(0, "bytes20"), False, TokenType["UnderlyingToken"], 0, 0),
         accounts[10 - 5].address,
         {"from": accounts[0]},
