@@ -1,5 +1,6 @@
 import brownie
 import pytest
+from brownie import MockERC20
 from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from fixtures import *
@@ -165,20 +166,79 @@ def test_update_used_borrow_capacity_decreases_with_lending(vaultConfig, vault):
         vaultConfig.updateUsedBorrowCapacity(vault.address, 1, -1)
 
 
-def test_transfer_eth_to_vault_direct():
-    pass
+def test_transfer_eth_to_vault_direct(cTokenVaultConfig, vault, accounts):
+    cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=1))
+    balanceBefore = vault.balance()
+    transferAmount = cTokenVaultConfig.transferUnderlyingToVaultDirect(
+        vault.address, accounts[0], 10e18, {"value": 10e18, "from": accounts[0]}
+    ).return_value
+    balanceAfter = vault.balance()
+    assert cTokenVaultConfig.balance() == 0
+    assert balanceAfter - balanceBefore == transferAmount
+    assert transferAmount == 10e18
 
 
-def test_transfer_transfer_fee_to_vault_direct():
-    pass
+def test_transfer_transfer_fee_to_vault_direct(cTokenVaultConfig, vault, accounts):
+    cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=3))
+    token = MockERC20.at(cTokenVaultConfig.getUnderlyingToken(3))
+    token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
+    balanceBefore = token.balanceOf(vault)
+    transferAmount = cTokenVaultConfig.transferUnderlyingToVaultDirect(
+        vault.address, accounts[0], 100e8, {"from": accounts[0]}
+    ).return_value
+    balanceAfter = token.balanceOf(vault)
+
+    assert token.balanceOf(cTokenVaultConfig) == 0
+    assert balanceAfter - balanceBefore == transferAmount
+    assert transferAmount == 99e8
 
 
-def test_transfer_underlying_to_vault_direct():
-    pass
+def test_transfer_dai_to_vault_direct(cTokenVaultConfig, vault, accounts):
+    cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=2))
+    token = MockERC20.at(cTokenVaultConfig.getUnderlyingToken(2))
+    token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
+
+    balanceBefore = token.balanceOf(vault)
+    transferAmount = cTokenVaultConfig.transferUnderlyingToVaultDirect(
+        vault.address, accounts[0], 100e18, {"from": accounts[0]}
+    ).return_value
+    balanceAfter = token.balanceOf(vault)
+
+    assert token.balanceOf(cTokenVaultConfig) == 0
+    assert balanceAfter - balanceBefore == transferAmount
+    assert transferAmount == 100e18
 
 
-def test_transfer_non_mintable_to_vault_direct():
-    pass
+def test_transfer_usdc_to_vault_direct(cTokenVaultConfig, vault, accounts):
+    cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=4))
+    token = MockERC20.at(cTokenVaultConfig.getUnderlyingToken(4))
+    token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
+
+    balanceBefore = token.balanceOf(vault)
+    transferAmount = cTokenVaultConfig.transferUnderlyingToVaultDirect(
+        vault.address, accounts[0], 100e6, {"from": accounts[0]}
+    ).return_value
+    balanceAfter = token.balanceOf(vault)
+
+    assert token.balanceOf(cTokenVaultConfig) == 0
+    assert balanceAfter - balanceBefore == transferAmount
+    assert transferAmount == 100e6
+
+
+def test_transfer_non_mintable_to_vault_direct(cTokenVaultConfig, vault, accounts):
+    cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=5))
+    token = MockERC20.at(cTokenVaultConfig.getAssetToken(5))
+    token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
+
+    balanceBefore = token.balanceOf(vault)
+    transferAmount = cTokenVaultConfig.transferUnderlyingToVaultDirect(
+        vault.address, accounts[0], 100e18, {"from": accounts[0]}
+    ).return_value
+    balanceAfter = token.balanceOf(vault)
+
+    assert token.balanceOf(cTokenVaultConfig) == 0
+    assert balanceAfter - balanceBefore == transferAmount
+    assert transferAmount == 100e18
 
 
 def test_redeem_no_debt_to_repay():

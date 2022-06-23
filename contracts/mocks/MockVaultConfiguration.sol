@@ -197,16 +197,13 @@ contract MockVaultConfiguration {
         return (vaultAccount, strategyTokens);
     }
 
-    // function depositIntoAccount(
-    //     VaultAccount memory vaultAccount,
-    //     address transferFrom,
-    //     uint16 borrowCurrencyId,
-    //     uint256 _depositAmountExternal,
-    //     bool useUnderlying
-    // ) external returns (VaultAccount memory) {
-    //     vaultAccount.depositIntoAccount(transferFrom, borrowCurrencyId, _depositAmountExternal, useUnderlying);
-    //     return vaultAccount;
-    // }
+    function transferUnderlyingToVaultDirect(
+        address vault,
+        address transferFrom,
+        uint256 depositAmountExternal
+    ) external payable returns (uint256 underlyingTransferred) {
+        return getVaultConfigView(vault).transferUnderlyingToVaultDirect(transferFrom, depositAmountExternal);
+    }
 
     // function transferTempCashBalance(
     //     VaultAccount memory vaultAccount,
@@ -250,7 +247,9 @@ contract MockVaultConfiguration {
         TokenStorage memory underlyingToken,
         address nTokenAddress
     ) external {
-        TokenHandler.setToken(currencyId, true, underlyingToken);
+        if (assetToken.tokenType != TokenType.NonMintable) {
+            TokenHandler.setToken(currencyId, true, underlyingToken);
+        }
         TokenHandler.setToken(currencyId, false, assetToken);
 
         nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
@@ -260,6 +259,14 @@ contract MockVaultConfiguration {
             rateOracle: rateOracle,
             underlyingDecimalPlaces: underlyingDecimals
         });
+    }
+
+    function getUnderlyingToken(uint16 currencyId) external view returns (address) {
+        return TokenHandler.getUnderlyingToken(currencyId).tokenAddress;
+    }
+
+    function getAssetToken(uint16 currencyId) external view returns (address) {
+        return TokenHandler.getAssetToken(currencyId).tokenAddress;
     }
 
     function getCurrencyAndRates(uint16 currencyId) external view returns (

@@ -1,5 +1,6 @@
 import pytest
 from brownie import accounts
+from brownie.convert.datatypes import HexString
 from scripts.common import TokenType
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
 
@@ -38,17 +39,31 @@ def vaultConfig(MockVaultConfiguration, cToken, cTokenV2Aggregator, accounts, un
 def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenV2Aggregator, MockERC20, accounts):
     mockVaultConf = MockVaultConfiguration.deploy({"from": accounts[0]})
 
-    for currencyId in range(1, 4):
+    cETH = MockCToken.deploy(8, {"from": accounts[0]})
+    aggregator = cTokenV2Aggregator.deploy(cETH.address, {"from": accounts[0]})
+    mockVaultConf.setToken(
+        1,
+        aggregator.address,
+        18,
+        (cETH.address, False, TokenType["cETH"], 8, 0),
+        (HexString(0, "bytes20"), True, TokenType["Ether"], 18, 0),
+        accounts[9].address,
+        {"from": accounts[0]},
+    )
+    cETH.setAnswer(0.02e28)
+
+    for currencyId in range(2, 5):
         cToken = MockCToken.deploy(8, {"from": accounts[0]})
-        if currencyId == 1:
+        if currencyId == 2:
             underlying = MockERC20.deploy("DAI", "DAI", 18, 0, {"from": accounts[0]})
             underlying.transfer(cToken, 100_000_000e18, {"from": accounts[0]})
             cToken.setAnswer(0.02e28)
-        elif currencyId == 2:
-            underlying = MockERC20.deploy("TEST", "TEST", 8, 0, {"from": accounts[0]})
+        elif currencyId == 3:
+            # Has transfer fee
+            underlying = MockERC20.deploy("TEST", "TEST", 8, 0.01e18, {"from": accounts[0]})
             underlying.transfer(cToken, 100_000_000e8, {"from": accounts[0]})
             cToken.setAnswer(0.02e18)
-        elif currencyId == 3:
+        elif currencyId == 4:
             underlying = MockERC20.deploy("USDC", "USDC", 6, 0, {"from": accounts[0]})
             underlying.transfer(cToken, 100_000_000e6, {"from": accounts[0]})
             cToken.setAnswer(0.02e16)
@@ -61,10 +76,28 @@ def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenV2Aggregator, Mo
             aggregator.address,
             underlying.decimals(),
             (cToken.address, False, TokenType["cToken"], 8, 0),
-            (underlying.address, True, TokenType["UnderlyingToken"], underlying.decimals(), 0),
+            (
+                underlying.address,
+                currencyId == 3,
+                TokenType["UnderlyingToken"],
+                underlying.decimals(),
+                0,
+            ),
             accounts[10 - currencyId].address,
             {"from": accounts[0]},
         )
+
+    # NOMINT
+    underlying = MockERC20.deploy("NOMINT", "NOMINT", 18, 0, {"from": accounts[0]})
+    mockVaultConf.setToken(
+        5,
+        HexString(0, "bytes20"),
+        underlying.decimals(),
+        (underlying.address, False, TokenType["NonMintable"], 8, 0),
+        (HexString(0, "bytes20"), False, TokenType["UnderlyingToken"], 0, 0),
+        accounts[10 - 5].address,
+        {"from": accounts[0]},
+    )
 
     return mockVaultConf
 
