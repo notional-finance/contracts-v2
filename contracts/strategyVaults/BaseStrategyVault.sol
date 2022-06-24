@@ -88,6 +88,7 @@ abstract contract BaseStrategyVault is IStrategyVault {
 
     function redeemFromNotional(
         address account,
+        address receiver,
         uint256 strategyTokens,
         uint256 maturity,
         uint256 underlyingToRepayDebt,
@@ -111,10 +112,10 @@ abstract contract BaseStrategyVault is IStrategyVault {
         }
 
         if (UNDERLYING_IS_ETH) {
-            if (transferToAccount > 0) payable(account).transfer(transferToAccount);
+            if (transferToAccount > 0) payable(receiver).transfer(transferToAccount);
             if (transferToNotional > 0) payable(address(NOTIONAL)).transfer(transferToNotional);
         } else {
-            if (transferToAccount > 0) UNDERLYING_TOKEN.safeTransfer(account, transferToAccount);
+            if (transferToAccount > 0) UNDERLYING_TOKEN.safeTransfer(receiver, transferToAccount);
             if (transferToNotional > 0) UNDERLYING_TOKEN.safeTransfer(address(NOTIONAL), transferToNotional);
         }
     }

@@ -17,6 +17,7 @@ interface IStrategyVault {
     // Tells a vault to redeem some amount of strategy tokens from Notional and transfer the resulting asset cash
     function redeemFromNotional(
         address account,
+        address receiver,
         uint256 strategyTokens,
         uint256 maturity,
         uint256 underlyingToRepayDebt,

@@ -180,7 +180,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             // Redeems all strategy tokens and any profits are sent back to the account, it is possible for temp
             // cash balance to be negative here if the account is insolvent
-            vaultConfig.redeemWithDebtRepayment(vaultAccount, strategyTokens, maturity, exitVaultData);
+            vaultConfig.redeemWithDebtRepayment(vaultAccount, receiver, strategyTokens, maturity, exitVaultData);
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
             // Puts a negative cash balance on the vault's temporary cash balance
@@ -203,7 +203,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 }
 
                 vaultConfig.redeemWithDebtRepayment(
-                    vaultAccount, strategyTokens, vaultState.maturity, exitVaultData
+                    vaultAccount, receiver, strategyTokens, vaultState.maturity, exitVaultData
                 );
             }
 

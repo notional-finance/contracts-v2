@@ -200,7 +200,7 @@ contract MockVaultConfiguration {
         bytes calldata data
     ) external payable returns (int256 assetCashInternalRaised) {
         // maturity and data are just forwarded to the vault, not relevant for this unit test
-        return getVaultConfigView(vault)._redeem(account, strategyTokens, 0, assetInternalToRepayDebt, data);
+        return getVaultConfigView(vault)._redeem(VaultConfiguration.RedeemParams(account, account, strategyTokens, 0, assetInternalToRepayDebt), data);
     }
 
     function calculateDeleverageAmount(
