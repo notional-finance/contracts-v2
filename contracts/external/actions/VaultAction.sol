@@ -202,7 +202,9 @@ contract VaultAction is ActionGuards, IVaultAction {
         // Require that borrow trades succeed
         require(netAssetCash > 0, "Trade Failed");
 
-        underlyingTokensTransferred = vaultConfig.transferFromNotional(vaultConfig.vault, netAssetCash);
+        underlyingTokensTransferred = VaultConfiguration.transferFromNotional(
+            vaultConfig.vault, currencyId, netAssetCash
+        );
     }
 
     /// @notice Allows a vault to repay a secondary currency that it has borrowed. Will be executed via a callback

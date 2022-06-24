@@ -150,8 +150,9 @@ def check_cash_balance(env, accounts, vaults):
         accountBalances += compute_settled_fcash(currencyId, symbol, env, accounts)
 
         # NOTE: this can happen from liquidation when withdrawing liquidity tokens or
-        # in rounding errors during initialize markets
-        assert pytest.approx(contractBalance, abs=5) == accountBalances + vaultBalances
+        # in rounding errors during initialize markets. Strategy vaults also leave some dust
+        # behind in the protocol
+        assert pytest.approx(contractBalance, abs=500) == accountBalances + vaultBalances
         # Ensure that the contract always retains more balance than the sum of accounts
         assert contractBalance >= accountBalances + vaultBalances
         # Check that total supply equals total balances

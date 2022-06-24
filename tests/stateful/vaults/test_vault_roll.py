@@ -26,15 +26,7 @@ def roll_account(environment, vault, accounts):
     maturity = environment.notional.getActiveMarkets(2)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
     return accounts[1]
@@ -50,7 +42,7 @@ def test_roll_vault_disabled(environment, vault, roll_account):
 
     with brownie.reverts("No Roll Allowed"):
         environment.notional.rollVaultPosition(
-            roll_account, vault, 100_000e8, maturity, (0, 0, ""), {"from": roll_account}
+            roll_account, vault, 100_000e8, maturity, 0, 0, "", {"from": roll_account}
         )
 
 
@@ -60,7 +52,7 @@ def test_roll_vault_past_maturity(environment, vault, roll_account):
 
     with brownie.reverts("No Roll Allowed"):
         environment.notional.rollVaultPosition(
-            roll_account, vault, 100_000e8, maturity, (0, 0, ""), {"from": roll_account}
+            roll_account, vault, 100_000e8, maturity, 0, 0, "", {"from": roll_account}
         )
 
 
@@ -70,7 +62,7 @@ def test_roll_vault_borrow_failure(environment, vault, roll_account, accounts):
 
     with brownie.reverts("Borrow failed"):
         environment.notional.rollVaultPosition(
-            roll_account, vault, 100_000e8, maturity, (0, 0, ""), {"from": roll_account}
+            roll_account, vault, 100_000e8, maturity, 0, 0, "", {"from": roll_account}
         )
 
 
@@ -79,7 +71,7 @@ def test_roll_vault_insufficient_collateral(environment, vault, roll_account):
 
     with brownie.reverts("Insufficient Collateral"):
         environment.notional.rollVaultPosition(
-            roll_account, vault, 150_000e8, maturity, (0, 0, ""), {"from": roll_account}
+            roll_account, vault, 150_000e8, maturity, 0, 0, "", {"from": roll_account}
         )
 
 
@@ -93,19 +85,26 @@ def test_roll_vault_over_maximum_capacity(environment, vault, roll_account, acco
 
     with brownie.reverts("Max Capacity"):
         environment.notional.rollVaultPosition(
-            roll_account, vault, 110_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+            roll_account, vault, 110_000e8, maturity2, 0, 0, "", {"from": roll_account}
         )
 
     # This should succeed because 100k fCash is repaid and then re-borrowed
     environment.notional.rollVaultPosition(
-        roll_account, vault, 105_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+        roll_account, vault, 105_000e8, maturity2, 0, 0, "", {"from": roll_account}
     )
 
     check_system_invariants(environment, accounts, [vault])
 
 
+@pytest.mark.todo
 def test_roll_vault_past_max_market(environment, vault, roll_account, accounts):
-    pass
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1), currencyId=2, feeRate5BPS=0
+        ),
+        100_000_000e8,
+    )
 
 
 def test_roll_vault_success(environment, vault, roll_account, accounts):
@@ -131,7 +130,7 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
     ) = environment.notional.getPrincipalFromfCashBorrow(2, 102_000e8, maturity2, 0, chain.time())
 
     environment.notional.rollVaultPosition(
-        roll_account, vault, 102_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+        roll_account, vault, 102_000e8, maturity2, 0, 0, "", {"from": roll_account}
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
@@ -192,7 +191,7 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     ) = environment.notional.getPrincipalFromfCashBorrow(2, 103_000e8, maturity2, 0, chain.time())
 
     environment.notional.rollVaultPosition(
-        roll_account, vault, 103_000e8, maturity2, (0, 0, ""), {"from": roll_account}
+        roll_account, vault, 103_000e8, maturity2, 0, 0, "", {"from": roll_account}
     )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)

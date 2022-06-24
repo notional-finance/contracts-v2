@@ -81,7 +81,6 @@ library VaultAccountLib {
         int256 netfCash,
         int256 netAssetCash
     ) internal {
-        require(vaultState.maturity == vaultAccount.maturity);
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(netAssetCash);
 
         // Update fCash state on the account and the vault

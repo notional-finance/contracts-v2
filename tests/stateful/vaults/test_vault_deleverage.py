@@ -23,15 +23,7 @@ def test_deleverage_authentication(environment, accounts, vault):
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
     vault.setExchangeRate(0.85e18)
     (cr, _, _, _) = environment.notional.getVaultAccountCollateralRatio(accounts[1], vault)
@@ -78,15 +70,7 @@ def test_deleverage_account_sufficient_collateral(environment, accounts, vault):
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
     with brownie.reverts("Sufficient Collateral"):
@@ -108,22 +92,15 @@ def test_deleverage_account_over_max_liquidate_amount(environment, accounts, vau
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        50_000e18,
-        maturity,
-        True,
-        200_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 50_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
     )
 
     vault.setExchangeRate(0.97e18)
 
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-    balanceBefore = environment.cToken["DAI"].balanceOf(accounts[2])
+    balanceBefore = environment.token["DAI"].balanceOf(accounts[2])
+    cTokenBalanceBefore = environment.cToken["DAI"].balanceOf(accounts[2])
     (_, _, maxLiquidateDebt, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
@@ -138,7 +115,8 @@ def test_deleverage_account_over_max_liquidate_amount(environment, accounts, vau
         {"from": accounts[2]},
     )
 
-    balanceAfter = environment.cToken["DAI"].balanceOf(accounts[2])
+    balanceAfter = environment.token["DAI"].balanceOf(accounts[2])
+    cTokenBalanceAfter = environment.cToken["DAI"].balanceOf(accounts[2])
     vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
@@ -154,10 +132,9 @@ def test_deleverage_account_over_max_liquidate_amount(environment, accounts, vau
     assert pytest.approx(vaultAccountAfter["fCash"], abs=5) == -(200_000e8 - maxLiquidateDebt / 50)
 
     # Liquidator deposit is cut down to account for max debt, but still has profit
-    assert (
-        pytest.approx(balanceAfter - balanceBefore, abs=1000)
-        == vaultSharesSold * 50 * 0.97 - maxLiquidateDebt
-    )
+    assert cTokenBalanceBefore - cTokenBalanceAfter == maxLiquidateDebt
+    assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == vaultSharesSold * 0.97 * 1e10
+
     assert (
         vaultStateBefore["totalVaultShares"] - vaultStateAfter["totalVaultShares"]
         == vaultSharesSold
@@ -182,15 +159,7 @@ def test_cannot_deleverage_account_after_maturity(environment, accounts, vault):
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
     vault.setExchangeRate(0.85e18)
@@ -211,15 +180,7 @@ def test_deleverage_account_full(environment, accounts, vault):
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
     vault.setExchangeRate(0.95e18)
@@ -229,7 +190,8 @@ def test_deleverage_account_full(environment, accounts, vault):
     )
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-    balanceBefore = environment.cToken["DAI"].balanceOf(accounts[2])
+    cTokenBalanceBefore = environment.cToken["DAI"].balanceOf(accounts[2])
+    balanceBefore = environment.token["DAI"].balanceOf(accounts[2])
 
     with brownie.reverts("Must Liquidate All Debt"):
         # The account is below the min borrow threshold at this point
@@ -241,7 +203,8 @@ def test_deleverage_account_full(environment, accounts, vault):
         accounts[1], vault.address, accounts[2], 5_200_000e8, False, "", {"from": accounts[2]}
     )
 
-    balanceAfter = environment.cToken["DAI"].balanceOf(accounts[2])
+    cTokenBalanceAfter = environment.cToken["DAI"].balanceOf(accounts[2])
+    balanceAfter = environment.token["DAI"].balanceOf(accounts[2])
     vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
@@ -257,10 +220,8 @@ def test_deleverage_account_full(environment, accounts, vault):
     assert vaultAccountAfter["fCash"] == 0
 
     # Liquidator deposit is cut down to account for max debt, still has profit
-    assert (
-        pytest.approx(balanceAfter - balanceBefore, abs=1000)
-        == vaultSharesSold * 50 * 0.95 - 5_000_000e8
-    )
+    assert cTokenBalanceBefore - cTokenBalanceAfter == 5_000_000e8
+    assert pytest.approx((balanceAfter - balanceBefore), rel=1e-8) == vaultSharesSold * 0.95 * 1e10
     assert (
         vaultStateBefore["totalVaultShares"] - vaultStateAfter["totalVaultShares"]
         == vaultSharesSold
@@ -284,15 +245,7 @@ def test_cannot_deleverage_liquidator_matured_shares(environment, accounts, vaul
 
     # Set up the liquidator such that they have matured vault shares
     environment.notional.enterVault(
-        accounts[2],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[2]},
+        accounts[2], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[2]}
     )
 
     chain.mine(1, timestamp=maturity)
@@ -300,15 +253,7 @@ def test_cannot_deleverage_liquidator_matured_shares(environment, accounts, vaul
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
     vault.setExchangeRate(0.95e18)
@@ -329,15 +274,7 @@ def test_deleverage_account_transfer_shares(environment, accounts, vault):
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25_000e18,
-        maturity,
-        True,
-        100_000e8,
-        0,
-        "",
-        {"from": accounts[1]},
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
     vault.setExchangeRate(0.95e18)

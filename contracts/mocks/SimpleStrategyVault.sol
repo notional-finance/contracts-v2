@@ -40,10 +40,9 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function _repaySecondaryBorrowCallback(
-        uint256 assetCashRequired, bytes calldata data
+        uint256 underlyingTokensRequired, bytes calldata /* data */
     ) internal override returns (bytes memory returnData) {
-        address cETH = abi.decode(data, (address));
-        ERC20(cETH).transfer(address(NOTIONAL), assetCashRequired);
+        payable(address(NOTIONAL)).transfer(underlyingTokensRequired);
     }
 
     function convertStrategyToUnderlying(
@@ -68,11 +67,10 @@ contract SimpleStrategyVault is BaseStrategyVault {
         uint16 currencyId,
         uint256 maturity,
         uint256 fCashToRepay,
-        uint32 slippageLimit,
-        address cETH
+        uint32 slippageLimit
     ) external {
         NOTIONAL.repaySecondaryCurrencyFromVault(
-            currencyId, maturity, fCashToRepay, slippageLimit, abi.encode(cETH)
+            currencyId, maturity, fCashToRepay, slippageLimit, ""
         );
     }
 }

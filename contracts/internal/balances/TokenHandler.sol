@@ -328,7 +328,11 @@ library TokenHandler {
 
     /// @notice Convenience method for getting the balance using a token object
     function balanceOf(Token memory token, address account) internal returns (uint256) {
-        return IERC20(token.tokenAddress).balanceOf(account);
+        if (token.tokenType == TokenType.Ether) {
+            return account.balance;
+        } else {
+            return IERC20(token.tokenAddress).balanceOf(account);
+        }
     }
 
     function transferIncentive(address account, uint256 tokensToTransfer) internal {

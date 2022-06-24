@@ -361,7 +361,7 @@ library VaultConfiguration {
         bytes calldata data
     ) internal returns (uint256 strategyTokensMinted) {
         uint256 underlyingTokensTransferred = transferFromNotional(
-            vaultConfig, vaultConfig.vault, cashToTransferInternal
+            vaultConfig.vault, vaultConfig.borrowCurrencyId, cashToTransferInternal
         );
         strategyTokensMinted = IStrategyVault(vaultConfig.vault).depositFromNotional(
             account, underlyingTokensTransferred.add(additionalUnderlyingExternal), maturity, data
@@ -369,19 +369,19 @@ library VaultConfiguration {
     }
 
     /// @notice Redeems and transfers asset cash to the vault from Notional
-    /// @param vaultConfig vault config
     /// @param receiver address that receives the token
+    /// @param currencyId currency id to transfer
     /// @param cashToTransferInternal amount of asset cash to  transfer in internal precision
     /// @return underlyingTokensTransferred amount of underlying tokens transferred
     function transferFromNotional(
-        VaultConfig memory vaultConfig,
         address receiver,
+        uint16 currencyId,
         int256 cashToTransferInternal
     ) internal returns (uint256 underlyingTokensTransferred) {
         if (cashToTransferInternal == 0) return 0;
         require(cashToTransferInternal > 0);
 
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
         int256 transferAmountExternal = assetToken.convertToExternal(cashToTransferInternal);
 
         // Both redeem an transfer return negative values to signify that assets have left the
@@ -389,12 +389,12 @@ library VaultConfiguration {
         if (assetToken.tokenType == TokenType.NonMintable) {
             // In the case of non-mintable tokens we transfer the asset token instead.
             underlyingTokensTransferred = assetToken.transfer(
-                receiver, vaultConfig.borrowCurrencyId, transferAmountExternal.neg()
+                receiver, currencyId, transferAmountExternal.neg()
             ).neg().toUint();
         } else {
             // aToken balances are properly handled within redeem
             underlyingTokensTransferred = assetToken.redeem(
-                vaultConfig.borrowCurrencyId, receiver, transferAmountExternal.toUint()
+                currencyId, receiver, transferAmountExternal.toUint()
             ).neg().toUint();
         }
     }
@@ -471,15 +471,14 @@ library VaultConfiguration {
 
         uint256 amountTransferred;
         if (strategyTokens > 0) {
-            bool isETH = underlyingToken.tokenType == TokenType.Ether;
-            uint256 balanceBefore = isETH ? address(this).balance : underlyingToken.balanceOf(address(this));
+            uint256 balanceBefore = underlyingToken.balanceOf(address(this));
             // The vault will either transfer underlyingExternalToRepay back to Notional or it will
             // transfer all the underlying tokens it has redeemed and we will have to recover any remaining
             // underlying from the account directly.
             IStrategyVault(vaultConfig.vault).redeemFromNotional(
                 account, strategyTokens, maturity, underlyingExternalToRepay, data
             );
-            uint256 balanceAfter = isETH ? address(this).balance : underlyingToken.balanceOf(address(this));
+            uint256 balanceAfter = underlyingToken.balanceOf(address(this));
             amountTransferred = balanceAfter.sub(balanceBefore);
         }
 

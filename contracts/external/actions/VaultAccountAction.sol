@@ -172,7 +172,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             if (vaultAccount.tempCashBalance > 0) {
                 // Transfer asset cash back to the account
-                vaultConfig.transferFromNotional(receiver, vaultAccount.tempCashBalance);
+                VaultConfiguration.transferFromNotional(
+                    receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance
+                );
                 vaultAccount.tempCashBalance = 0;
             }
 
@@ -194,7 +196,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 if (vaultAccount.tempCashBalance > 0) {
                     // Transfer asset cash back to the account, this is possible if there is asset cash
                     // when the vault exits the maturity
-                    vaultConfig.transferFromNotional(receiver, vaultAccount.tempCashBalance);
+                    VaultConfiguration.transferFromNotional(
+                        receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance
+                    );
                     vaultAccount.tempCashBalance = 0;
                 }
 
