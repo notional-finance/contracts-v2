@@ -488,12 +488,14 @@ struct VaultBorrowCapacityStorage {
     uint80 maxBorrowCapacity;
     // Current usage of that total borrow capacity
     uint80 totalUsedBorrowCapacity;
-    // TODO: consider tightly packing secondary borrows here
 }
 
 struct VaultSecondaryBorrowStorage {
     // fCash borrowed for a specific maturity on a secondary currency
-    uint80 fCashBorrowed;
+    uint80 totalfCashBorrowed;
+    // Used for accounting how much secondary borrow a single account owes as the fCashBorrowed
+    // increases or decreases
+    uint80 totalAccountDebtShares;
 }
 
 struct VaultConfig {

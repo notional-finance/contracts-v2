@@ -7,15 +7,10 @@ import {SafeUint256} from "../../math/SafeUint256.sol";
 import {
     VaultAccount,
     VaultAccountStorage,
-    TradeActionType,
     VaultSettledAssetsStorage
 } from "../../global/Types.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {Constants} from "../../global/Constants.sol";
-import {TradingAction} from "../../external/actions/TradingAction.sol";
-import {DateTime} from "../markets/DateTime.sol";
-
-import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {TokenType, Token, TokenHandler} from "../balances/TokenHandler.sol";
 
@@ -27,8 +22,6 @@ library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
     using VaultStateLib for VaultState;
     using AssetRate for AssetRateParameters;
-    using CashGroup for CashGroupParameters;
-    using Market for MarketParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
@@ -168,7 +161,7 @@ library VaultAccountLib {
     ) private {
         require(fCash < 0); // dev: fcash must be negative
 
-        int256 assetCashBorrowed  = executeTrade(
+        int256 assetCashBorrowed = VaultConfiguration.executeTrade(
             vaultConfig.borrowCurrencyId,
             maturity,
             fCash,
@@ -212,7 +205,7 @@ library VaultAccountLib {
         
         // Returns the cost in asset cash terms as a negative value to lend an offsetting fCash position
         // so that the account can exit.
-        int256 assetCashCostToLend  = executeTrade(
+        int256 assetCashCostToLend = VaultConfiguration.executeTrade(
             vaultConfig.borrowCurrencyId,
             vaultAccount.maturity,
             fCash,
@@ -288,42 +281,6 @@ library VaultAccountLib {
             maxLiquidatorDepositAssetCash = debtOutstanding;
             mustLiquidateFullAmount = true;
         }
-    }
-
-    /// @notice Executes a trade on the AMM.
-    /// @param currencyId id of the vault borrow currency
-    /// @param maturity maturity to lend or borrow at
-    /// @param netfCashToAccount positive if lending, negative if borrowing
-    /// @param rateLimit 0 if there is no limit, otherwise is a slippage limit
-    /// @param blockTime current time
-    /// @return netAssetCash amount of cash to credit to the account
-    function executeTrade(
-        uint16 currencyId,
-        uint256 maturity,
-        int256 netfCashToAccount,
-        uint32 rateLimit,
-        uint256 maxBorrowMarketIndex,
-        uint256 blockTime
-    ) internal returns (int256 netAssetCash) {
-        uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
-        require(maxMarketIndex <= maxBorrowMarketIndex); // @dev: cannot borrow past market index
-        (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
-        require(!isIdiosyncratic);
-
-        // fCash is restricted from being larger than uint88 inside the trade module
-        uint256 fCashAmount = uint256(netfCashToAccount.abs());
-        require(fCashAmount < type(uint88).max);
-
-        // Encodes trade data for the TradingAction module
-        bytes32 trade = bytes32(
-            (uint256(uint8(netfCashToAccount > 0 ? TradeActionType.Lend : TradeActionType.Borrow)) << 248) |
-            (uint256(marketIndex) << 240) |
-            (uint256(fCashAmount) << 152) |
-            (uint256(rateLimit) << 120)
-        );
-
-        // Use the library here to reduce the deployed bytecode size
-        netAssetCash = TradingAction.executeVaultTrade(currencyId, trade);
     }
 
     /// @notice Settles a vault account that has a position in a matured vault.

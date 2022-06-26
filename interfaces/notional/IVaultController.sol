@@ -69,6 +69,7 @@ interface IVaultAction {
     );
 
     function borrowSecondaryCurrencyToVault(
+        address account,
         uint16 currencyId,
         uint256 maturity,
         uint256 fCashToBorrow,
@@ -76,6 +77,7 @@ interface IVaultAction {
     ) external returns (uint256 underlyingTokensTransferred);
 
     function repaySecondaryCurrencyFromVault(
+        address account,
         uint16 currencyId,
         uint256 maturity,
         uint256 fCashToRepay,

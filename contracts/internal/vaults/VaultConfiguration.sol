@@ -9,6 +9,9 @@ import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
+import {TradingAction} from "../../external/actions/TradingAction.sol";
+import {DateTime} from "../markets/DateTime.sol";
+import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
 import {Token, TokenType, TokenHandler} from "../balances/TokenHandler.sol";
 import {GenericToken} from "../balances/protocols/GenericToken.sol";
@@ -19,7 +22,8 @@ import {
     VaultAccount,
     VaultConfigStorage,
     VaultBorrowCapacityStorage,
-    VaultSecondaryBorrowStorage
+    VaultSecondaryBorrowStorage,
+    TradeActionType
 } from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
@@ -33,6 +37,8 @@ library VaultConfiguration {
     using SafeUint256 for uint256;
     using SafeInt256 for int256;
     using AssetRate for AssetRateParameters;
+    using CashGroup for CashGroupParameters;
+    using Market for MarketParameters;
 
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address indexed vault, bool enabled);
@@ -224,27 +230,6 @@ library VaultConfiguration {
         // Total used borrow capacity can never go negative, this would suggest that we've lent past repayment
         // of the total fCash borrowed.
         cap.totalUsedBorrowCapacity = totalUsedBorrowCapacity.toUint().toUint80();
-    }
-
-    /// @notice Updates the secondary borrow capacity for a vault, also tracks the per maturity fCash borrowed
-    /// for the vault. We validate that the secondary fCashBorrowed is zeroed out when the vault is settled.
-    /// @param vault address of vault
-    /// @param currencyId relevant currency id
-    /// @param maturity the maturity of the fCash
-    /// @param netfCash the net amount of fCash change (borrowing < 0, lending > 0)
-    function updateSecondaryBorrowCapacity(
-        address vault,
-        uint16 currencyId,
-        uint256 maturity,
-        int256 netfCash
-    ) internal {
-        // This will revert if we overflow the maximum borrow capacity
-        updateUsedBorrowCapacity(vault, currencyId, netfCash);
-        // Updates storage for the specific maturity so we can track this on chain.
-        VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
-        // This will revert if lending past the total amount borrowed
-        balance.fCashBorrowed = int256(uint256(balance.fCashBorrowed)).sub(netfCash).toUint().toUint80();
     }
 
     /// @notice Calculates the collateral ratio of an account: (valueOfAssets - debtOutstanding) / debtOutstanding
@@ -566,5 +551,172 @@ library VaultConfiguration {
             emit ProtocolInsolvency(currencyId, vault, assetCashShortfall - reserveInternal);
             assetCashRaised = reserveInternal;
         }
+    }
+
+    /// @notice Increases the used capacity on a secondary borrow, tracks the accountDebtShares when individual
+    /// accounts are borrowing so that we can later calculate the proper amount of secondary fCash they need
+    /// to repay.
+    /// @param vaultConfig vault config
+    /// @param account address of account executing the secondary borrow (this may be the vault itself)
+    /// @param currencyId relevant currency id
+    /// @param maturity the maturity of the fCash
+    /// @param fCashToBorrow amount of fCash to borrow
+    /// @param maxBorrowRate maximum annualized rate of fCash to borrow
+    /// @return netAssetCash a positive amount of asset cash to transfer
+    function increaseSecondaryBorrow(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 fCashToBorrow,
+        uint32 maxBorrowRate
+    ) internal returns (int256) {
+        // This will revert if we overflow the maximum borrow capacity, expects a negative fCash value when borrowing
+        updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToBorrow.toInt().neg());
+
+        // Updates storage for the specific maturity so we can track this on chain.
+        VaultSecondaryBorrowStorage storage balance = 
+            LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
+        uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
+        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
+
+        if (account != vaultConfig.vault) {
+            // If individual accounts are borrowing, calculate the debt shares they accrue from borrowing
+            // the specified amount of fCash.
+
+            // After this point, (accountDebtShares * totalfCashBorrowed) / totalDebtShares = fCashToBorrow
+            // therefore: accountfCashShares = (netfCash * totalfCashShares) / totalfCashBorrowed
+            uint256 accountDebtShares;
+            if (totalfCashBorrowed == 0) {
+                accountDebtShares = fCashToBorrow;
+            } else {
+                accountDebtShares = fCashToBorrow.mul(totalAccountDebtShares).div(totalfCashBorrowed);
+            }
+
+            // TODO: set account debt shares
+            balance.totalAccountDebtShares = totalAccountDebtShares.add(accountDebtShares).toUint80();
+        }
+
+        balance.totalfCashBorrowed = totalfCashBorrowed.add(fCashToBorrow).toUint80();
+
+        return _executeSecondaryCurrencyTrade(
+            vaultConfig, currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
+        );
+    }
+
+    /// @notice Decreases the used capacity on a secondary borrow based on debt shares
+    /// @param vaultConfig vault config
+    /// @param account address of account executing the secondary borrow (this may be the vault itself)
+    /// @param currencyId relevant currency id
+    /// @param maturity the maturity of the fCash
+    /// @param debtSharesToRepay amount of debt shares to repay
+    /// @return netAssetCash a negative amount of asset cash required to repay
+    function repaySecondaryBorrow(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 debtSharesToRepay,
+        uint32 minLendRate
+    ) internal returns (int256 netAssetCash) {
+        // Updates storage for the specific maturity so we can track this on chain.
+        VaultSecondaryBorrowStorage storage balance = 
+            LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
+        uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
+        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
+
+        uint256 fCashToLend = debtSharesToRepay.mul(totalfCashBorrowed).div(totalAccountDebtShares);
+
+        if (account != vaultConfig.vault) {
+            // We only burn the total debt shares if it is an individual account repaying the debt
+            balance.totalAccountDebtShares = totalAccountDebtShares.sub(debtSharesToRepay).toUint80();
+            // TODO: update account specific storage
+        }
+
+        // Update the global counters
+        updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToLend.toInt());
+        // Will revert if this underflows zero
+        balance.totalfCashBorrowed = totalfCashBorrowed.sub(fCashToLend).toUint80();
+
+        return _executeSecondaryCurrencyTrade(
+            vaultConfig, currencyId, maturity, fCashToLend.toInt(), minLendRate
+        );
+    }
+
+    /// @notice Executes a secondary currency lend or borrow
+    function _executeSecondaryCurrencyTrade(
+        VaultConfig memory vaultConfig,
+        uint16 currencyId,
+        uint256 maturity,
+        int256 netfCash,
+        uint32 slippageLimit
+    ) private returns (int256 netAssetCash) {
+        require(currencyId != vaultConfig.borrowCurrencyId);
+        if (netfCash == 0) return 0;
+
+        if (maturity <= block.timestamp) {
+            // Cannot borrow after maturity
+            require(netfCash >= 0);
+
+            // Post maturity, repayment must be done via the settlement rate
+            AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
+                currencyId, maturity, block.timestamp
+            );
+            netAssetCash = settlementRate.convertFromUnderlying(netfCash).neg();
+        } else {
+            netAssetCash = executeTrade(
+                currencyId,
+                maturity,
+                netfCash,
+                slippageLimit,
+                vaultConfig.maxBorrowMarketIndex,
+                block.timestamp
+            );
+
+            // If netAssetCash is zero then the contract must lend at 0% interest using the asset cash
+            // exchange rate. In this case, the vault forgoes any money market interest on asset cash
+            if (netfCash > 0 && netAssetCash == 0) {
+                netAssetCash = vaultConfig.assetRate.convertFromUnderlying(netfCash).neg();
+            }
+
+            // Require that borrows always succeed
+            if (netfCash < 0) require(netAssetCash > 0, "Borrow Failed");
+        }
+    }
+
+    /// @notice Executes a trade on the AMM.
+    /// @param currencyId id of the vault borrow currency
+    /// @param maturity maturity to lend or borrow at
+    /// @param netfCashToAccount positive if lending, negative if borrowing
+    /// @param rateLimit 0 if there is no limit, otherwise is a slippage limit
+    /// @param blockTime current time
+    /// @return netAssetCash amount of cash to credit to the account
+    function executeTrade(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 netfCashToAccount,
+        uint32 rateLimit,
+        uint256 maxBorrowMarketIndex,
+        uint256 blockTime
+    ) internal returns (int256 netAssetCash) {
+        uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
+        require(maxMarketIndex <= maxBorrowMarketIndex); // @dev: cannot borrow past market index
+        (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
+        require(!isIdiosyncratic);
+
+        // fCash is restricted from being larger than uint88 inside the trade module
+        uint256 fCashAmount = uint256(netfCashToAccount.abs());
+        require(fCashAmount < type(uint88).max);
+
+        // Encodes trade data for the TradingAction module
+        bytes32 trade = bytes32(
+            (uint256(uint8(netfCashToAccount > 0 ? TradeActionType.Lend : TradeActionType.Borrow)) << 248) |
+            (uint256(marketIndex) << 240) |
+            (uint256(fCashAmount) << 152) |
+            (uint256(rateLimit) << 120)
+        );
+
+        // Use the library here to reduce the deployed bytecode size
+        netAssetCash = TradingAction.executeVaultTrade(currencyId, trade);
     }
 }
