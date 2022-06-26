@@ -7,10 +7,10 @@ import "../strategyVaults/BaseStrategyVault.sol";
 contract SimpleStrategyVault is BaseStrategyVault {
     event SecondaryBorrow(uint256 underlyingTokensTransferred);
 
-    bool internal _forceSettle;
+    bool internal _reenterNotional;
     uint256 internal _tokenExchangeRate;
     uint16 internal _secondaryCurrency;
-    function setForceSettle(bool s) external { _forceSettle = s; }
+    function setReenterNotional(bool s) external { _reenterNotional = s; }
     function setExchangeRate(uint256 e) external { _tokenExchangeRate = e; }
     function setSecondary(uint16 c) external { _secondaryCurrency = c; }
 
@@ -28,6 +28,9 @@ contract SimpleStrategyVault is BaseStrategyVault {
         bytes calldata data
     ) internal override returns (uint256 strategyTokensMinted) {
         strategyTokensMinted = (deposit * 1e18) / (_tokenExchangeRate * 1e10);
+        if (_reenterNotional) {
+            NOTIONAL.depositUnderlyingToken(address(this), BORROW_CURRENCY_ID, deposit);
+        }
     }
 
     function _redeemFromNotional(

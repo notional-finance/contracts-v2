@@ -15,6 +15,22 @@ def isolation(fn_isolation):
     pass
 
 
+@pytest.mark.only
+def test_reenter_notional(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(flags=set_flags(0, ENABLED=True, ALLOW_REENTRANCY=True), currencyId=2),
+        100_000_000e8,
+        {"from": accounts[0]},
+    )
+
+    vault.setReenterNotional(True)
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.enterVault(
+        accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+
 def test_initialize_and_enable_vault_authorization(environment, vault, accounts):
     with brownie.reverts():
         # Will revert on non-owner

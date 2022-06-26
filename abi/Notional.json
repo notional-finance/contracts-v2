@@ -1634,6 +1634,11 @@
                 "type": "uint256"
             },
             {
+                "internalType": "bool",
+                "name": "transferSharesToLiquidator",
+                "type": "bool"
+            },
+            {
                 "internalType": "bytes",
                 "name": "redeemData",
                 "type": "bytes"
@@ -1886,11 +1891,6 @@
                 "type": "uint256"
             },
             {
-                "internalType": "bool",
-                "name": "useUnderlying",
-                "type": "bool"
-            },
-            {
                 "internalType": "uint256",
                 "name": "fCash",
                 "type": "uint256"
@@ -1908,7 +1908,7 @@
         ],
         "name": "enterVault",
         "outputs": [],
-        "stateMutability": "nonpayable",
+        "stateMutability": "payable",
         "type": "function"
     },
     {
@@ -1921,6 +1921,11 @@
             {
                 "internalType": "address",
                 "name": "vault",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "receiver",
                 "type": "address"
             },
             {
@@ -1939,11 +1944,6 @@
                 "type": "uint32"
             },
             {
-                "internalType": "bool",
-                "name": "useUnderlying",
-                "type": "bool"
-            },
-            {
                 "internalType": "bytes",
                 "name": "exitVaultData",
                 "type": "bytes"
@@ -1951,7 +1951,7 @@
         ],
         "name": "exitVault",
         "outputs": [],
-        "stateMutability": "nonpayable",
+        "stateMutability": "payable",
         "type": "function"
     },
     {
@@ -3698,6 +3698,16 @@
                 "internalType": "int256",
                 "name": "minCollateralRatio",
                 "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "maxLiquidatorDepositAssetCash",
+                "type": "int256"
+            },
+            {
+                "internalType": "bool",
+                "name": "mustLiquidateFull",
+                "type": "bool"
             }
         ],
         "stateMutability": "view",
@@ -4964,26 +4974,19 @@
                 "type": "uint256"
             },
             {
-                "components": [
-                    {
-                        "internalType": "uint32",
-                        "name": "minLendRate",
-                        "type": "uint32"
-                    },
-                    {
-                        "internalType": "uint32",
-                        "name": "maxBorrowRate",
-                        "type": "uint32"
-                    },
-                    {
-                        "internalType": "bytes",
-                        "name": "enterVaultData",
-                        "type": "bytes"
-                    }
-                ],
-                "internalType": "struct RollVaultOpts",
-                "name": "opts",
-                "type": "tuple"
+                "internalType": "uint32",
+                "name": "minLendRate",
+                "type": "uint32"
+            },
+            {
+                "internalType": "uint32",
+                "name": "maxBorrowRate",
+                "type": "uint32"
+            },
+            {
+                "internalType": "bytes",
+                "name": "enterVaultData",
+                "type": "bytes"
             }
         ],
         "name": "rollVaultPosition",
