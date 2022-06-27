@@ -50,7 +50,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Vaults cannot be entered if they are paused or matured
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Cannot Enter");
         require(block.timestamp < maturity, "Cannot Enter");
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         uint256 strategyTokens;
         if (vaultAccount.maturity != 0 && vaultAccount.maturity <= block.timestamp) {
@@ -90,7 +90,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             reentrancyStatus = _NOT_ENTERED;
         }
 
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         // Cannot roll unless all of these requirements are met
         require(
             vaultConfig.getFlag(VaultConfiguration.ENABLED) &&
@@ -162,7 +162,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             reentrancyStatus = _NOT_ENTERED;
         }
 
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
 
         if (vaultAccount.maturity <= block.timestamp) {
             // Save this off because settleVaultAccount will clear the maturity
@@ -243,7 +243,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bytes calldata redeemData
     ) external nonReentrant override returns (uint256 profitFromLiquidation) {
         VaultConfig memory vaultConfig = _authenticateDeleverage(account, vault, liquidator);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
 
         // Check that the account has an active position. After maturity, accounts will be settled instead.
@@ -378,7 +378,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) private returns (uint256) {
         // Liquidator will receive vault shares that they can redeem by calling exitVault. If the liquidator has a
         // leveraged position on then their collateral ratio will increase
-        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(receiver, vaultConfig);
+        VaultAccount memory liquidator = VaultAccountLib.getVaultAccount(receiver, vaultConfig.vault);
         // The liquidator must be able to receive the vault shares (i.e. not be in the vault at all or be in the
         // vault at the same maturity). If the liquidator has fCash in the current maturity then their collateral
         // ratio will increase as a result of the liquidation, no need to check their collateral position.
@@ -427,11 +427,26 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
     /** View Methods **/
     function getVaultAccount(address account, address vault) external override view returns (VaultAccount memory) {
-        return VaultAccountLib.getVaultAccount(account, VaultConfiguration.getVaultConfigNoAssetRate(vault));
+        return VaultAccountLib.getVaultAccount(account, vault);
     }
 
-    function getVaultAccountMaturity(address account, address vault) external override view returns (uint256) {
-        return VaultAccountLib.getVaultAccount(account, VaultConfiguration.getVaultConfigNoAssetRate(vault)).maturity;
+    function getVaultAccountDebtShares(
+        address account,
+        address vault
+    ) external override view returns (
+        uint256 debtSharesMaturity,
+        uint256[2] memory accountDebtShares,
+        uint256 accountStrategyTokens
+    ) {
+        VaultAccountSecondaryDebtShareStorage storage s = 
+            LibStorage.getVaultAccountSecondaryDebtShare()[account][vault];
+        debtSharesMaturity = s.maturity;
+        accountDebtShares[0] = s.accountDebtSharesOne;
+        accountDebtShares[1] = s.accountDebtSharesTwo;
+
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
+        (/* */, accountStrategyTokens) = vaultState.getPoolShare(vaultAccount.vaultShares);
     }
 
     function getVaultAccountCollateralRatio(address account, address vault) external override view returns (
@@ -441,7 +456,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bool mustLiquidateFull
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
+        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
         minCollateralRatio = vaultConfig.minCollateralRatio;
 

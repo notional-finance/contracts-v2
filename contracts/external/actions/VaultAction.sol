@@ -70,8 +70,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         // capacity.
         require(
             secondaryCurrencyId == vaultConfig.secondaryBorrowCurrencies[0] ||
-            secondaryCurrencyId == vaultConfig.secondaryBorrowCurrencies[1] ||
-            secondaryCurrencyId == vaultConfig.secondaryBorrowCurrencies[2],
+            secondaryCurrencyId == vaultConfig.secondaryBorrowCurrencies[1],
             "Invalid Currency"
         );
 
@@ -297,9 +296,6 @@ contract VaultAction is ActionGuards, IVaultAction {
         }
         if (vaultConfig.secondaryBorrowCurrencies[1] != 0) {
             require(perCurrencyBalance[vaultConfig.secondaryBorrowCurrencies[1]].totalfCashBorrowed == 0, "Unpaid Borrow");
-        }
-        if (vaultConfig.secondaryBorrowCurrencies[2] != 0) {
-            require(perCurrencyBalance[vaultConfig.secondaryBorrowCurrencies[2]].totalfCashBorrowed == 0, "Unpaid Borrow");
         }
 
         if (vaultState.totalAssetCash < assetCashRequiredToSettle) {

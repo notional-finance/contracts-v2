@@ -23,6 +23,7 @@ import {
     VaultConfigStorage,
     VaultBorrowCapacityStorage,
     VaultSecondaryBorrowStorage,
+    VaultAccountSecondaryDebtShareStorage,
     TradeActionType
 } from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
@@ -128,7 +129,6 @@ library VaultConfiguration {
         // The borrow currency cannot be duplicated as a secondary borrow currency
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[0]);
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[1]);
-        require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[2]);
 
         // Tokens with transfer fees create lots of issues with vault mechanics, we prevent them
         // from being listed here.
@@ -593,7 +593,9 @@ library VaultConfiguration {
                 accountDebtShares = fCashToBorrow.mul(totalAccountDebtShares).div(totalfCashBorrowed);
             }
 
-            // TODO: set account debt shares
+            _updateAccountDebtShares(
+                vaultConfig, account, currencyId, maturity, accountDebtShares.toInt()
+            );
             balance.totalAccountDebtShares = totalAccountDebtShares.add(accountDebtShares).toUint80();
         }
 
@@ -630,7 +632,9 @@ library VaultConfiguration {
         if (account != vaultConfig.vault) {
             // We only burn the total debt shares if it is an individual account repaying the debt
             balance.totalAccountDebtShares = totalAccountDebtShares.sub(debtSharesToRepay).toUint80();
-            // TODO: update account specific storage
+            _updateAccountDebtShares(
+                vaultConfig, account, currencyId, maturity, debtSharesToRepay.toInt().neg()
+            );
         }
 
         // Update the global counters
@@ -641,6 +645,35 @@ library VaultConfiguration {
         return _executeSecondaryCurrencyTrade(
             vaultConfig, currencyId, maturity, fCashToLend.toInt(), minLendRate
         );
+    }
+
+    function _updateAccountDebtShares(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint16 currencyId,
+        uint256 maturity,
+        int256 netAccountDebtShares
+    ) private {
+        VaultAccountSecondaryDebtShareStorage storage s = 
+            LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
+        uint256 accountMaturity = s.maturity;
+        require(accountMaturity == maturity || accountMaturity == 0, "Invalid Secondary Maturity");
+        int256 accountDebtSharesOne = int256(uint256(s.accountDebtSharesOne));
+        int256 accountDebtSharesTwo = int256(uint256(s.accountDebtSharesTwo));
+
+        if (currencyId == vaultConfig.secondaryBorrowCurrencies[0]) {
+            accountDebtSharesOne = accountDebtSharesOne.add(netAccountDebtShares);
+            s.accountDebtSharesOne = accountDebtSharesOne.toUint().toUint80();
+        } else if (currencyId == vaultConfig.secondaryBorrowCurrencies[0]) {
+            accountDebtSharesTwo = accountDebtSharesTwo.add(netAccountDebtShares);
+            s.accountDebtSharesTwo = accountDebtSharesTwo.toUint().toUint80();
+        } else {
+            // This should never occur due to previous validation
+            revert();
+        }
+
+        // If both debt shares are cleared to zero, clear the maturity as well.
+        if (accountDebtSharesOne == 0 && accountDebtSharesTwo == 0) s.maturity = 0;
     }
 
     /// @notice Executes a secondary currency lend or borrow

@@ -50,7 +50,8 @@ library LibStorage {
         VaultAccount,
         VaultBorrowCapacity,
         VaultSecondaryBorrow,
-        VaultSettledAssets
+        VaultSettledAssets,
+        VaultAccountSecondaryDebtShare
     }
 
     /// @dev Mapping from an account address to account context
@@ -255,6 +256,14 @@ library LibStorage {
         mapping(address => mapping(uint256 => VaultSettledAssetsStorage)) storage store
     ) {
         uint256 slot = _getStorageSlot(StorageId.VaultSettledAssets);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address
+    function getVaultAccountSecondaryDebtShare() internal pure returns (
+        mapping(address => mapping(address => VaultAccountSecondaryDebtShareStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultAccountSecondaryDebtShare);
         assembly { store.slot := slot }
     }
 

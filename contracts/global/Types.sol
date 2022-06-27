@@ -479,8 +479,8 @@ struct VaultConfigStorage {
     // Maximum collateral ratio that a liquidator can push a an account to during deleveraging
     uint16 maxDeleverageCollateralRatioBPS;
     // An optional list of secondary borrow currencies
-    uint16[3] secondaryBorrowCurrencies;
-    // 80 bytes left
+    uint16[2] secondaryBorrowCurrencies;
+    // 96 bytes left
 }
 
 struct VaultBorrowCapacityStorage {
@@ -509,7 +509,7 @@ struct VaultConfig {
     int256 reserveFeeShare;
     uint256 maxBorrowMarketIndex;
     int256 maxDeleverageCollateralRatio;
-    uint16[3] secondaryBorrowCurrencies;
+    uint16[2] secondaryBorrowCurrencies;
     AssetRateParameters assetRate;
 }
 
@@ -564,6 +564,15 @@ struct VaultAccountStorage {
     uint80 vaultShares;
     // Maturity when the vault shares and fCash will mature
     uint32 maturity;
+}
+
+struct VaultAccountSecondaryDebtShareStorage {
+    // Maturity for the account's secondary borrows
+    uint32 maturity;
+    // Account debt shares for the first secondary currency
+    uint80 accountDebtSharesOne;
+    // Account debt shares for the second secondary currency
+    uint80 accountDebtSharesTwo;
 }
 
 struct VaultAccount {

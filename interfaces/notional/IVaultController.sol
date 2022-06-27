@@ -205,7 +205,11 @@ interface IVaultAccountAction {
     ) external returns (uint256 profitFromLiquidation);
 
     function getVaultAccount(address account, address vault) external view returns (VaultAccount memory);
-    function getVaultAccountMaturity(address account, address vault) external view returns (uint256 maturity);
+    function getVaultAccountDebtShares(address account, address vault) external view returns (
+        uint256 debtSharesMaturity,
+        uint256[2] memory accountDebtShares,
+        uint256 accountStrategyTokens
+    );
     function getVaultAccountCollateralRatio(address account, address vault) external view returns (
         int256 collateralRatio,
         int256 minCollateralRatio,

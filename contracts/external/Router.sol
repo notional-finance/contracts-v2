@@ -130,7 +130,7 @@ contract Router is StorageLayoutV1 {
             sig == IVaultAccountAction.exitVault.selector ||
             sig == IVaultAccountAction.deleverageAccount.selector ||
             sig == IVaultAccountAction.getVaultAccount.selector ||
-            sig == IVaultAccountAction.getVaultAccountMaturity.selector ||
+            sig == IVaultAccountAction.getVaultAccountDebtShares.selector ||
             sig == IVaultAccountAction.getVaultAccountCollateralRatio.selector
         ) {
             return VAULT_ACCOUNT_ACTION;

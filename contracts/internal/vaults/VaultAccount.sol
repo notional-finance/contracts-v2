@@ -28,10 +28,10 @@ library VaultAccountLib {
 
     /// @notice Returns a single account's vault position
     function getVaultAccount(
-        address account, VaultConfig memory vaultConfig
+        address account, address vault
     ) internal view returns (VaultAccount memory vaultAccount) {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage.getVaultAccount();
-        VaultAccountStorage storage s = store[account][vaultConfig.vault];
+        VaultAccountStorage storage s = store[account][vault];
 
         // fCash is negative on the stack
         vaultAccount.fCash = -int256(uint256(s.fCash));
@@ -333,6 +333,16 @@ library VaultAccountLib {
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashClaim);
         vaultAccount.vaultShares = 0;
         vaultAccount.maturity = 0;
+
+        // Clear secondary all secondary borrow storage if it exists, totalfCashBorrowed
+        // must be zero in order for vaults to settle so the accountDebtShare counters
+        // are no longer relevant for this maturity
+        if (
+            vaultConfig.secondaryBorrowCurrencies[0] != 0 ||
+            vaultConfig.secondaryBorrowCurrencies[1] != 0
+        ) {
+            delete LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
+        }
     }
 
     /// @notice Returns the total account value at settlement
