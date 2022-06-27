@@ -899,6 +899,40 @@ def test_repay_secondary_currency_succeeds_at_zero_interest(environment, account
     assert usdcBalanceBefore - usdcBalanceAfter == 10_000e6 + 1
 
 
-@pytest.mark.todo
 def test_governance_reduce_borrow_capacity(environment, accounts, vault):
-    pass
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
+        100_000e8,
+        {"from": accounts[0]},
+    )
+
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.token["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
+    environment.notional.enterVault(
+        accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    with brownie.reverts():
+        # Reverts on non-owner
+        environment.notional.reduceMaxBorrowCapacity(
+            vault.address, 90_000e8, maturity, 10_000e8, "", {"from": accounts[1]}
+        )
+
+    vaultStateBefore = environment.notional.getVaultState(vault.address, maturity)
+    environment.notional.reduceMaxBorrowCapacity(
+        vault.address, 90_000e8, maturity, 10_000e8, "", {"from": environment.notional.owner()}
+    )
+
+    (totalUsedCapacity, maxCapacity) = environment.notional.getBorrowCapacity(vault.address, 2)
+    assert totalUsedCapacity == 100_000e8
+    assert maxCapacity == 90_000e8
+
+    # TODO: is this the correct behavior?
+    vaultStateAfter = environment.notional.getVaultState(vault.address, maturity)
+    assert (
+        vaultStateBefore["totalStrategyTokens"] - vaultStateAfter["totalStrategyTokens"] == 10_000e8
+    )
+    assert vaultStateBefore["totalVaultShares"] == vaultStateAfter["totalVaultShares"]
+    assert vaultStateBefore["totalfCash"] == vaultStateAfter["totalfCash"]
+    assert vaultStateAfter["totalAssetCash"] == 500_000e8

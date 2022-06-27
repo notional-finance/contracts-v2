@@ -79,7 +79,12 @@ contract VaultAction is ActionGuards, IVaultAction {
 
     /// @notice Allows the owner to reduce the max borrow capacity on the vault and force
     /// the redemption of strategy tokens to cash to reduce the overall risk of the vault.
-    /// This method is intended to be used in emergencies to mitigate insolvency risk.
+    /// This method is intended to be used in emergencies to mitigate insolvency risk. The effect
+    /// of this method will mean that the overall max borrow capacity is reduced, the total used
+    /// capacity will be unchanged (redeemStrategyTokensToCash does not do any lending to reduce
+    /// the outstanding fCash), and accounts will be locked out of entering the maturity which was
+    /// targeted by this method. Other maturities for that vault may still be entered depending on
+    /// whether or not the vault is above or below the max vault borrow capacity.
     /// @param vaultAddress address of the vault
     /// @param maxVaultBorrowCapacity the new max vault borrow capacity on the primary currency
     /// @param maturity the maturity to redeem tokens in, will generally be either the current
