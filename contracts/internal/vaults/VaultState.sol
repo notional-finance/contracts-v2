@@ -211,8 +211,10 @@ library VaultStateLib {
         VaultState memory vaultState,
         uint256 vaultShares
     ) internal pure returns (uint256 assetCash, uint256 strategyTokens) {
-        assetCash = vaultShares.mul(vaultState.totalAssetCash).div(vaultState.totalVaultShares);
-        strategyTokens = vaultShares.mul(vaultState.totalStrategyTokens).div(vaultState.totalVaultShares);
+        if (vaultState.totalVaultShares > 0) {
+            assetCash = vaultShares.mul(vaultState.totalAssetCash).div(vaultState.totalVaultShares);
+            strategyTokens = vaultShares.mul(vaultState.totalStrategyTokens).div(vaultState.totalVaultShares);
+        }
     }
 
     function _getStrategyTokenValueUnderlyingInternal(

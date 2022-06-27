@@ -20,6 +20,14 @@ interface IVaultAction {
     /// cash reserve
     event ProtocolInsolvency(uint16 indexed currencyId, address indexed vault, int256 shortfall);
 
+    event RepaidSecondaryBorrow(
+        address indexed vault,
+        address indexed account,
+        uint16 indexed currencyId,
+        uint256 debtSharesRepaid,
+        int256 fCashLent
+    );
+
     /** Vault Action Methods */
 
     /// @notice Governance only method to whitelist a particular vault
@@ -96,7 +104,7 @@ interface IVaultAction {
         external view returns (uint256 totalUsedBorrowCapacity, uint256 maxBorrowCapacity);
 
     function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
-        external view returns (uint256 totalfCashBorrowed);
+        external view returns (uint256 totalfCashBorrowed, uint256 totalAccountDebtShares);
 
     /// @notice View method to get vault state
     function getVaultState(address vault, uint256 maturity) external view returns (VaultState memory vaultState);

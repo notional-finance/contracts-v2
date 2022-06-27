@@ -230,7 +230,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
 
-        int256 netAssetCash = vaultConfig.repaySecondaryBorrow(
+        (int256 netAssetCash, int256 fCashToLend) = vaultConfig.repaySecondaryBorrow(
             account, currencyId, maturity, debtSharesToRepay, minLendRate
         );
 
@@ -251,7 +251,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             uint256 balanceBefore = underlyingToken.balanceOf(address(this));
             // Tells the vault will redeem the strategy token amount and transfer asset tokens back to Notional
             returnData = IStrategyVault(msg.sender).repaySecondaryBorrowCallback(
-                underlyingExternalToRepay, callbackData
+                underlyingToken.tokenAddress, underlyingExternalToRepay, callbackData
             );
             uint256 balanceAfter = underlyingToken.balanceOf(address(this));
             balanceTransferred = balanceAfter.sub(balanceBefore);
@@ -262,6 +262,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         if (assetToken.tokenType != TokenType.NonMintable) {
             assetToken.mint(currencyId, balanceTransferred);
         }
+
+        emit RepaidSecondaryBorrow(msg.sender, account, currencyId, debtSharesToRepay, fCashToLend);
     }
 
     /// @notice Settles a vault and sets the final settlement rates
@@ -348,10 +350,11 @@ contract VaultAction is ActionGuards, IVaultAction {
     }
 
     function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
-        external view override returns (uint256 totalfCashBorrowed) {
+        external view override returns (uint256 totalfCashBorrowed, uint256 totalAccountDebtShares) {
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
         totalfCashBorrowed = balance.totalfCashBorrowed;
+        totalAccountDebtShares = balance.totalAccountDebtShares;
     }
 
     function getCashRequiredToSettle(

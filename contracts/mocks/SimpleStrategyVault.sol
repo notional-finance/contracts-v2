@@ -29,6 +29,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
     ) internal override returns (uint256 strategyTokensMinted) {
         strategyTokensMinted = (deposit * 1e18) / (_tokenExchangeRate * 1e10);
         if (_reenterNotional) {
+            UNDERLYING_TOKEN.approve(address(NOTIONAL), deposit);
             NOTIONAL.depositUnderlyingToken(address(this), BORROW_CURRENCY_ID, deposit);
         }
     }
@@ -43,9 +44,13 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function _repaySecondaryBorrowCallback(
-        uint256 underlyingTokensRequired, bytes calldata /* data */
+        address token, uint256 underlyingTokensRequired, bytes calldata /* data */
     ) internal override returns (bytes memory returnData) {
-        payable(address(NOTIONAL)).transfer(underlyingTokensRequired);
+        if (token == address(0)) {
+            payable(address(NOTIONAL)).transfer(underlyingTokensRequired);
+        } else {
+            ERC20(token).transfer(address(NOTIONAL), underlyingTokensRequired);
+        }
     }
 
     function convertStrategyToUnderlying(
@@ -55,25 +60,27 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function borrowSecondaryCurrency(
+        address account,
         uint16 currencyId,
         uint256 maturity,
         uint256 fCashToBorrow,
         uint32 slippageLimit
     ) external {
         uint256 underlyingTokensTransferred = NOTIONAL.borrowSecondaryCurrencyToVault(
-            currencyId, maturity, fCashToBorrow, slippageLimit
+            account, currencyId, maturity, fCashToBorrow, slippageLimit
         );
         emit SecondaryBorrow(underlyingTokensTransferred);
     }
 
     function repaySecondaryCurrency(
+        address account,
         uint16 currencyId,
         uint256 maturity,
-        uint256 fCashToRepay,
+        uint256 accountDebtShares,
         uint32 slippageLimit
     ) external {
         NOTIONAL.repaySecondaryCurrencyFromVault(
-            currencyId, maturity, fCashToRepay, slippageLimit, ""
+            account, currencyId, maturity, accountDebtShares, slippageLimit, ""
         );
     }
 }

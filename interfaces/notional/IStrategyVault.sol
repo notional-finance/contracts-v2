@@ -31,6 +31,7 @@ interface IStrategyVault {
     ) external view returns (int256 underlyingValue);
 
     function repaySecondaryBorrowCallback(
+        address token,
         uint256 underlyingRequired,
         bytes calldata data
     ) external returns (bytes memory returnData);

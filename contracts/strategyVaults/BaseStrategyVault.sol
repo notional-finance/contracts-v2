@@ -35,7 +35,9 @@ abstract contract BaseStrategyVault is IStrategyVault {
 
     // This can be overridden if the vault borrows in a secondary currency, but reverts by default.
     function _repaySecondaryBorrowCallback(
-        uint256 assetCashRequired, bytes calldata data
+        address token,
+        uint256 underlyingRequired,
+        bytes calldata data
     ) internal virtual returns (bytes memory returnData) {
         revert();
     }
@@ -121,9 +123,11 @@ abstract contract BaseStrategyVault is IStrategyVault {
     }
 
     function repaySecondaryBorrowCallback(
-        uint256 assetCashRequired, bytes calldata data
+        address token,
+        uint256 underlyingRequired,
+        bytes calldata data
     ) external onlyNotional returns (bytes memory returnData) {
-        return _repaySecondaryBorrowCallback(assetCashRequired, data);
+        return _repaySecondaryBorrowCallback(token, underlyingRequired, data);
     }
 
     receive() external payable {

@@ -129,6 +129,10 @@ library VaultConfiguration {
         // The borrow currency cannot be duplicated as a secondary borrow currency
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[0]);
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[1]);
+        if (vaultConfig.secondaryBorrowCurrencies[0] != 0 && vaultConfig.secondaryBorrowCurrencies[1] != 0) {
+            // Check that these values are not duplicated if set
+            require(vaultConfig.secondaryBorrowCurrencies[0] != vaultConfig.secondaryBorrowCurrencies[1]);
+        }
 
         // Tokens with transfer fees create lots of issues with vault mechanics, we prevent them
         // from being listed here.
@@ -620,14 +624,14 @@ library VaultConfiguration {
         uint256 maturity,
         uint256 debtSharesToRepay,
         uint32 minLendRate
-    ) internal returns (int256 netAssetCash) {
+    ) internal returns (int256 netAssetCash, int256 fCashToLend) {
         // Updates storage for the specific maturity so we can track this on chain.
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
         uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
         uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
 
-        uint256 fCashToLend = debtSharesToRepay.mul(totalfCashBorrowed).div(totalAccountDebtShares);
+        fCashToLend = debtSharesToRepay.mul(totalfCashBorrowed).div(totalAccountDebtShares).toInt();
 
         if (account != vaultConfig.vault) {
             // We only burn the total debt shares if it is an individual account repaying the debt
@@ -638,12 +642,12 @@ library VaultConfiguration {
         }
 
         // Update the global counters
-        updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToLend.toInt());
-        // Will revert if this underflows zero
-        balance.totalfCashBorrowed = totalfCashBorrowed.sub(fCashToLend).toUint80();
+        updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToLend);
+        // Will revert if this underflows zero (cannot overflow uint256, known to be positive from above)
+        balance.totalfCashBorrowed = totalfCashBorrowed.sub(uint256(fCashToLend)).toUint80();
 
-        return _executeSecondaryCurrencyTrade(
-            vaultConfig, currencyId, maturity, fCashToLend.toInt(), minLendRate
+        netAssetCash = _executeSecondaryCurrencyTrade(
+            vaultConfig, currencyId, maturity, fCashToLend, minLendRate
         );
     }
 
@@ -664,7 +668,7 @@ library VaultConfiguration {
         if (currencyId == vaultConfig.secondaryBorrowCurrencies[0]) {
             accountDebtSharesOne = accountDebtSharesOne.add(netAccountDebtShares);
             s.accountDebtSharesOne = accountDebtSharesOne.toUint().toUint80();
-        } else if (currencyId == vaultConfig.secondaryBorrowCurrencies[0]) {
+        } else if (currencyId == vaultConfig.secondaryBorrowCurrencies[1]) {
             accountDebtSharesTwo = accountDebtSharesTwo.add(netAccountDebtShares);
             s.accountDebtSharesTwo = accountDebtSharesTwo.toUint().toUint80();
         } else {
@@ -672,8 +676,13 @@ library VaultConfiguration {
             revert();
         }
 
-        // If both debt shares are cleared to zero, clear the maturity as well.
-        if (accountDebtSharesOne == 0 && accountDebtSharesTwo == 0) s.maturity = 0;
+        if (accountDebtSharesOne == 0 && accountDebtSharesTwo == 0) {
+            // If both debt shares are cleared to zero, clear the maturity as well.
+            s.maturity = 0;
+        } else if (accountMaturity == 0) {
+            // Set the maturity if it is cleared
+            s.maturity = maturity.toUint32();
+        }
     }
 
     /// @notice Executes a secondary currency lend or borrow

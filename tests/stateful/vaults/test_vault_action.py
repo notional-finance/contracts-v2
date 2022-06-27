@@ -4,6 +4,7 @@ from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
+from tests.helpers import get_lend_action
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.stateful.invariants import check_system_invariants
 
@@ -15,8 +16,28 @@ def isolation(fn_isolation):
     pass
 
 
-@pytest.mark.only
 def test_reenter_notional(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
+        100_000_000e8,
+        {"from": accounts[0]},
+    )
+
+    vault.setReenterNotional(True)
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    with brownie.reverts("Reentrant call"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
     environment.notional.updateVault(
         vault.address,
         get_vault_config(flags=set_flags(0, ENABLED=True, ALLOW_REENTRANCY=True), currencyId=2),
@@ -24,10 +45,9 @@ def test_reenter_notional(environment, vault, accounts):
         {"from": accounts[0]},
     )
 
-    vault.setReenterNotional(True)
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.token["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
     environment.notional.enterVault(
-        accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1], vault.address, 50_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
 
@@ -439,7 +459,7 @@ def test_borrow_secondary_currency_fails_duplicate(environment, accounts, vault)
         environment.notional.updateVault(
             vault.address,
             get_vault_config(
-                currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[2, 0, 0]
+                currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[2, 0]
             ),
             100_000_000e8,
         )
@@ -448,7 +468,7 @@ def test_borrow_secondary_currency_fails_duplicate(environment, accounts, vault)
         environment.notional.updateVault(
             vault.address,
             get_vault_config(
-                currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[0, 2, 0]
+                currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[0, 2]
             ),
             100_000_000e8,
         )
@@ -457,7 +477,7 @@ def test_borrow_secondary_currency_fails_duplicate(environment, accounts, vault)
         environment.notional.updateVault(
             vault.address,
             get_vault_config(
-                currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[0, 0, 2]
+                currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[3, 3]
             ),
             100_000_000e8,
         )
@@ -472,11 +492,11 @@ def test_borrow_secondary_currency_fails_not_listed(environment, accounts, vault
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
     with brownie.reverts():
-        vault.borrowSecondaryCurrency(1, maturity, 1e8, 0)
+        vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
 
     with brownie.reverts("Paused"):
         environment.notional.borrowSecondaryCurrencyToVault(
-            1, maturity, 1e8, 0, {"from": accounts[1]}
+            accounts[1], 1, maturity, 1e8, 0, {"from": accounts[1]}
         )
 
     with brownie.reverts("Ownable: caller is not the owner"):
@@ -496,7 +516,7 @@ def test_borrow_secondary_currency_fails_over_max_capacity(environment, accounts
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3, 0]
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
         ),
         100_000_000e8,
     )
@@ -507,23 +527,240 @@ def test_borrow_secondary_currency_fails_over_max_capacity(environment, accounts
 
     assert environment.notional.getBorrowCapacity(vault.address, 1) == (0, 100e8)
 
-    txn = vault.borrowSecondaryCurrency(1, maturity, 1e8, 0)
+    txn = vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
     assert environment.notional.getBorrowCapacity(vault.address, 1) == (1e8, 100e8)
-    assert environment.notional.getSecondaryBorrow(vault.address, 1, maturity) == 1e8
+    assert (
+        environment.notional.getSecondaryBorrow(vault.address, 1, maturity)["totalfCashBorrowed"]
+        == 1e8
+    )
     assert txn.events["SecondaryBorrow"]["underlyingTokensTransferred"] == vault.balance()
 
     with brownie.reverts("Trade failed, slippage"):
-        vault.borrowSecondaryCurrency(1, maturity, 1e8, 0.001e9)
+        vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 1e8, 0.001e9)
 
     with brownie.reverts("Max Capacity"):
-        vault.borrowSecondaryCurrency(1, maturity, 100e8, 0)
+        vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 100e8, 0)
+
+
+def test_borrow_secondary_currency_account_factors(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address, 1, 100e8, {"from": environment.notional.owner()}
+    )
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address, 3, 100e8, {"from": environment.notional.owner()}
+    )
+
+    vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
+    (debtMaturity, debtShares, strategyTokens) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == maturity
+    assert debtShares[0] == 1e8
+    assert debtShares[1] == 0
+    assert strategyTokens == 0
+
+    vault.borrowSecondaryCurrency(accounts[1], 3, maturity, 5e8, 0)
+    (debtMaturity, debtShares, strategyTokens) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == maturity
+    assert debtShares[0] == 1e8
+    assert debtShares[1] == 5e8
+    assert strategyTokens == 0
+
+    vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 3e8, 0)
+    (debtMaturity, debtShares, strategyTokens) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == maturity
+    assert debtShares[0] == 4e8
+    assert debtShares[1] == 5e8
+    assert strategyTokens == 0
+
+    vault.borrowSecondaryCurrency(accounts[1], 3, maturity, 1e8, 0)
+    (debtMaturity, debtShares, strategyTokens) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == maturity
+    assert debtShares[0] == 4e8
+    assert debtShares[1] == 6e8
+    assert strategyTokens == 0
+
+    (totalfCashBorrowedETH, totalDebtSharesETH) = environment.notional.getSecondaryBorrow(
+        vault.address, 1, maturity
+    )
+    (totalfCashBorrowedUSDC, totalDebtSharesUSDC) = environment.notional.getSecondaryBorrow(
+        vault.address, 3, maturity
+    )
+    assert totalfCashBorrowedETH == 4e8
+    assert totalfCashBorrowedUSDC == 6e8
+    assert totalfCashBorrowedETH == totalDebtSharesETH
+    assert totalfCashBorrowedUSDC == totalDebtSharesUSDC
+
+    # Reverts when attempting to borrow at a different maturity
+    with brownie.reverts("Invalid Secondary Maturity"):
+        vault.borrowSecondaryCurrency(accounts[1], 3, maturity + SECONDS_IN_QUARTER, 1e8, 0)
+
+    environment.token["USDC"].transfer(vault.address, 100e6, {"from": accounts[0]})
+    accounts[0].transfer(vault.address, 5e18)
+
+    # Repaying borrows
+    vault.repaySecondaryCurrency(accounts[1], 3, maturity, 1e8, 0)
+    (debtMaturity, debtShares, strategyTokens) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == maturity
+    assert debtShares[0] == 4e8
+    assert debtShares[1] == 5e8
+    assert strategyTokens == 0
+
+    vault.repaySecondaryCurrency(accounts[1], 1, maturity, 4e8, 0)
+    (debtMaturity, debtShares, strategyTokens) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == maturity
+    assert debtShares[0] == 0
+    assert debtShares[1] == 5e8
+    assert strategyTokens == 0
+
+    vault.repaySecondaryCurrency(accounts[1], 3, maturity, 5e8, 0)
+    (debtMaturity, debtShares, strategyTokens) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == 0  # This must be cleared now
+    assert debtShares[0] == 0
+    assert debtShares[1] == 0
+    assert strategyTokens == 0
+
+    (totalfCashBorrowedETH, totalDebtSharesETH) = environment.notional.getSecondaryBorrow(
+        vault.address, 1, maturity
+    )
+    (totalfCashBorrowedUSDC, totalDebtSharesUSDC) = environment.notional.getSecondaryBorrow(
+        vault.address, 3, maturity
+    )
+    assert totalfCashBorrowedETH == 0
+    assert totalfCashBorrowedUSDC == 0
+    assert totalfCashBorrowedETH == totalDebtSharesETH
+    assert totalfCashBorrowedUSDC == totalDebtSharesUSDC
+
+
+def test_repay_secondary_currency_fails_with_no_borrow(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address, 1, 100e8, {"from": environment.notional.owner()}
+    )
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address, 3, 100e8, {"from": environment.notional.owner()}
+    )
+
+    vault.borrowSecondaryCurrency(accounts[2], 3, maturity, 10e8, 0)
+
+    with brownie.reverts():
+        # Reverts on an underflow inside _updateAccountDebtShares
+        vault.repaySecondaryCurrency(accounts[1], 3, maturity, 5e8, 0)
+
+
+def test_repay_secondary_currency_via_vault(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.token["USDC"].transfer(vault.address, 100e6, {"from": accounts[0]})
+    accounts[0].transfer(vault.address, 5e18)
+
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address, 1, 100e8, {"from": environment.notional.owner()}
+    )
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address, 3, 100e8, {"from": environment.notional.owner()}
+    )
+
+    # Account borrows on secondary currencies
+    vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
+    vault.borrowSecondaryCurrency(accounts[1], 3, maturity, 5e8, 0)
+    (_, debtSharesBefore, _) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    (totalfCashBorrowedETH, totalDebtSharesETH) = environment.notional.getSecondaryBorrow(
+        vault.address, 1, maturity
+    )
+    (totalfCashBorrowedUSDC, totalDebtSharesUSDC) = environment.notional.getSecondaryBorrow(
+        vault.address, 3, maturity
+    )
+    assert totalfCashBorrowedETH == 1e8
+    assert totalfCashBorrowedUSDC == 5e8
+    assert totalfCashBorrowedETH == totalDebtSharesETH
+    assert totalfCashBorrowedUSDC == totalDebtSharesUSDC
+
+    # Vault repays secondary currencies and reduces account outstanding debt
+    vault.repaySecondaryCurrency(vault.address, 3, maturity, 2.5e8, 0)
+    (_, debtSharesAfter, _) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtSharesBefore == debtSharesAfter
+
+    (
+        totalfCashBorrowedUSDCAfter,
+        totalDebtSharesUSDCAfter,
+    ) = environment.notional.getSecondaryBorrow(vault.address, 3, maturity)
+    # fCashBorrowed is reduced, debt shares is not
+    assert totalfCashBorrowedUSDCAfter == 2.5e8
+    assert totalDebtSharesUSDC == totalDebtSharesUSDCAfter
+
+    # Repayment is based on accountDebtShare
+    txn = vault.repaySecondaryCurrency(accounts[1], 3, maturity, 5e8, 0)
+    assert txn.events["RepaidSecondaryBorrow"]["fCashLent"] == 2.5e8
+    (debtMaturity, debtSharesAfter, _) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtSharesAfter[0] == 1e8
+    assert debtSharesAfter[1] == 0
+    assert debtMaturity == maturity
+
+    vault.repaySecondaryCurrency(vault.address, 1, maturity, 1e8, 0)
+    (totalfCashBorrowedETHAfter, totalDebtSharesETHAfter) = environment.notional.getSecondaryBorrow(
+        vault.address, 1, maturity
+    )
+    # fCashBorrowed is reduced, debt shares is not
+    assert totalfCashBorrowedETHAfter == 0
+    assert totalDebtSharesETH == totalDebtSharesETHAfter
+
+    # Nothing to repay here because it has already been repaid
+    txn = vault.repaySecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
+    assert txn.events["RepaidSecondaryBorrow"]["fCashLent"] == 0
+    assert txn.events["RepaidSecondaryBorrow"]["debtSharesRepaid"] == 1e8
+    (debtMaturity, debtSharesAfter, _) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtSharesAfter[0] == 0
+    assert debtSharesAfter[1] == 0
+    assert debtMaturity == 0
 
 
 def test_repay_secondary_currency_succeeds_over_max_capacity(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3, 0]
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
         ),
         100_000_000e8,
     )
@@ -532,7 +769,7 @@ def test_repay_secondary_currency_succeeds_over_max_capacity(environment, accoun
         vault, 1, 100e8, {"from": environment.notional.owner()}
     )
 
-    vault.borrowSecondaryCurrency(1, maturity, 1e8, 0)
+    vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
 
     # Lower the capacity
     environment.notional.updateSecondaryBorrowCapacity(
@@ -541,24 +778,30 @@ def test_repay_secondary_currency_succeeds_over_max_capacity(environment, accoun
 
     # Can still repay existing debts
     accounts[0].transfer(vault.address, 50e18)
-    vault.repaySecondaryCurrency(1, maturity, 0.5e8, 0)
+    vault.repaySecondaryCurrency(accounts[1], 1, maturity, 0.5e8, 0)
     assert environment.notional.getBorrowCapacity(vault.address, 1) == (0.5e8, 0.1e8)
-    assert environment.notional.getSecondaryBorrow(vault.address, 1, maturity) == 0.5e8
+    assert (
+        environment.notional.getSecondaryBorrow(vault.address, 1, maturity)["totalfCashBorrowed"]
+        == 0.5e8
+    )
 
     with brownie.reverts(""):
-        vault.repaySecondaryCurrency(1, maturity, 0.6e8, 0)
+        vault.repaySecondaryCurrency(accounts[1], 1, maturity, 0.6e8, 0)
 
     # Clear the borrow
-    vault.repaySecondaryCurrency(1, maturity, 0.5e8, 0)
+    vault.repaySecondaryCurrency(accounts[1], 1, maturity, 0.5e8, 0)
     assert environment.notional.getBorrowCapacity(vault.address, 1) == (0, 0.1e8)
-    assert environment.notional.getSecondaryBorrow(vault.address, 1, maturity) == 0
+    assert (
+        environment.notional.getSecondaryBorrow(vault.address, 1, maturity)["totalfCashBorrowed"]
+        == 0
+    )
 
 
 def test_settle_fails_on_secondary_currency_balance(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3, 0]
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
         ),
         100_000_000e8,
     )
@@ -566,7 +809,12 @@ def test_settle_fails_on_secondary_currency_balance(environment, vault, accounts
     environment.notional.updateSecondaryBorrowCapacity(
         vault, 1, 100e8, {"from": environment.notional.owner()}
     )
-    vault.borrowSecondaryCurrency(1, maturity, 1e8, 0)
+
+    environment.token["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
+    environment.notional.enterVault(
+        accounts[1], vault.address, 50_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+    vault.borrowSecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
 
     chain.mine(1, maturity)
 
@@ -574,16 +822,81 @@ def test_settle_fails_on_secondary_currency_balance(environment, vault, accounts
         environment.notional.settleVault(vault.address, maturity, {"from": accounts[1]})
 
     accounts[0].transfer(vault.address, 50e18)
-    vault.repaySecondaryCurrency(1, maturity, 1e8, 0)
+    environment.token["DAI"].transfer(vault.address, 100_000e18, {"from": accounts[0]})
+
+    environment.notional.redeemStrategyTokensToCash(maturity, 105_000e8, "", {"from": vault})
+    # TODO: assert that this is repaid at the settlement rate...
+    vault.repaySecondaryCurrency(vault.address, 1, maturity, 1e8, 0)
     assert environment.notional.getBorrowCapacity(vault.address, 1) == (0, 100e8)
-    assert environment.notional.getSecondaryBorrow(vault.address, 1, maturity) == 0
+    assert (
+        environment.notional.getSecondaryBorrow(vault.address, 1, maturity)["totalfCashBorrowed"]
+        == 0
+    )
 
     environment.notional.settleVault(vault.address, maturity, {"from": accounts[1]})
 
+    # Test that the vault can safely exit the vault
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
 
-@pytest.mark.todo
+    (debtMaturity, debtShares, _) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == maturity
+    assert debtShares == [1e8, 0]
+
+    environment.notional.exitVault(
+        accounts[1],
+        vault.address,
+        accounts[1],
+        vaultAccount["vaultShares"],
+        0,
+        0,
+        "",
+        {"from": accounts[1]},
+    )
+    (debtMaturity, debtShares, _) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+    assert debtMaturity == 0
+    assert debtShares == [0, 0]
+
+
 def test_repay_secondary_currency_succeeds_at_zero_interest(environment, accounts, vault):
-    pass
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 3, 20_000e8, {"from": environment.notional.owner()}
+    )
+    vault.borrowSecondaryCurrency(accounts[1], 3, maturity, 10_000e8, 0)
+
+    # Lend the market down to zero
+    action = get_lend_action(
+        3,
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 95_000e8, "minSlippage": 0}],
+        False,
+    )
+    environment.notional.batchLend(accounts[0], [action], {"from": accounts[0]})
+
+    (amountUnderlying, _, _, _) = environment.notional.getDepositFromfCashLend(
+        3, 10_000e8, maturity, 0, chain.time()
+    )
+    # Shows that lending will fail
+    assert amountUnderlying == 0
+
+    environment.token["USDC"].transfer(vault.address, 10_000e6, {"from": accounts[0]})
+
+    usdcBalanceBefore = environment.token["USDC"].balanceOf(vault.address)
+    txn = vault.repaySecondaryCurrency(vault.address, 3, maturity, 10_000e8, 0)
+    assert txn.events["RepaidSecondaryBorrow"]["fCashLent"] == 10_000e8
+    usdcBalanceAfter = environment.token["USDC"].balanceOf(vault.address)
+
+    assert usdcBalanceBefore - usdcBalanceAfter == 10_000e6 + 1
 
 
 @pytest.mark.todo
