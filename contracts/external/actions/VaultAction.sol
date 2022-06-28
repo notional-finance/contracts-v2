@@ -223,10 +223,10 @@ contract VaultAction is ActionGuards, IVaultAction {
                 // Cannot roll to a shorter term maturity
                 require(accountMaturity < maturity);
                 costToRepay[0] = _repayDuringRoll(
-                    vaultConfig, account, currencies[0], maturity, s.accountDebtSharesOne, minRollLendRate[0]
+                    vaultConfig, account, currencies[0], accountMaturity, s.accountDebtSharesOne, minRollLendRate[0]
                 );
                 costToRepay[1] = _repayDuringRoll(
-                    vaultConfig, account, currencies[1], maturity, s.accountDebtSharesTwo, minRollLendRate[1]
+                    vaultConfig, account, currencies[1], accountMaturity, s.accountDebtSharesTwo, minRollLendRate[1]
                 );
             }
         }
@@ -270,7 +270,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         );
 
         netBorrowedCash = netBorrowedCash.add(costToRepay);
-        require(netBorrowedCash > 0);
+        require(netBorrowedCash >= 0, "Insufficient Secondary Borrow");
 
         underlyingTokensTransferred = VaultConfiguration.transferFromNotional(
             vaultConfig.vault, currencyId, netBorrowedCash

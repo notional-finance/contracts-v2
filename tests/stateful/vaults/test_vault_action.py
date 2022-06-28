@@ -882,6 +882,114 @@ def test_repay_secondary_currency_succeeds_at_zero_interest(environment, account
     assert usdcBalanceBefore - usdcBalanceAfter == 10_000e6 + 1
 
 
+def test_roll_secondary_borrow_forward(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2,
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=True),
+            secondaryBorrowCurrencies=[1, 3],
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 1, 20_000e8, {"from": environment.notional.owner()}
+    )
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 3, 20_000e8, {"from": environment.notional.owner()}
+    )
+
+    vault.borrowSecondaryCurrency(accounts[1], maturity, [5e8, 5e8], [0, 0], [0, 0])
+
+    txn = vault.borrowSecondaryCurrency(
+        accounts[1], maturity + SECONDS_IN_QUARTER, [6e8, 7e8], [0, 0], [0, 0]
+    )
+    (debtMaturityAfter, debtSharesAfter, _) = environment.notional.getVaultAccountDebtShares(
+        accounts[1].address, vault.address
+    )
+
+    assert debtMaturityAfter == maturity + SECONDS_IN_QUARTER
+    assert debtSharesAfter == [6e8, 7e8]
+    assert txn.events["SecondaryBorrow"]["underlyingTokensTransferred"][0] < 1e18
+    assert txn.events["SecondaryBorrow"]["underlyingTokensTransferred"][0] > 0.93e18
+    assert txn.events["SecondaryBorrow"]["underlyingTokensTransferred"][1] < 2e6
+    assert txn.events["SecondaryBorrow"]["underlyingTokensTransferred"][1] > 1.8e6
+
+
+def test_roll_secondary_borrow_fails_lower_maturity(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2,
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=True),
+            secondaryBorrowCurrencies=[1, 3],
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 1, 20_000e8, {"from": environment.notional.owner()}
+    )
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 3, 20_000e8, {"from": environment.notional.owner()}
+    )
+
+    vault.borrowSecondaryCurrency(
+        accounts[1], maturity + SECONDS_IN_QUARTER, [5e8, 5e8], [0, 0], [0, 0]
+    )
+
+    # Fails on a lower maturity
+    with brownie.reverts():
+        vault.borrowSecondaryCurrency(accounts[1], maturity, [6e8, 7e8], [0, 0], [0, 0])
+
+
+def test_roll_secondary_borrow_fails_insufficient_cash(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2,
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=True),
+            secondaryBorrowCurrencies=[1, 3],
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 1, 20_000e8, {"from": environment.notional.owner()}
+    )
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 3, 20_000e8, {"from": environment.notional.owner()}
+    )
+
+    vault.borrowSecondaryCurrency(accounts[1], maturity, [5e8, 5e8], [0, 0], [0, 0])
+
+    with brownie.reverts("Insufficient Secondary Borrow"):
+        vault.borrowSecondaryCurrency(
+            accounts[1], maturity + SECONDS_IN_QUARTER, [5e8, 5e8], [0, 0], [0, 0]
+        )
+
+    with brownie.reverts("Trade failed, slippage"):
+        vault.borrowSecondaryCurrency(
+            accounts[1], maturity + SECONDS_IN_QUARTER, [6e8, 7e8], [0.001e9, 0], [0, 0]
+        )
+
+    # Reverts but weird brownie RPC error here.
+    # with brownie.reverts("Trade failed, slippage"):
+    #     vault.borrowSecondaryCurrency(accounts[1], maturity + SECONDS_IN_QUARTER, [6e8, 7e8],
+    #       [0, 0.001e9], [0, 0])
+
+    with brownie.reverts("Trade failed, slippage"):
+        vault.borrowSecondaryCurrency(
+            accounts[1], maturity + SECONDS_IN_QUARTER, [6e8, 7e8], [0, 0], [1e9, 0]
+        )
+
+    with brownie.reverts("Trade failed, slippage"):
+        vault.borrowSecondaryCurrency(
+            accounts[1], maturity + SECONDS_IN_QUARTER, [6e8, 7e8], [0, 0], [0, 1e9]
+        )
+
+
 def test_governance_reduce_borrow_capacity(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
