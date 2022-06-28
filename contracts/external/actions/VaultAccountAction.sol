@@ -292,15 +292,16 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // _calculateLiquidatorDeposit should ensure that we only ever lend up to a zero balance, but in the
             // case of any off by one issues we clear the fCash balance by down to zero.
             if (vaultAccount.fCash > 0) vaultAccount.fCash = 0;
-            // emit VaultDeleverageAccount(
-            //     vault, account, liquidator, vaultSharesToLiquidator, fCashToReduce, transferSharesToLiquidator
-            // );
+            emit VaultDeleverageAccount(
+                vault, account, vaultSharesToLiquidator, fCashToReduce 
+            );
         }
 
         // Sets the liquidated account account
         vaultAccount.setVaultAccount(vaultConfig);
 
         // Redeems the vault shares for asset cash and transfers it to the designated address
+        emit VaultLiquidatorProfit(vault, account, liquidator, vaultSharesToLiquidator, transferSharesToLiquidator);
         if (transferSharesToLiquidator) {
             vaultState.setVaultState(vaultConfig.vault);
             return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);

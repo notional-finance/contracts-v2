@@ -209,9 +209,15 @@ interface IVaultAccountAction {
     event VaultDeleverageAccount(
         address indexed vault,
         address indexed account,
+        uint256 vaultSharesToLiquidator,
+        int256 fCashRepaid
+    );
+
+    event VaultLiquidatorProfit(
+        address indexed vault,
+        address indexed account,
         address indexed liquidator,
         uint256 vaultSharesToLiquidator,
-        int256 fCashRepaid,
         bool transferSharesToLiquidator
     );
 
