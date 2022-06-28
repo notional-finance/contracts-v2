@@ -22,6 +22,12 @@ def get_all_markets(env, currencyId):
 
 
 def check_system_invariants(env, accounts, vaults=[], vaultfCashOverrides=[]):
+    for (currencyId, nToken) in env.nToken.items():
+        try:
+            env.notional.initializeMarkets(currencyId, False)
+        except Exception as e:
+            print(e)
+
     check_cash_balance(env, accounts, vaults)
     check_ntoken(env, accounts)
     check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides)
@@ -222,10 +228,6 @@ def check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides=[]):
 
     # Check nToken portfolios
     for (currencyId, nToken) in env.nToken.items():
-        try:
-            env.notional.initializeMarkets(currencyId, False)
-        except Exception as e:
-            print(e)
         (portfolio, ifCashAssets) = env.notional.getNTokenPortfolio(nToken.address)
 
         for asset in portfolio:
