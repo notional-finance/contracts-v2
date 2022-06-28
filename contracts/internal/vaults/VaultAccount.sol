@@ -26,6 +26,13 @@ library VaultAccountLib {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
+    event VaultSettledAssetsRemaining(
+        address indexed vault,
+        uint256 indexed maturity,
+        int256 remainingAssetCash,
+        uint256 remainingStrategyTokens
+    );
+
     /// @notice Returns a single account's vault position
     function getVaultAccount(
         address account, address vault
@@ -433,11 +440,13 @@ library VaultAccountLib {
             strategyTokenClaim = remainingStrategyTokens;
 
             // Clear the remaining strategy tokens
-            settledAssets.remainingStrategyTokens = 0;
+            remainingStrategyTokens = 0;
         } else {
-            // Underflow checked above, cannot overflow uint80
-            settledAssets.remainingStrategyTokens = uint80(remainingStrategyTokens - strategyTokenClaim);
+            // Underflow checked above
+            remainingStrategyTokens = remainingStrategyTokens - strategyTokenClaim;
         }
+        // based on the logic above, we cannot underflow or overflow uint80
+        settledAssets.remainingStrategyTokens = uint80(remainingStrategyTokens);
         
         // This is purely a defensive check, this should always be true based on the logic above
         require(assetCashClaim >= 0);
@@ -459,6 +468,7 @@ library VaultAccountLib {
             if (remainingAssetCash > 0) {
                 // Here the account gets what is left in the cash pool and what was raised
                 assetCashClaim = remainingAssetCash.add(assetCashRaised);
+                remainingAssetCash = 0;
                 settledAssets.remainingAssetCash = 0;
             } else {
                 // If remaining asset cash is negative then the account only gets what is raised
@@ -466,7 +476,15 @@ library VaultAccountLib {
             }
         } else {
             // remainingAssetCash and assetCashClaim are always positive in this branch
-            settledAssets.remainingAssetCash = remainingAssetCash.sub(assetCashClaim).toInt80();
+            remainingAssetCash = remainingAssetCash.sub(assetCashClaim);
+            settledAssets.remainingAssetCash = remainingAssetCash.toInt80();
         }
+
+        emit VaultSettledAssetsRemaining(
+            vaultConfig.vault,
+            vaultState.maturity,
+            remainingAssetCash,
+            remainingStrategyTokens
+        );
     }
 }

@@ -64,6 +64,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultAccount.borrowAndEnterVault(
             vaultConfig, maturity, fCash, maxBorrowRate, vaultData, strategyTokens, additionalUnderlyingExternal
         );
+
+        emit VaultEnterPosition(vault, account, maturity, fCash);
     }
 
     /// @notice Re-enters the vault at a longer dated maturity. The account's existing borrow position will be closed
@@ -130,6 +132,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             strategyTokens,
             0 // No additional tokens deposited in this method
         );
+
+        emit VaultRollPosition(vault, account, maturity, fCashToBorrow);
     }
 
     /// @notice Prior to maturity, allows an account to withdraw their position from the vault. Will
@@ -181,6 +185,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // Redeems all strategy tokens and any profits are sent back to the account, it is possible for temp
             // cash balance to be negative here if the account is insolvent
             vaultConfig.redeemWithDebtRepayment(vaultAccount, receiver, strategyTokens, maturity, exitVaultData);
+            emit VaultExitPostMaturity(vault, account, maturity);
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
             // Puts a negative cash balance on the vault's temporary cash balance
@@ -214,6 +219,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             }
 
             vaultState.setVaultState(vaultConfig.vault);
+            emit VaultExitPreMaturity(vault, account, vaultState.maturity, fCashToLend, vaultSharesToRedeem);
         }
 
         if (vaultAccount.fCash == 0 && vaultAccount.vaultShares == 0) {
@@ -286,6 +292,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // _calculateLiquidatorDeposit should ensure that we only ever lend up to a zero balance, but in the
             // case of any off by one issues we clear the fCash balance by down to zero.
             if (vaultAccount.fCash > 0) vaultAccount.fCash = 0;
+            // emit VaultDeleverageAccount(
+            //     vault, account, liquidator, vaultSharesToLiquidator, fCashToReduce, transferSharesToLiquidator
+            // );
         }
 
         // Sets the liquidated account account

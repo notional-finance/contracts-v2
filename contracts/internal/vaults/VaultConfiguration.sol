@@ -41,13 +41,36 @@ library VaultConfiguration {
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
 
+    /// @notice Emitted when a vault fee is accrued via borrowing (denominated in asset cash)
+    event VaultFeeAccrued(address indexed vault, uint16 indexed currencyId, int256 reserveFee, int256 nTokenFee);
+    /// @notice Emitted when the borrow capacity on a vault changes
+    event VaultBorrowCapacityChange(address indexed vault, uint16 indexed currencyId, uint256 totalUsedBorrowCapacity);
+
+    /// @notice Emitted when a vault executes a secondary borrow
+    event VaultSecondaryBorrow(
+        address indexed vault,
+        address indexed account,
+        uint16 indexed currencyId,
+        uint256 debtSharesMinted,
+        uint256 fCashBorrowed
+    );
+
+    /// @notice Emitted when a vault repays a secondary borrow
+    event VaultRepaySecondaryBorrow(
+        address indexed vault,
+        address indexed account,
+        uint16 indexed currencyId,
+        uint256 debtSharesRepaid,
+        uint256 fCashLent
+    );
+
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address indexed vault, bool enabled);
     /// @notice Emitted when a vault has a shortfall upon settlement
-    event VaultShortfall(uint16 indexed currencyId, address indexed vault, int256 shortfall);
+    event VaultShortfall(address indexed vault, uint16 indexed currencyId, int256 shortfall);
     /// @notice Emitted when a vault has an insolvency that cannot be covered by the
     /// cash reserve
-    event ProtocolInsolvency(uint16 indexed currencyId, address indexed vault, int256 shortfall);
+    event ProtocolInsolvency(address indexed vault, uint16 indexed currencyId, int256 shortfall);
 
     uint16 internal constant ENABLED                         = 1 << 0;
     uint16 internal constant ALLOW_ROLL_POSITION             = 1 << 1;
@@ -193,16 +216,19 @@ library VaultConfiguration {
 
         // If fCash < 0 we are borrowing and the total fee is positive, if fCash > 0 then we are lending and the fee should
         // be a rebate back to the account.
-        int256 netTotalFee = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().mulInRatePrecision(proratedFeeRate));
+        int256 netTotalFee = vaultConfig.assetRate.convertFromUnderlying(
+            fCash.neg().mulInRatePrecision(proratedFeeRate)
+        );
 
         // Reserve fee share is restricted to less than 100
-        int256 netReserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
-        int256 netNTokenFee = netTotalFee.sub(netReserveFee);
+        int256 reserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
+        int256 nTokenFee = netTotalFee.sub(reserveFee);
 
-        BalanceHandler.incrementFeeToReserve(vaultConfig.borrowCurrencyId, netReserveFee);
-        BalanceHandler.incrementVaultFeeToNToken(vaultConfig.borrowCurrencyId, netNTokenFee);
+        BalanceHandler.incrementFeeToReserve(vaultConfig.borrowCurrencyId, reserveFee);
+        BalanceHandler.incrementVaultFeeToNToken(vaultConfig.borrowCurrencyId, nTokenFee);
 
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netTotalFee);
+        emit VaultFeeAccrued(vaultConfig.vault, vaultConfig.borrowCurrencyId, reserveFee, nTokenFee);
     }
 
     /// @notice Updates the total borrow capacity for a vault and a currency. Reverts if borrowing goes above
@@ -234,6 +260,8 @@ library VaultConfiguration {
         // Total used borrow capacity can never go negative, this would suggest that we've lent past repayment
         // of the total fCash borrowed.
         cap.totalUsedBorrowCapacity = totalUsedBorrowCapacity.toUint().toUint80();
+        // overflow already checked above
+        emit VaultBorrowCapacityChange(vault, currencyId, uint256(totalUsedBorrowCapacity));
     }
 
     /// @notice Calculates the collateral ratio of an account: (valueOfAssets - debtOutstanding) / debtOutstanding
@@ -538,7 +566,7 @@ library VaultConfiguration {
         // exit but no one can enter. Governance can re-enable the vault.
         setVaultEnabledStatus(vault, false);
         emit VaultPauseStatus(vault, false);
-        emit VaultShortfall(currencyId, vault, assetCashShortfall);
+        emit VaultShortfall(vault, currencyId, assetCashShortfall);
 
         // Attempt to resolve the cash balance using the reserve
         (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(
@@ -552,7 +580,7 @@ library VaultConfiguration {
             // At this point the protocol needs to raise funds from sNOTE since the reserve is
             // insufficient to cover
             BalanceHandler.setReserveCashBalance(currencyId, 0);
-            emit ProtocolInsolvency(currencyId, vault, assetCashShortfall - reserveInternal);
+            emit ProtocolInsolvency(vault, currencyId, assetCashShortfall - reserveInternal);
             assetCashRaised = reserveInternal;
         }
     }
@@ -607,6 +635,8 @@ library VaultConfiguration {
         netAssetCash = _executeSecondaryCurrencyTrade(
             vaultConfig, currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
         );
+
+        emit VaultSecondaryBorrow(vaultConfig.vault, account, currencyId, accountDebtShares, fCashToBorrow);
     }
 
     /// @notice Decreases the used capacity on a secondary borrow based on debt shares
@@ -648,6 +678,8 @@ library VaultConfiguration {
         netAssetCash = _executeSecondaryCurrencyTrade(
             vaultConfig, currencyId, maturity, fCashToLend, minLendRate
         );
+
+        emit VaultRepaySecondaryBorrow(vaultConfig.vault, account, currencyId, debtSharesToRepay, uint256(fCashToLend));
     }
 
     function _updateAccountDebtShares(

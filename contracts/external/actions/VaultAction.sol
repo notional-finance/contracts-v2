@@ -32,7 +32,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfiguration.setVaultConfig(vaultAddress, vaultConfig);
         VaultConfiguration.setMaxBorrowCapacity(vaultAddress, vaultConfig.borrowCurrencyId, maxPrimaryBorrowCapacity);
         bool enabled = (vaultConfig.flags & VaultConfiguration.ENABLED) == VaultConfiguration.ENABLED;
-        emit VaultChange(vaultAddress, enabled);
+        emit VaultUpdated(vaultAddress, enabled, maxPrimaryBorrowCapacity);
     }
 
     /// @notice Enables or disables a vault. If a vault is disabled, no one can enter
@@ -75,6 +75,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         );
 
         VaultConfiguration.setMaxBorrowCapacity(vaultAddress, secondaryCurrencyId, maxBorrowCapacity);
+        emit VaultUpdateSecondaryBorrowCapacity(vaultAddress, secondaryCurrencyId, maxBorrowCapacity);
     }
 
     /// @notice Allows the owner to reduce the max borrow capacity on the vault and force
@@ -103,6 +104,8 @@ contract VaultAction is ActionGuards, IVaultAction {
 
         // Redeems strategy tokens to be held against fCash debt
         _redeemStrategyTokensToCashInternal(vaultConfig, maturity, strategyTokensToRedeem, vaultData);
+
+        emit VaultUpdated(vaultAddress, vaultConfig.getFlag(VaultConfiguration.ENABLED), maxVaultBorrowCapacity);
     }
 
     /// @notice Strategy vaults can call this method to redeem strategy tokens to cash and hold them
@@ -147,36 +150,36 @@ contract VaultAction is ActionGuards, IVaultAction {
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.sub(strategyTokensToRedeem);
         vaultState.setVaultState(vaultConfig.vault);
 
+        emit VaultRedeemStrategyToken(vaultConfig.vault, maturity, assetCashReceived, strategyTokensToRedeem);
         return _getCashRequiredToSettle(vaultConfig, vaultState, maturity);
     }
 
     /// @notice Strategy vaults can call this method to deposit asset cash into strategy tokens.
     /// @param maturity the maturity of the vault where the redemption will take place
-    /// @param assetCashToDepositExternal the number of asset cash tokens to deposit (external)
+    /// @param assetCashInternal the number of asset cash tokens to deposit (external)
     /// @param vaultData arbitrary data to pass back to the vault for deposit
     function depositVaultCashToStrategyTokens(
         uint256 maturity,
-        uint256 assetCashToDepositExternal,
+        uint256 assetCashInternal,
         bytes calldata vaultData
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        // NOTE: if the msg.sender is not the vault itself this will revert
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
+
         // If the vault allows further re-entrancy then set the status back to the default
         if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
             reentrancyStatus = _NOT_ENTERED;
         }
 
-        // NOTE: if the msg.sender is not the vault itself this will revert
-        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
-
         VaultState memory vaultState = VaultStateLib.getVaultState(msg.sender, maturity);
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
 
-        int256 assetCashInternal = assetToken.convertToInternal(SafeInt256.toInt(assetCashToDepositExternal));
         uint256 strategyTokensMinted = vaultConfig.deposit(
-            vaultConfig.vault, assetCashInternal, maturity, 0, vaultData
+            vaultConfig.vault, assetCashInternal.toInt(), maturity, 0, vaultData
         );
 
-        vaultState.totalAssetCash = vaultState.totalAssetCash.sub(SafeInt256.toUint(assetCashInternal));
+        vaultState.totalAssetCash = vaultState.totalAssetCash.sub(assetCashInternal);
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokensMinted);
         vaultState.setVaultState(msg.sender);
 
@@ -186,6 +189,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             vaultState, msg.sender, vaultState.totalVaultShares, vaultState.totalfCash
         );
         require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
+        emit VaultMintStrategyToken(msg.sender, maturity, assetCashInternal, strategyTokensMinted);
     }
 
     /// @notice Allows a vault to borrow a secondary currency if it is whitelisted to do so
@@ -329,8 +333,6 @@ contract VaultAction is ActionGuards, IVaultAction {
         if (assetToken.tokenType != TokenType.NonMintable) {
             assetToken.mint(currencyId, balanceTransferred);
         }
-
-        emit RepaidSecondaryBorrow(msg.sender, account, currencyId, debtSharesToRepay, fCashToLend);
     }
 
     /// @notice Settles a vault and sets the final settlement rates

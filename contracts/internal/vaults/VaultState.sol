@@ -30,6 +30,34 @@ library VaultStateLib {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
+    event VaultStateUpdate(
+        address indexed vault,
+        uint256 indexed maturity,
+        int256 totalfCash,
+        uint256 totalAssetCash,
+        uint256 totalStrategyTokens,
+        uint256 totalVaultShares
+    );
+
+    event VaultSettled(
+        address indexed vault,
+        uint256 indexed maturity,
+        int256 totalfCash,
+        uint256 totalAssetCash,
+        uint256 totalStrategyTokens,
+        uint256 totalVaultShares,
+        int256 strategyTokenValue
+    );
+
+    event VaultEnterMaturity(
+        address indexed vault,
+        uint256 indexed maturity,
+        address indexed account,
+        uint256 underlyingTokensTransferred,
+        uint256 strategyTokenDeposited,
+        uint256 vaultSharesMinted
+    );
+
     function getVaultState(address vault, uint256 maturity) internal view returns (VaultState memory vaultState) {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
         VaultStateStorage storage s = store[vault][maturity];
@@ -55,6 +83,15 @@ library VaultStateLib {
         s.totalAssetCash = vaultState.totalAssetCash.toUint80();
         s.totalStrategyTokens = vaultState.totalStrategyTokens.toUint80();
         s.totalVaultShares = vaultState.totalVaultShares.toUint80();
+
+        emit VaultStateUpdate(
+            vault,
+            vaultState.maturity,
+            vaultState.totalfCash,
+            vaultState.totalAssetCash,
+            vaultState.totalStrategyTokens,
+            vaultState.totalVaultShares
+        );
     }
 
     /// @notice Settles a vault state by taking a snapshot of relevant values at settlement. This can only happen once
@@ -98,6 +135,16 @@ library VaultStateLib {
         // it can be negative if the entire vault is insolvent.
         settledAssets.remainingAssetCash = vaultState.totalAssetCash.toInt()
             .add(settlementRate.convertFromUnderlying(vaultState.totalfCash)).toInt80();
+
+        emit VaultSettled(
+            vaultConfig.vault,
+            vaultState.maturity,
+            vaultState.totalfCash,
+            vaultState.totalAssetCash,
+            vaultState.totalStrategyTokens,
+            vaultState.totalVaultShares,
+            singleTokenValueInternal
+        );
     }
 
     function getRemainingSettledTokens(
@@ -189,8 +236,6 @@ library VaultStateLib {
         strategyTokenDeposit = strategyTokenDeposit.add(vaultConfig.deposit(
             vaultAccount.account, vaultAccount.tempCashBalance, vaultState.maturity, additionalUnderlyingExternal, vaultData
         ));
-        // Clear the cash balance after the deposit
-        vaultAccount.tempCashBalance = 0;
 
         // Calculate the number of vault shares to mint to the account. Note that totalAssetCash is required to be zero
         // at this point.
@@ -204,6 +249,19 @@ library VaultStateLib {
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokenDeposit);
         vaultState.totalVaultShares = vaultState.totalVaultShares.add(vaultSharesMinted);
         vaultAccount.vaultShares = vaultAccount.vaultShares.add(vaultSharesMinted);
+
+        emit VaultEnterMaturity(
+            vaultConfig.vault,
+            vaultState.maturity,
+            vaultAccount.account,
+            // Overflow checked above
+            uint256(vaultAccount.tempCashBalance).add(additionalUnderlyingExternal),
+            strategyTokenDeposit,
+            vaultSharesMinted
+        );
+
+        // Clear the cash balance after the deposit
+        vaultAccount.tempCashBalance = 0;
     }
 
     /// @notice Returns the component amounts for a given amount of vaultShares

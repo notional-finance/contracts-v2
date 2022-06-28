@@ -11,21 +11,78 @@ import {
 
 interface IVaultAction {
     /// @notice Emitted when a new vault is listed or updated
-    event VaultChange(address indexed vault, bool enabled);
+    event VaultUpdated(address indexed vault, bool enabled, uint80 maxPrimaryBorrowCapacity);
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address indexed vault, bool enabled);
+    /// @notice Emitted when a secondary currency borrow capacity is updated
+    event VaultUpdateSecondaryBorrowCapacity(address indexed vault, uint16 indexed currencyId, uint80 maxSecondaryBorrowCapacity);
     /// @notice Emitted when a vault has a shortfall upon settlement
-    event VaultShortfall(uint16 indexed currencyId, address indexed vault, int256 shortfall);
+    event VaultShortfall(address indexed vault, uint16 indexed currencyId, int256 shortfall);
     /// @notice Emitted when a vault has an insolvency that cannot be covered by the
     /// cash reserve
-    event ProtocolInsolvency(uint16 indexed currencyId, address indexed vault, int256 shortfall);
+    event ProtocolInsolvency(address indexed vault, uint16 indexed currencyId, int256 shortfall);
+    /// @notice Emitted when a vault fee is accrued via borrowing (denominated in asset cash)
+    event VaultFeeAccrued(address indexed vault, uint16 indexed currencyId, int256 reserveFee, int256 nTokenFee);
+    /// @notice Emitted when the borrow capacity on a vault changes
+    event VaultBorrowCapacityChange(address indexed vault, uint16 indexed currencyId, uint256 totalUsedBorrowCapacity);
 
-    event RepaidSecondaryBorrow(
+    /// @notice Emitted when a vault executes a secondary borrow
+    event VaultSecondaryBorrow(
+        address indexed vault,
+        address indexed account,
+        uint16 indexed currencyId,
+        uint256 debtSharesMinted,
+        uint256 fCashBorrowed
+    );
+
+    /// @notice Emitted when a vault repays a secondary borrow
+    event VaultRepaySecondaryBorrow(
         address indexed vault,
         address indexed account,
         uint16 indexed currencyId,
         uint256 debtSharesRepaid,
-        int256 fCashLent
+        uint256 fCashLent
+    );
+
+    /// @notice Emitted when a vault settles assets
+    event VaultSettledAssetsRemaining(
+        address indexed vault,
+        uint256 indexed maturity,
+        int256 remainingAssetCash,
+        uint256 remainingStrategyTokens
+    );
+
+    event VaultStateUpdate(
+        address indexed vault,
+        uint256 indexed maturity,
+        int256 totalfCash,
+        uint256 totalAssetCash,
+        uint256 totalStrategyTokens,
+        uint256 totalVaultShares
+    );
+
+    event VaultSettled(
+        address indexed vault,
+        uint256 indexed maturity,
+        int256 totalfCash,
+        uint256 totalAssetCash,
+        uint256 totalStrategyTokens,
+        uint256 totalVaultShares,
+        int256 strategyTokenValue
+    );
+    
+    event VaultRedeemStrategyToken(
+        address indexed vault,
+        uint256 indexed maturity,
+        int256 assetCashReceived,
+        uint256 strategyTokensRedeemed
+    );
+    
+    event VaultMintStrategyToken(
+        address indexed vault,
+        uint256 indexed maturity,
+        uint256 assetCashDeposited,
+        uint256 strategyTokensMinted
     );
 
     /** Vault Action Methods */
@@ -120,6 +177,52 @@ interface IVaultAction {
 }
 
 interface IVaultAccountAction {
+
+    event VaultEnterPosition(
+        address indexed vault,
+        address indexed account,
+        uint256 indexed maturity,
+        uint256 fCashBorrowed
+    );
+
+    event VaultRollPosition(
+        address indexed vault,
+        address indexed account,
+        uint256 indexed newMaturity,
+        uint256 fCashBorrowed
+    );
+
+    event VaultExitPostMaturity(
+        address indexed vault,
+        address indexed account,
+        uint256 indexed newMaturity
+    );
+
+    event VaultExitPreMaturity(
+        address indexed vault,
+        address indexed account,
+        uint256 indexed maturity,
+        uint256 fCashToLend,
+        uint256 vaultSharesToRedeem
+    );
+
+    event VaultDeleverageAccount(
+        address indexed vault,
+        address indexed account,
+        address indexed liquidator,
+        uint256 vaultSharesToLiquidator,
+        int256 fCashRepaid,
+        bool transferSharesToLiquidator
+    );
+
+    event VaultEnterMaturity(
+        address indexed vault,
+        uint256 indexed maturity,
+        address indexed account,
+        uint256 underlyingTokensTransferred,
+        uint256 strategyTokenDeposited,
+        uint256 vaultSharesMinted
+    );
     
     /**
      * @notice Borrows a specified amount of fCash in the vault's borrow currency and deposits it
