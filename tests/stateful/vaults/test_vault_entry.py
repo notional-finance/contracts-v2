@@ -15,7 +15,6 @@ def isolation(fn_isolation):
     pass
 
 
-@pytest.mark.only
 def test_only_vault_entry(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,

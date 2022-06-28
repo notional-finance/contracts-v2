@@ -190,28 +190,90 @@ contract VaultAction is ActionGuards, IVaultAction {
 
     /// @notice Allows a vault to borrow a secondary currency if it is whitelisted to do so
     /// @param account account that is borrowing the secondary currency
-    /// @param currencyId currency id of the secondary currency
     /// @param maturity the maturity to borrow at
-    /// @param fCashToBorrow amount of fCash to borrow
-    /// @param maxBorrowRate maximum rate annualized rate to borrow
+    /// @param fCashToBorrow fCash to borrow for the first and second secondary currencies
+    /// @param maxBorrowRate maximum borrow rate for the first and second secondary currencies
+    /// @param minRollLendRate max roll lend rate for the first and second borrow currencies
     /// @return underlyingTokensTransferred amount of tokens transferred back to the vault
     function borrowSecondaryCurrencyToVault(
         address account,
-        uint16 currencyId,
         uint256 maturity,
-        uint256 fCashToBorrow,
-        uint32 maxBorrowRate
-    ) external override returns (uint256 underlyingTokensTransferred) {
+        uint256[2] calldata fCashToBorrow,
+        uint32[2] calldata maxBorrowRate,
+        uint32[2] calldata minRollLendRate
+    ) external override returns (uint256[2] memory underlyingTokensTransferred) {
         // This method call must come from the vault
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        // This also ensures that the caller is an actual vault
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
+        uint16[2] memory currencies = vaultConfig.secondaryBorrowCurrencies;
+        require(currencies[0] != 0 && currencies[1] != 0);
+        
+        // If the borrower is rolling their primary debt forward, we need to check that here and roll
+        // their secondary debt forward in the same manner (simulate lending and then borrow more in
+        // a longer dated maturity to repay their borrowing).
+        int256[2] memory costToRepay;
+        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_ROLL_POSITION) && account != msg.sender) {
+            // If in here, the vault allows rolling and we are working with an individual account
+            VaultAccountSecondaryDebtShareStorage storage s = 
+                LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
+            uint256 accountMaturity = s.maturity;
 
-        int256 netAssetCash = vaultConfig.increaseSecondaryBorrow(
+            if (accountMaturity != 0) {
+                // Cannot roll to a shorter term maturity
+                require(accountMaturity < maturity);
+                costToRepay[0] = _repayDuringRoll(
+                    vaultConfig, account, currencies[0], maturity, s.accountDebtSharesOne, minRollLendRate[0]
+                );
+                costToRepay[1] = _repayDuringRoll(
+                    vaultConfig, account, currencies[1], maturity, s.accountDebtSharesTwo, minRollLendRate[1]
+                );
+            }
+        }
+
+        underlyingTokensTransferred[0] = _borrowAndTransfer(
+            vaultConfig, account, currencies[0], maturity, costToRepay[0], fCashToBorrow[0], maxBorrowRate[0]
+        );
+        underlyingTokensTransferred[1] = _borrowAndTransfer(
+            vaultConfig, account, currencies[1], maturity, costToRepay[1], fCashToBorrow[1], maxBorrowRate[1]
+        );
+    }
+
+    function _repayDuringRoll(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 accountDebtShares,
+        uint32 minLendRate
+    ) private returns (int256 costToRepay) {
+        if (currencyId != 0 && accountDebtShares != 0) {
+            (costToRepay, /* */) = vaultConfig.repaySecondaryBorrow(
+                account, currencyId, maturity, accountDebtShares, minLendRate
+            );
+        }
+    }
+
+    function _borrowAndTransfer(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint16 currencyId,
+        uint256 maturity,
+        int256 costToRepay,
+        uint256 fCashToBorrow,
+        uint32 maxBorrowRate
+    ) private returns (uint256 underlyingTokensTransferred) {
+        if (currencyId == 0 || fCashToBorrow == 0) return 0;
+
+        (int256 netBorrowedCash, uint256 accountDebtShares) = vaultConfig.increaseSecondaryBorrow(
             account, currencyId, maturity, fCashToBorrow, maxBorrowRate
         );
 
+        netBorrowedCash = netBorrowedCash.add(costToRepay);
+        require(netBorrowedCash > 0);
+
         underlyingTokensTransferred = VaultConfiguration.transferFromNotional(
-            vaultConfig.vault, currencyId, netAssetCash
+            vaultConfig.vault, currencyId, netBorrowedCash
         );
     }
 

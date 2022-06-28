@@ -574,7 +574,7 @@ library VaultConfiguration {
         uint256 maturity,
         uint256 fCashToBorrow,
         uint32 maxBorrowRate
-    ) internal returns (int256) {
+    ) internal returns (int256 netAssetCash, uint256 accountDebtShares) {
         // This will revert if we overflow the maximum borrow capacity, expects a negative fCash value when borrowing
         updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToBorrow.toInt().neg());
 
@@ -590,7 +590,6 @@ library VaultConfiguration {
 
             // After this point, (accountDebtShares * totalfCashBorrowed) / totalDebtShares = fCashToBorrow
             // therefore: accountfCashShares = (netfCash * totalfCashShares) / totalfCashBorrowed
-            uint256 accountDebtShares;
             if (totalfCashBorrowed == 0) {
                 accountDebtShares = fCashToBorrow;
             } else {
@@ -605,7 +604,7 @@ library VaultConfiguration {
 
         balance.totalfCashBorrowed = totalfCashBorrowed.add(fCashToBorrow).toUint80();
 
-        return _executeSecondaryCurrencyTrade(
+        netAssetCash = _executeSecondaryCurrencyTrade(
             vaultConfig, currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
         );
     }

@@ -5,7 +5,7 @@ pragma abicoder v2;
 import "../strategyVaults/BaseStrategyVault.sol";
 
 contract SimpleStrategyVault is BaseStrategyVault {
-    event SecondaryBorrow(uint256 underlyingTokensTransferred);
+    event SecondaryBorrow(uint256[2] underlyingTokensTransferred);
 
     bool internal _reenterNotional;
     uint256 internal _tokenExchangeRate;
@@ -61,13 +61,13 @@ contract SimpleStrategyVault is BaseStrategyVault {
 
     function borrowSecondaryCurrency(
         address account,
-        uint16 currencyId,
         uint256 maturity,
-        uint256 fCashToBorrow,
-        uint32 slippageLimit
+        uint256[2] calldata fCashToBorrow,
+        uint32[2] calldata maxBorrowRate,
+        uint32[2] calldata minRollLendRate
     ) external {
-        uint256 underlyingTokensTransferred = NOTIONAL.borrowSecondaryCurrencyToVault(
-            account, currencyId, maturity, fCashToBorrow, slippageLimit
+        uint256[2] memory underlyingTokensTransferred = NOTIONAL.borrowSecondaryCurrencyToVault(
+            account, maturity, fCashToBorrow, maxBorrowRate, minRollLendRate 
         );
         emit SecondaryBorrow(underlyingTokensTransferred);
     }

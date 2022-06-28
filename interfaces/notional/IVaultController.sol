@@ -78,11 +78,11 @@ interface IVaultAction {
 
     function borrowSecondaryCurrencyToVault(
         address account,
-        uint16 currencyId,
         uint256 maturity,
-        uint256 fCashToBorrow,
-        uint32 slippageLimit
-    ) external returns (uint256 underlyingTokensTransferred);
+        uint256[2] calldata fCashToBorrow,
+        uint32[2] calldata maxBorrowRate,
+        uint32[2] calldata minRollLendRate
+    ) external returns (uint256[2] memory underlyingTokensTransferred);
 
     function repaySecondaryCurrencyFromVault(
         address account,
