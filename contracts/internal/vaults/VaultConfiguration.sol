@@ -538,9 +538,12 @@ library VaultConfiguration {
 
         // NonMintable tokens do not need to be minted, the amount transferred is the amount
         // of asset cash raised.
-        int256 assetCashExternal = assetToken.tokenType == TokenType.NonMintable ?
-            amountTransferred.toInt() :
-            assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred);
+        int256 assetCashExternal;
+        if (assetToken.tokenType == TokenType.NonMintable) {
+            assetCashExternal = amountTransferred.toInt();
+        } else if (amountTransferred > 0) {
+            assetCashExternal = assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred);
+        }
 
         // Due to the adjustment in underlyingExternalToRepay, this returns a dust amount more
         // than the value of assetInternalToRepayDebt.

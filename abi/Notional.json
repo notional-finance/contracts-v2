@@ -422,15 +422,15 @@
         "inputs": [
             {
                 "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": true,
                 "internalType": "address",
                 "name": "vault",
                 "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
             },
             {
                 "indexed": false,
@@ -888,13 +888,285 @@
                 "type": "address"
             },
             {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalUsedBorrowCapacity",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultBorrowCapacityChange",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "vaultSharesToLiquidator",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "fCashRepaid",
+                "type": "int256"
+            }
+        ],
+        "name": "VaultDeleverageAccount",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "underlyingTokensTransferred",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "strategyTokenDeposited",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "vaultSharesMinted",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultEnterMaturity",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "fCashBorrowed",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultEnterPosition",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "newMaturity",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultExitPostMaturity",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "fCashToLend",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "vaultSharesToRedeem",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultExitPreMaturity",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "reserveFee",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "nTokenFee",
+                "type": "int256"
+            }
+        ],
+        "name": "VaultFeeAccrued",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "liquidator",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "vaultSharesToLiquidator",
+                "type": "uint256"
+            },
+            {
                 "indexed": false,
                 "internalType": "bool",
-                "name": "enabled",
+                "name": "transferSharesToLiquidator",
                 "type": "bool"
             }
         ],
-        "name": "VaultChange",
+        "name": "VaultLiquidatorProfit",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "assetCashDeposited",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "strategyTokensMinted",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultMintStrategyToken",
         "type": "event"
     },
     {
@@ -921,15 +1193,231 @@
         "inputs": [
             {
                 "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
             },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "assetCashReceived",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "strategyTokensRedeemed",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultRedeemStrategyToken",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
             {
                 "indexed": true,
                 "internalType": "address",
                 "name": "vault",
                 "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "debtSharesRepaid",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "fCashLent",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultRepaySecondaryBorrow",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "newMaturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "fCashBorrowed",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultRollPosition",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "debtSharesMinted",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "fCashBorrowed",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultSecondaryBorrow",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "totalfCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalAssetCash",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalStrategyTokens",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalVaultShares",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "strategyTokenValue",
+                "type": "int256"
+            }
+        ],
+        "name": "VaultSettled",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "remainingAssetCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "remainingStrategyTokens",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultSettledAssetsRemaining",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
             },
             {
                 "indexed": false,
@@ -939,6 +1427,99 @@
             }
         ],
         "name": "VaultShortfall",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "totalfCash",
+                "type": "int256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalAssetCash",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalStrategyTokens",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "totalVaultShares",
+                "type": "uint256"
+            }
+        ],
+        "name": "VaultStateUpdate",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint80",
+                "name": "maxSecondaryBorrowCapacity",
+                "type": "uint80"
+            }
+        ],
+        "name": "VaultUpdateSecondaryBorrowCapacity",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "bool",
+                "name": "enabled",
+                "type": "bool"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint80",
+                "name": "maxPrimaryBorrowCapacity",
+                "type": "uint80"
+            }
+        ],
+        "name": "VaultUpdated",
         "type": "event"
     },
     {
@@ -1279,9 +1860,9 @@
     {
         "inputs": [
             {
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
             },
             {
                 "internalType": "uint256",
@@ -1289,22 +1870,27 @@
                 "type": "uint256"
             },
             {
-                "internalType": "uint256",
+                "internalType": "uint256[2]",
                 "name": "fCashToBorrow",
-                "type": "uint256"
+                "type": "uint256[2]"
             },
             {
-                "internalType": "uint32",
-                "name": "slippageLimit",
-                "type": "uint32"
+                "internalType": "uint32[2]",
+                "name": "maxBorrowRate",
+                "type": "uint32[2]"
+            },
+            {
+                "internalType": "uint32[2]",
+                "name": "minRollLendRate",
+                "type": "uint32[2]"
             }
         ],
         "name": "borrowSecondaryCurrencyToVault",
         "outputs": [
             {
-                "internalType": "uint256",
+                "internalType": "uint256[2]",
                 "name": "underlyingTokensTransferred",
-                "type": "uint256"
+                "type": "uint256[2]"
             }
         ],
         "stateMutability": "nonpayable",
@@ -3545,6 +4131,11 @@
                 "internalType": "uint256",
                 "name": "totalfCashBorrowed",
                 "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalAccountDebtShares",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -3726,11 +4317,21 @@
                 "type": "address"
             }
         ],
-        "name": "getVaultAccountMaturity",
+        "name": "getVaultAccountDebtShares",
         "outputs": [
             {
                 "internalType": "uint256",
-                "name": "maturity",
+                "name": "debtSharesMaturity",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256[2]",
+                "name": "accountDebtShares",
+                "type": "uint256[2]"
+            },
+            {
+                "internalType": "uint256",
+                "name": "accountStrategyTokens",
                 "type": "uint256"
             }
         ],
@@ -3800,9 +4401,9 @@
                         "type": "int256"
                     },
                     {
-                        "internalType": "uint16[3]",
+                        "internalType": "uint16[2]",
                         "name": "secondaryBorrowCurrencies",
-                        "type": "uint16[3]"
+                        "type": "uint16[2]"
                     },
                     {
                         "components": [
@@ -4915,6 +5516,11 @@
     {
         "inputs": [
             {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
@@ -5707,9 +6313,9 @@
                         "type": "uint16"
                     },
                     {
-                        "internalType": "uint16[3]",
+                        "internalType": "uint16[2]",
                         "name": "secondaryBorrowCurrencies",
-                        "type": "uint16[3]"
+                        "type": "uint16[2]"
                     }
                 ],
                 "internalType": "struct VaultConfigStorage",

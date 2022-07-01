@@ -193,20 +193,18 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 vaultConfig, vaultState, fCashToLend.toInt(), minLendRate, block.timestamp
             );
 
-            if (vaultSharesToRedeem > 0) {
-                // When an account exits the maturity it may get some asset cash credited to its temp
-                // cash balance and it will sell the strategy tokens it has a claim on.
-                uint256 strategyTokens = vaultState.exitMaturity(vaultAccount, vaultSharesToRedeem);
+            uint256 strategyTokens = vaultState.exitMaturity(vaultAccount, vaultSharesToRedeem);
 
-                if (vaultAccount.tempCashBalance > 0) {
-                    // Transfer asset cash back to the account, this is possible if there is asset cash
-                    // when the vault exits the maturity
-                    VaultConfiguration.transferFromNotional(
-                        receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance
-                    );
-                    vaultAccount.tempCashBalance = 0;
-                }
+            if (vaultAccount.tempCashBalance > 0) {
+                // Transfer asset cash back to the account, this is possible if there is asset cash
+                // when the vault exits the maturity
+                VaultConfiguration.transferFromNotional(
+                    receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance
+                );
+                vaultAccount.tempCashBalance = 0;
+            }
 
+            if (strategyTokens > 0) {
                 vaultConfig.redeemWithDebtRepayment(
                     vaultAccount, receiver, strategyTokens, vaultState.maturity, exitVaultData
                 );
@@ -218,6 +216,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 vaultConfig.checkCollateralRatio(vaultState, vaultAccount);
             }
 
+            // Set the vault state after redemption completes
             vaultState.setVaultState(vaultConfig.vault);
             emit VaultExitPreMaturity(vault, account, vaultState.maturity, fCashToLend, vaultSharesToRedeem);
         }
@@ -415,6 +414,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         );
         assetCashInternal = assetCashInternal.add(assetCash.toInt());
 
+        // Set the vault state after redemption completes
         vaultState.setVaultState(vaultConfig.vault);
 
         // Returns a negative amount to signify assets have left the protocol. For aTokens this is the scaled

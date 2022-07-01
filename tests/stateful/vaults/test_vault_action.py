@@ -67,8 +67,8 @@ def test_initialize_and_enable_vault_authorization(environment, vault, accounts)
         100_000_000e8,
         {"from": accounts[0]},
     )
-    assert txn.events["VaultChange"]["vault"] == vault.address
-    assert txn.events["VaultChange"]["enabled"]
+    assert txn.events["VaultUpdated"]["vault"] == vault.address
+    assert txn.events["VaultUpdated"]["enabled"]
 
     with brownie.reverts():
         # Will revert on non-owner
@@ -711,7 +711,7 @@ def test_repay_secondary_currency_via_vault(environment, accounts, vault):
 
     # Repayment is based on accountDebtShare
     txn = vault.repaySecondaryCurrency(accounts[1], 3, maturity, 5e8, 0)
-    assert txn.events["RepaidSecondaryBorrow"]["fCashLent"] == 2.5e8
+    assert txn.events["VaultRepaySecondaryBorrow"]["fCashLent"] == 2.5e8
     (debtMaturity, debtSharesAfter, _) = environment.notional.getVaultAccountDebtShares(
         accounts[1].address, vault.address
     )
@@ -729,8 +729,8 @@ def test_repay_secondary_currency_via_vault(environment, accounts, vault):
 
     # Nothing to repay here because it has already been repaid
     txn = vault.repaySecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
-    assert txn.events["RepaidSecondaryBorrow"]["fCashLent"] == 0
-    assert txn.events["RepaidSecondaryBorrow"]["debtSharesRepaid"] == 1e8
+    assert txn.events["VaultRepaySecondaryBorrow"]["fCashLent"] == 0
+    assert txn.events["VaultRepaySecondaryBorrow"]["debtSharesRepaid"] == 1e8
     (debtMaturity, debtSharesAfter, _) = environment.notional.getVaultAccountDebtShares(
         accounts[1].address, vault.address
     )
@@ -876,7 +876,7 @@ def test_repay_secondary_currency_succeeds_at_zero_interest(environment, account
 
     usdcBalanceBefore = environment.token["USDC"].balanceOf(vault.address)
     txn = vault.repaySecondaryCurrency(vault.address, 3, maturity, 10_000e8, 0)
-    assert txn.events["RepaidSecondaryBorrow"]["fCashLent"] == 10_000e8
+    assert txn.events["VaultRepaySecondaryBorrow"]["fCashLent"] == 10_000e8
     usdcBalanceAfter = environment.token["USDC"].balanceOf(vault.address)
 
     assert usdcBalanceBefore - usdcBalanceAfter == 10_000e6 + 1

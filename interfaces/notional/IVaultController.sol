@@ -195,7 +195,7 @@ interface IVaultAccountAction {
     event VaultExitPostMaturity(
         address indexed vault,
         address indexed account,
-        uint256 indexed newMaturity
+        uint256 indexed maturity
     );
 
     event VaultExitPreMaturity(

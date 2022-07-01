@@ -232,23 +232,23 @@ library VaultStateLib {
             require(vaultAccount.maturity == vaultState.maturity);
         }
 
-        // Redeems temp cash balance to underlying and signals for the vault to mint strategy tokens for the account
-        strategyTokenDeposit = strategyTokenDeposit.add(vaultConfig.deposit(
-            vaultAccount.account, vaultAccount.tempCashBalance, vaultState.maturity, additionalUnderlyingExternal, vaultData
-        ));
-
-        // Calculate the number of vault shares to mint to the account. Note that totalAssetCash is required to be zero
-        // at this point.
         uint256 vaultSharesMinted;
-        if (vaultState.totalVaultShares == 0) {
-            vaultSharesMinted = strategyTokenDeposit;
-        } else {
-            vaultSharesMinted = strategyTokenDeposit.mul(vaultState.totalVaultShares).div(vaultState.totalStrategyTokens);
+        if (strategyTokenDeposit > 0) {
+            // If there is a deposit from a matured position or an account that is rolling
+            // their position forward, then we set the strategy token deposit before we call
+            // deposit so the vault will see the additional strategyTokens in VaultState if
+            // it queries for the vault state.
+            vaultSharesMinted = _setVaultSharesMinted(vaultState, vaultAccount, strategyTokenDeposit, vaultConfig.vault);
         }
 
-        vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokenDeposit);
-        vaultState.totalVaultShares = vaultState.totalVaultShares.add(vaultSharesMinted);
-        vaultAccount.vaultShares = vaultAccount.vaultShares.add(vaultSharesMinted);
+        uint256 strategyTokensMinted = vaultConfig.deposit(
+            vaultAccount.account, vaultAccount.tempCashBalance, vaultState.maturity, additionalUnderlyingExternal, vaultData
+        );
+
+        // Update the vault state again for the new tokens that were minted inside deposit.
+        vaultSharesMinted = vaultSharesMinted.add(
+            _setVaultSharesMinted(vaultState, vaultAccount, strategyTokensMinted, vaultConfig.vault)
+        );
 
         emit VaultEnterMaturity(
             vaultConfig.vault,
@@ -262,6 +262,24 @@ library VaultStateLib {
 
         // Clear the cash balance after the deposit
         vaultAccount.tempCashBalance = 0;
+    }
+
+    function _setVaultSharesMinted(
+        VaultState memory vaultState,
+        VaultAccount memory vaultAccount,
+        uint256 strategyTokens,
+        address vault
+    ) private returns (uint256 vaultSharesMinted) {
+        if (vaultState.totalStrategyTokens == 0) {
+            vaultSharesMinted = strategyTokens;
+        } else {
+            vaultSharesMinted = strategyTokens.mul(vaultState.totalVaultShares).div(vaultState.totalStrategyTokens);
+        }
+
+        vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokens);
+        vaultState.totalVaultShares = vaultState.totalVaultShares.add(vaultSharesMinted);
+        vaultAccount.vaultShares = vaultAccount.vaultShares.add(vaultSharesMinted);
+        setVaultState(vaultState, vault);
     }
 
     /// @notice Returns the component amounts for a given amount of vaultShares

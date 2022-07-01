@@ -138,9 +138,6 @@ library VaultAccountLib {
         vaultState.enterMaturity(
             vaultAccount, vaultConfig, strategyTokenDeposit, additionalUnderlyingExternal, vaultData
         );
-
-        // Set the vault state and account in storage and check the vault's collateral ratio
-        vaultState.setVaultState(vaultConfig.vault);
         setVaultAccount(vaultAccount, vaultConfig);
 
         // If the account is not using any leverage (fCashToBorrow == 0) we don't check the collateral ratio, no matter
