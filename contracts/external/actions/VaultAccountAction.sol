@@ -355,6 +355,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
             vaultConfig, vaultShareValue
         );
+        // Catch potential edge cases where this is negative due to insolvency inside the vault itself
+        require(maxLiquidatorDepositAssetCash > 0);
         // For aTokens this amount is in scaled balance external precision (the same as depositAmountExternal)
         int256 maxLiquidatorDepositExternal = assetToken.convertToExternal(maxLiquidatorDepositAssetCash);
 

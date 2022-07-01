@@ -63,6 +63,8 @@ def test_calculate_deleverage_amount(vaultConfig, accounts, vault, fCash, initia
         totalfCash=fCash * 10, totalVaultShares=100_000e8, totalStrategyTokens=100_000e8
     )
     account = get_vault_account(fCash=fCash, vaultShares=vaultShares)
+    # this is the deposit where all vault shares are purchased
+    maxPossibleLiquidatorDeposit = Wei((vaultShares * 50) / 1.04)
 
     (collateralRatio, vaultShareValue) = vaultConfig.calculateCollateralRatio(
         vault.address, account, state
@@ -72,9 +74,11 @@ def test_calculate_deleverage_amount(vaultConfig, accounts, vault, fCash, initia
         account, vault.address, vaultShareValue
     )
 
+    assert maxDeposit <= maxPossibleLiquidatorDeposit
+
     if mustLiquidate:
-        # In this case, the entire debt must be repaid
-        assert maxDeposit == -fCash * 50
+        # first case is repay all debt, second case is purchase all vault shares
+        assert maxDeposit == -fCash * 50 or maxDeposit == maxPossibleLiquidatorDeposit
     else:
         vaultSharesPurchased = Wei((maxDeposit * 104 * vaultShares) / (vaultShareValue * 100))
         accountAfter = get_vault_account(
