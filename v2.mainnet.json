@@ -13,6 +13,7 @@
         "nTokenAction": "0xeA82Cfc621D5FA00E30c10531380846BB5aAfE79"
     },
     "airdrop": "0xa40aedAac28F9574124D7c8EFf59732cC77f1DD4",
+    "incentivesAirdrop": "0x3728081Cc9668B206665cAE9Dc2B43Aff35aCc0c",
     "chainId": 1,
     "compound": {
         "comptroller": "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B",
