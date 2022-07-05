@@ -19,6 +19,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
+    using AssetRate for AssetRateParameters;
+    using TokenHandler for Token;
     using SafeInt256 for int256;
 
     /// @notice Executes a batch of balance transfers including minting and redeeming nTokens.
@@ -34,7 +36,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
         requireValidAccount(account);
 
-        // Return any settle amounts here to reduce the number of storage writes to balances
         AccountContext memory accountContext = _settleAccountIfRequired(account);
         BalanceState memory balanceState;
 
@@ -82,6 +83,104 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         require(account == msg.sender || msg.sender == address(this), "Unauthorized");
         requireValidAccount(account);
         AccountContext memory accountContext = _batchBalanceAndTradeAction(account, actions);
+        _finalizeAccountContext(account, accountContext);
+    }
+
+    /// @notice Executes a batch of lending actions. This is different from batchBalanceAndTrade because
+    /// it always pulls the required amount of tokens to get an account to a cash balance of zero. It reduces
+    /// the gas costs for lending because there is no second token transfer where residual balances are sent
+    /// back to the account.
+    /// @dev Note that this method does not work with native ETH because it requires the ability to pull payment
+    /// from an ERC20 token. Therefore, this method is marked as nonpayable. It will still work with cETH or aETH.
+    /// @param account the account for the action
+    /// @param actions array of batch lending actions
+    /// @dev emit:CashBalanceChange, emit:LendBorrowTrade emit:SettledCashDebt
+    /// @dev auth:msg.sender auth:ERC1155
+    function batchLend(address account, BatchLend[] calldata actions)
+        external
+        nonReentrant
+    {
+        require(account == msg.sender || msg.sender == address(this), "Unauthorized");
+        requireValidAccount(account);
+
+        AccountContext memory accountContext = _settleAccountIfRequired(account);
+        // NOTE: loading the portfolio state must happen after settle account to get the
+        // correct portfolio, it will have changed if the account is settled.
+        PortfolioState memory portfolioState = PortfolioHandler.buildPortfolioState(
+            account,
+            accountContext.assetArrayLength,
+            0
+        );
+        BalanceState memory balanceState;
+
+        for (uint256 i = 0; i < actions.length; i++) {
+            BatchLend calldata action = actions[i];
+            // msg.value will never be used in this method because it is non-payable
+            if (i > 0) {
+                require(action.currencyId > actions[i - 1].currencyId, "Unsorted actions");
+            }
+
+            // Require that each action have at least 1 trade and all trades are lending trades
+            uint256 numTrades = action.trades.length;
+            require(numTrades > 0); // dev: no actions
+            for (uint256 j = 0; j < numTrades; j++) {
+                require(uint8(bytes1(action.trades[j])) == uint8(TradeActionType.Lend)); // dev: only lend trades
+            }
+
+            // Loads the currencyId into balance state
+            balanceState.loadBalanceState(account, action.currencyId, accountContext);
+            (balanceState.netCashChange, portfolioState) = _executeTrades(
+                account,
+                action.currencyId,
+                action.trades,
+                accountContext,
+                portfolioState
+            );
+            // This must be negative as a result of requiring only lending
+            require(balanceState.netCashChange <= 0);
+
+            // Deposit sufficient cash to get the balance up to zero. If required cash is negative (i.e. there
+            // is sufficient cash) then we don't need to do anything. The account's cash balance will be net off
+            // and there will be no token transfer.
+            // NOTE: it is possible that free collateral decreases as a result of lending a cash balance, will
+            // check FC at the end of the method.
+            int256 requiredCash = balanceState.storedCashBalance.add(balanceState.netCashChange).neg();
+            if (requiredCash > 0) {
+                if (action.depositUnderlying) {
+                    // If depositing underlying, get the current asset rate and convert the required cash
+                    // back to underlying.
+                    AssetRateParameters memory ar = AssetRate.buildAssetRateStateful(action.currencyId);
+                    Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
+                    int256 underlyingInternalAmount = ar.convertToUnderlying(requiredCash);
+                    int256 underlyingExternalAmount = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                        underlyingInternalAmount
+                    );
+
+                    // This returns the cToken / aToken amount as a result of transfer and mint. It must be sufficient to
+                    // cover the required cash.
+                    int256 assetAmountInternal = balanceState.depositUnderlyingToken(account, underlyingExternalAmount);
+                    require(assetAmountInternal >= requiredCash, "Insufficient deposit");
+                } else {
+                    // balanceState.finalize will handle conversions to external precision as well as aToken
+                    // scaled balance conversions.
+                    balanceState.netAssetTransferInternalPrecision = balanceState
+                        .netAssetTransferInternalPrecision
+                        .add(requiredCash);
+                }
+            }
+
+            // Will write all the balance changes to storage and transfer asset tokens if required.
+            balanceState.finalize(account, accountContext, false);
+        }
+
+        // Update the portfolio state if bitmap is not enabled. If bitmap is already enabled
+        // then all the assets have already been updated in in storage.
+        if (!accountContext.isBitmapEnabled()) {
+            // NOTE: account context is updated in memory inside this method call.
+            accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+        }
+
+        // This will save the account context and check free collateral
         _finalizeAccountContext(account, accountContext);
     }
 
@@ -158,31 +257,13 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
             if (action.trades.length > 0) {
                 int256 netCash;
-                if (accountContext.isBitmapEnabled()) {
-                    require(
-                        accountContext.bitmapCurrencyId == action.currencyId,
-                        "Invalid trades for account"
-                    );
-                    bool didIncurDebt;
-                    (netCash, didIncurDebt) = TradingAction.executeTradesBitmapBatch(
-                        account,
-                        accountContext.bitmapCurrencyId,
-                        accountContext.nextSettleTime,
-                        action.trades
-                    );
-                    if (didIncurDebt) {
-                        accountContext.hasDebt = Constants.HAS_ASSET_DEBT | accountContext.hasDebt;
-                    }
-                } else {
-                    // NOTE: we return portfolio state here instead of setting it inside executeTradesArrayBatch
-                    // because we want to only write to storage once after all trades are completed
-                    (portfolioState, netCash) = TradingAction.executeTradesArrayBatch(
-                        account,
-                        action.currencyId,
-                        portfolioState,
-                        action.trades
-                    );
-                }
+                (netCash, portfolioState) = _executeTrades(
+                    account,
+                    action.currencyId,
+                    action.trades,
+                    accountContext,
+                    portfolioState
+                );
 
                 // If the account owes cash after trading, ensure that it has enough
                 if (netCash < 0) _checkSufficientCash(balanceState, netCash.neg());
@@ -342,6 +423,40 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         accountContext.setAccountContext(account);
         if (accountContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(account);
+        }
+    }
+
+    function _executeTrades(
+        address account,
+        uint16 currencyId,
+        bytes32[] calldata trades,
+        AccountContext memory accountContext,
+        PortfolioState memory portfolioState
+    ) private returns (int256 netCash, PortfolioState memory postTradeState) {
+        if (accountContext.isBitmapEnabled()) {
+            require(
+                accountContext.bitmapCurrencyId == currencyId,
+                "Invalid trades for account"
+            );
+            bool didIncurDebt;
+            (netCash, didIncurDebt) = TradingAction.executeTradesBitmapBatch(
+                account,
+                accountContext.bitmapCurrencyId,
+                accountContext.nextSettleTime,
+                trades
+            );
+            if (didIncurDebt) {
+                accountContext.hasDebt = Constants.HAS_ASSET_DEBT | accountContext.hasDebt;
+            }
+        } else {
+            // NOTE: we return portfolio state here instead of setting it inside executeTradesArrayBatch
+            // because we want to only write to storage once after all trades are completed
+            (postTradeState, netCash) = TradingAction.executeTradesArrayBatch(
+                account,
+                currencyId,
+                portfolioState,
+                trades
+            );
         }
     }
 

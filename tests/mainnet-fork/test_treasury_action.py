@@ -78,22 +78,10 @@ def test_harvest_reserve_DAI_manager_more_than_buffer(env):
 
     DAIBalBefore = env.tokens["DAI"].balanceOf(env.deployer)
     assert DAIBalBefore == 0
-    cDAIReserveBefore = env.notional.getReserveBalance(2)
 
     env.notional.transferReserveToTreasury([2], {"from": env.deployer})
-    DAIBalAfter = env.tokens["DAI"].balanceOf(env.deployer)
-    check_reserve_balances(env, 2, cDAIReserveBefore, DAIBalAfter, 10000e8)
-
-
-def test_harvest_reserve_DAI_manager_less_than_buffer(env):
-    env.notional.setTreasuryManager(env.deployer, {"from": env.notional.owner()})
-    env.notional.setReserveBuffer(2, 10000000e8, {"from": env.notional.owner()})
-
-    DAIBalBefore = env.tokens["DAI"].balanceOf(env.deployer)
-    assert DAIBalBefore == 0
-
-    env.notional.transferReserveToTreasury([2], {"from": env.deployer})
-    assert env.tokens["DAI"].balanceOf(env.deployer) == 0
+    assert env.notional.getReserveBalance(2) == 10000e8
+    assert env.tokens["DAI"].balanceOf(env.deployer) > 0
 
 
 def test_harvest_reserve_DAI_non_manager(env):

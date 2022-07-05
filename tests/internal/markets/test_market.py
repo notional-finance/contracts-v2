@@ -17,12 +17,12 @@ from tests.helpers import get_market_state
 @pytest.mark.market
 class TestMarket:
     @pytest.fixture(scope="module", autouse=True)
-    def market(self, MockMarket, MockCToken, cTokenAggregator, accounts):
+    def market(self, MockMarket, MockCToken, cTokenV2Aggregator, accounts):
         market = accounts[0].deploy(MockMarket)
         ctoken = accounts[0].deploy(MockCToken, 8)
         # This is the identity rate
         ctoken.setAnswer(1e18)
-        aggregator = cTokenAggregator.deploy(ctoken.address, {"from": accounts[0]})
+        aggregator = cTokenV2Aggregator.deploy(ctoken.address, {"from": accounts[0]})
 
         rateStorage = (aggregator.address, 8)
         market.setAssetRateMapping(1, rateStorage)

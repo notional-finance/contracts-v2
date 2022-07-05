@@ -1,9 +1,9 @@
 {
     "actions": {
         "AccountAction": "0xddA3988fD40c83da8B630f963e3Bc7c8fa4d35Fc",
-        "BatchAction": "0xA9597DEa21e9D7839Ad0A1A7Dad0842A9C2f4C84",
-        "CalculationViews": "0x2De2B1Eecf5bab0adD9147ebBb999395238d30a5",
-        "ERC1155Action": "0xfDfAfA88eB124Ff8f9f7eD07b9906B385bCC9EB7",
+        "BatchAction": "0x1d1a531CBcb969040Da7527bf1092DfC4FF7DD46",
+        "CalculationViews": "0xbE4AbA25915BAd390edf83B7e1ca44b6145F261e",
+        "ERC1155Action": "0xBf12d7e41a25f449293AB8cd1364Fe74A175bFa5",
         "GovernanceAction": "0x38A4DfC0ff6588fD0c2142d14D4963A97356A245",
         "InitializeMarketsAction": "0xe3E38607A1E2d6881A32F1D78C5C232f14bdef22",
         "LiquidateCurrencyAction": "0xa3707CD595F6AB810a84d04C92D8adE5f7593Db5",
@@ -20,18 +20,22 @@
         "ctokens": {
             "DAI": {
                 "address": "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
+                "aggregator": "0x719993E82974f5b5eA0c5ebA25c260CD5AF78E00",
                 "oracle": "0xC7b9C53d345ec7A00D5c085085Cb882Dce79D2E9"
             },
             "ETH": {
                 "address": "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
+                "aggregator": "0x8E3D447eBE244db6D28E2303bCa86Ef3033CFAd6",
                 "oracle": "0x5fbf4539A89fBd1E5d784DB3f7Ba6c394AC450fC"
             },
             "USDC": {
                 "address": "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
+                "aggregator": "0x612741825ACedC6F88D8709319fe65bCB015C693",
                 "oracle": "0x181900d998A8a922E68b3fc186CE0Fa525c3C424"
             },
             "WBTC": {
                 "address": "0xccF4429DB6322D5C611ee964527D42E5d685DD6a",
+                "aggregator": "0x39D9590721331B13C8e9A42941a2B961B513E69d",
                 "oracle": "0x913F575653C933AC15C8eB5996eD71A5547977d8"
             }
         }
@@ -51,8 +55,8 @@
     "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
     "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
     "routers": {
-        "PauseRouter": "0x8aFF214923Bc7cFaDbd1ca52292E858b57D66360",
-        "Router": "0x4c7B456ec8Fcb19fB4e6a11A04Bc3Ec1D71dc1a8"
+        "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8",
+        "Router": "0x2C67B0C0493e358cF368073bc0B5fA6F01E981e0"
     },
     "startBlock": 13094883,
     "tokens": {

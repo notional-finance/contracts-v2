@@ -22,8 +22,8 @@ class TestCashGroupGetters:
         return ctoken
 
     @pytest.fixture(scope="module", autouse=True)
-    def aggregator(self, cTokenAggregator, mockCToken, accounts):
-        return cTokenAggregator.deploy(mockCToken.address, {"from": accounts[0]})
+    def aggregator(self, cTokenV2Aggregator, mockCToken, accounts):
+        return cTokenV2Aggregator.deploy(mockCToken.address, {"from": accounts[0]})
 
     @pytest.fixture(scope="module", autouse=True)
     def cashGroup(self, MockCashGroup, accounts):

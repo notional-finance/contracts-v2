@@ -5,7 +5,12 @@ from brownie.convert.datatypes import Wei
 from brownie.network import web3
 from brownie.network.state import Chain
 from tests.constants import RATE_PRECISION, SECONDS_IN_DAY
-from tests.helpers import get_balance_action, get_balance_trade_action, initialize_environment
+from tests.helpers import (
+    get_balance_action,
+    get_balance_trade_action,
+    get_lend_action,
+    initialize_environment,
+)
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -59,7 +64,7 @@ def test_transfer_authentication_failures(environment, accounts):
             accounts[1], accounts[0], [erc1155id], [100e8], "", {"from": accounts[0]}
         )
 
-    with brownie.reverts("dev: toInt overflow"):
+    with brownie.reverts():
         # Ensure that a negative transfer value will revert
         overflowVal = to_uint(2 ** 256 - 1, "uint256") - 99e8
         environment.notional.safeTransferFrom(
@@ -697,4 +702,66 @@ def test_bidirectional_fcash_transfer_to_account_will_trade(
     assert toAssets[1][1] == fromAssets[1][1]
     assert toAssets[1][2] == fromAssets[1][2]
     assert toAssets[1][3] == -fromAssets[1][3]
+    check_system_invariants(environment, accounts)
+
+
+def test_transfer_and_batch_lend(environment, accounts):
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155id = environment.notional.encodeToId(2, markets[0][1], 1)
+    action = get_lend_action(
+        2,
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0}],
+        True,
+    )
+    data = environment.notional.batchLend.encode_input(accounts[1].address, [action])
+
+    environment.notional.safeTransferFrom(
+        accounts[1], accounts[0], erc1155id, 100e8, data, {"from": accounts[1]}
+    )
+
+    fromAssets = environment.notional.getAccountPortfolio(accounts[1])
+    toAssets = environment.notional.getAccountPortfolio(accounts[0])
+    assert len(toAssets) == 1
+    assert len(fromAssets) == 0
+    assert toAssets[0][0] == 2
+    assert toAssets[0][1] == markets[0][1]
+    assert toAssets[0][2] == 1
+    assert toAssets[0][3] == 100e8
+
+    (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
+    assert cashBalance <= 50e8
+    assert environment.notional.getFreeCollateral(accounts[1])[0] == 0
+
+    check_system_invariants(environment, accounts)
+
+
+def test_batch_transfer_and_batch_lend(environment, accounts):
+    markets = environment.notional.getActiveMarkets(2)
+    erc1155ids = [
+        environment.notional.encodeToId(2, markets[0][1], 1),
+        environment.notional.encodeToId(2, markets[1][1], 1),
+    ]
+    action = get_lend_action(
+        2,
+        [
+            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+        ],
+        True,
+    )
+    data = environment.notional.batchLend.encode_input(accounts[1].address, [action])
+
+    environment.notional.safeBatchTransferFrom(
+        accounts[1], accounts[0], erc1155ids, [100e8, 50e8], data, {"from": accounts[1]}
+    )
+
+    fromAssets = environment.notional.getAccountPortfolio(accounts[1])
+    toAssets = environment.notional.getAccountPortfolio(accounts[0])
+    assert len(toAssets) == 2
+    assert len(fromAssets) == 1
+
+    (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
+    assert cashBalance <= 50e8
+    assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
+
     check_system_invariants(environment, accounts)

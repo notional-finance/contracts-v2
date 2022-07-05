@@ -24,13 +24,13 @@ class TestAssetRate:
 
     @pytest.mark.parametrize(parameterNames, parameterValues)
     def test_build_asset_rate(
-        self, accounts, MockCToken, cTokenAggregator, assetRate, rateDecimals, mustInvert
+        self, accounts, MockCToken, cTokenV2Aggregator, assetRate, rateDecimals, mustInvert
     ):
         underlyingDecimals = rateDecimals
         rateDecimals = 18 + (underlyingDecimals - 8)
 
         cToken = MockCToken.deploy(8, {"from": accounts[0]})
-        aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+        aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
         cToken.setAnswer(10 ** rateDecimals / 100, {"from": accounts[0]})
 
         rateStorage = (aggregator.address, underlyingDecimals)
@@ -108,10 +108,10 @@ class TestAssetRate:
 
     @pytest.mark.parametrize("underlyingDecimals", [6, 8, 18])
     def test_build_settlement_rate(
-        self, accounts, MockCToken, cTokenAggregator, assetRate, underlyingDecimals
+        self, accounts, MockCToken, cTokenV2Aggregator, assetRate, underlyingDecimals
     ):
         cToken = MockCToken.deploy(8, {"from": accounts[0]})
-        aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+        aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
         rateSet = 0.01 * (10 ** (18 + (underlyingDecimals - 8)))
         cToken.setAnswer(rateSet, {"from": accounts[0]})
 
@@ -137,9 +137,9 @@ class TestAssetRate:
         assert savedUnderlying == 10 ** underlyingDecimals
         assert txn.events.count("SetSettlementRate") == 0
 
-    def test_build_asset_rate_stateful(self, accounts, MockCToken, cTokenAggregator, assetRate):
+    def test_build_asset_rate_stateful(self, accounts, MockCToken, cTokenV2Aggregator, assetRate):
         cToken = MockCToken.deploy(8, {"from": accounts[0]})
-        aggregator = cTokenAggregator.deploy(cToken.address, {"from": accounts[0]})
+        aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
         rateSet = 0.01 * (10 ** 18)
         cToken.setAnswer(rateSet, {"from": accounts[0]})
 
@@ -149,7 +149,7 @@ class TestAssetRate:
         # Assert that token interest has been accrued
         assert txn.events.count("AccrueInterest") == 1
 
-    def test_build_asset_rate_not_set(self, accounts, MockCToken, cTokenAggregator, assetRate):
+    def test_build_asset_rate_not_set(self, accounts, MockCToken, cTokenV2Aggregator, assetRate):
         rate = assetRate.buildAssetRateStateful(1).return_value
 
         assert assetRate.convertToUnderlying(rate, 1e18) == 1e18

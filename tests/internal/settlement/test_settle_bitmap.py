@@ -15,12 +15,12 @@ from tests.internal.settlement.test_settle_assets import (
 @pytest.mark.settlement
 class TestSettleBitmap:
     @pytest.fixture(scope="module", autouse=True)
-    def mockAggregators(self, MockCToken, cTokenAggregator, accounts):
+    def mockAggregators(self, MockCToken, cTokenV2Aggregator, accounts):
         # Deploy 8 different aggregators for each currency
         aggregators = []
         for i in range(0, NUM_CURRENCIES):
             mockToken = MockCToken.deploy(8, {"from": accounts[0]})
-            mock = cTokenAggregator.deploy(mockToken.address, {"from": accounts[0]})
+            mock = cTokenV2Aggregator.deploy(mockToken.address, {"from": accounts[0]})
             # Set the settlement rate to be set
             mockToken.setAnswer(0.01e18 * (i + 1))
             aggregators.append(mock)

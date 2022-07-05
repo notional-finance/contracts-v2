@@ -16,8 +16,8 @@ def mockCToken(MockCToken, accounts):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def aggregator(cTokenAggregator, mockCToken, accounts):
-    return cTokenAggregator.deploy(mockCToken.address, {"from": accounts[0]})
+def aggregator(cTokenV2Aggregator, mockCToken, accounts):
+    return cTokenV2Aggregator.deploy(mockCToken.address, {"from": accounts[0]})
 
 
 @pytest.fixture(autouse=True)

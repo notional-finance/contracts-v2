@@ -1,13 +1,14 @@
 from brownie import accounts, network
-from scripts.deployers.token_deployer import TokenDeployer
+from scripts.config import CurrencyConfig, nTokenConfig
 from scripts.deployers.compound_deployer import CompoundDeployer
 from scripts.deployers.gov_deployer import GovDeployer
-from scripts.deployers.notional_deployer import NotionalDeployer
 from scripts.deployers.liq_deployer import LiqDeployer
+from scripts.deployers.notional_deployer import NotionalDeployer
+from scripts.deployers.token_deployer import TokenDeployer
+from scripts.initializers.compound_initializer import CompoundInitializer
 from scripts.initializers.gov_initializer import GovInitializer
 from scripts.initializers.notional_initializer import NotionalInitializer
-from scripts.initializers.compound_initializer import CompoundInitializer
-from scripts.config import nTokenConfig, CurrencyConfig
+
 
 def deployTokens(deployer):
     tokens = TokenDeployer(network.show_active(), deployer)
@@ -16,6 +17,8 @@ def deployTokens(deployer):
     tokens.deployERC20("Notional USDC", "USDC", 6, 0)
     tokens.deployERC20("Notional WBTC", "WBTC", 8, 0)
     tokens.deployERC20("Notional COMP", "COMP", 18, 0)
+    tokens.deployERC20("Notional wstETH", "wstETH", 18, 0)
+
 
 def deployCompound(deployer):
     ctokens = CompoundDeployer(network.show_active(), deployer)
@@ -30,6 +33,7 @@ def deployCompound(deployer):
     initializer.initCToken("USDC")
     initializer.initCToken("WBTC")
 
+
 def deployGovernance(deployer):
     gov = GovDeployer(network.show_active(), deployer)
     gov.deployNOTE()
@@ -37,14 +41,15 @@ def deployGovernance(deployer):
     initializer = GovInitializer(network.show_active(), deployer)
     initializer.initNOTE([deployer.address], [initializer.note.totalSupply()])
 
-def deployNotional(deployer):
-    notional = NotionalDeployer(network.show_active(), deployer)
+
+def deployNotional(deployer, networkName):
+    notional = NotionalDeployer(networkName, deployer, dryRun=True)
     notional.deployLibs()
     notional.deployActions()
     notional.deployPauseRouter()
     notional.deployRouter()
     notional.deployProxy()
-    initializer = NotionalInitializer(network.show_active(), deployer, False)
+    initializer = NotionalInitializer(networkName, deployer, dryRun=True)
     initializer.enableCurrency(1, CurrencyConfig)
     initializer.enableCurrency(2, CurrencyConfig)
     initializer.enableCurrency(3, CurrencyConfig)
@@ -58,8 +63,9 @@ def deployNotional(deployer):
     initializer.initializeMarkets(3, 1000000e6)
     initializer.initializeMarkets(4, 10000e8)
 
-def deployLiquidator(deployer):
-    liq = LiqDeployer(network.show_active(), deployer)
+
+def deployLiquidator(deployer, networkName):
+    liq = LiqDeployer(networkName, deployer)
     liq.deployExchange()
     liq.deployFlashLender()
     liq.deployFlashLiquidator()
@@ -68,12 +74,16 @@ def deployLiquidator(deployer):
     liq.deployManualLiquidator(3)
     liq.deployManualLiquidator(4)
 
+
 def main():
-    deployer = accounts.load(network.show_active().upper() + "_DEPLOYER")
-    if network.show_active() != "kovan":
-        # Already deployed on kovan
+    networkName = network.show_active()
+    if networkName == "mainnet-fork":
+        networkName = "mainnet"
+    deployer = accounts.load(networkName.upper() + "_DEPLOYER")
+    if networkName not in ["kovan", "mainnet", "goerli"]:
         deployTokens(deployer)
         deployCompound(deployer)
         deployGovernance(deployer)
-    deployNotional(deployer)
-    deployLiquidator(deployer)
+
+    deployNotional(deployer, networkName)
+    deployLiquidator(deployer, networkName)

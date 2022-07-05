@@ -12,7 +12,14 @@ import "../../interfaces/notional/AssetRateAdapter.sol";
 ///  - Ether: the one and only
 ///  - NonMintable: tokens that do not have an underlying (therefore not cTokens)
 ///  - aToken: Aave interest bearing tokens
-enum TokenType {UnderlyingToken, cToken, cETH, Ether, NonMintable, aToken}
+enum TokenType {
+    UnderlyingToken,
+    cToken,
+    cETH,
+    Ether,
+    NonMintable,
+    aToken
+}
 
 /// @notice Specifies the different trade action types in the system. Each trade action type is
 /// encoded in a tightly packed bytes32 object. Trade action type is the first big endian byte of the
@@ -55,9 +62,23 @@ enum DepositActionType {
 }
 
 /// @notice Used internally for PortfolioHandler state
-enum AssetStorageState {NoChange, Update, Delete, RevertIfStored}
+enum AssetStorageState {
+    NoChange,
+    Update,
+    Delete,
+    RevertIfStored
+}
 
 /****** Calldata objects ******/
+
+/// @notice Defines a batch lending action
+struct BatchLend {
+    uint16 currencyId;
+    // True if the contract should try to transfer underlying tokens instead of asset tokens
+    bool depositUnderlying;
+    // Array of tightly packed 32 byte objects that represent trades. See TradeActionType documentation
+    bytes32[] trades;
+}
 
 /// @notice Defines a balance action for batchAction
 struct BalanceAction {
@@ -335,7 +356,7 @@ struct AccountContext {
 struct nTokenContext {
     // Currency id that the nToken represents
     uint16 currencyId;
-    // Annual incentive emission rate denominated in WHOLE TOKENS (multiply by 
+    // Annual incentive emission rate denominated in WHOLE TOKENS (multiply by
     // INTERNAL_TOKEN_PRECISION to get the actual rate)
     uint32 incentiveAnnualEmissionRate;
     // The last block time at utc0 that the nToken was initialized at, zero if it

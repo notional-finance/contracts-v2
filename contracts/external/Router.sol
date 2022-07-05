@@ -109,7 +109,8 @@ contract Router is StorageLayoutV1 {
         if (
             sig == NotionalProxy.batchBalanceAction.selector ||
             sig == NotionalProxy.batchBalanceAndTradeAction.selector ||
-            sig == NotionalProxy.batchBalanceAndTradeActionWithCallback.selector
+            sig == NotionalProxy.batchBalanceAndTradeActionWithCallback.selector ||
+            sig == NotionalProxy.batchLend.selector
         ) {
             return BATCH_ACTION;
         } else if (
@@ -200,7 +201,13 @@ contract Router is StorageLayoutV1 {
             sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
             sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
             sig == NotionalCalculations.nTokenGetClaimableIncentives.selector ||
-            sig == NotionalCalculations.getPresentfCashValue.selector
+            sig == NotionalCalculations.getPresentfCashValue.selector ||
+            sig == NotionalCalculations.getMarketIndex.selector ||
+            sig == NotionalCalculations.getfCashLendFromDeposit.selector ||
+            sig == NotionalCalculations.getfCashBorrowFromPrincipal.selector ||
+            sig == NotionalCalculations.getDepositFromfCashLend.selector ||
+            sig == NotionalCalculations.getPrincipalFromfCashBorrow.selector ||
+            sig == NotionalCalculations.convertCashBalanceToExternal.selector
         ) {
             return CALCULATION_VIEWS;
         } else {

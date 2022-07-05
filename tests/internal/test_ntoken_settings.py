@@ -18,7 +18,7 @@ class TestNTokenSettings:
     def isolation(self, fn_isolation):
         pass
 
-    @given(currencyId=strategy("uint16"), tokenAddress=strategy("address"))
+    @given(currencyId=strategy("uint16", min_value=1), tokenAddress=strategy("address"))
     def test_set_ntoken_setters(self, nToken, currencyId, tokenAddress):
         # This has assertions inside
         nToken.setNTokenAddress(currencyId, tokenAddress)

@@ -1,7 +1,7 @@
 import math
 import random
 
-from brownie import MockAggregator, MockCToken, MockValuationLib, cTokenAggregator
+from brownie import MockAggregator, MockCToken, MockValuationLib, cTokenV2Aggregator
 from brownie.convert.datatypes import HexString, Wei
 from brownie.network.state import Chain
 from tests.constants import (
@@ -71,7 +71,7 @@ class ValuationMock:
             self.cTokens[i] = account.deploy(MockCToken, 8)
             self.cTokens[i].setAnswer(self.cTokenRates[i])
             self.ethAggregators[i] = MockAggregator.deploy(18, {"from": account})
-            self.cTokenAdapters[i] = cTokenAggregator.deploy(
+            self.cTokenAdapters[i] = cTokenV2Aggregator.deploy(
                 self.cTokens[i].address, {"from": account}
             )
 

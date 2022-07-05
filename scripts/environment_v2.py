@@ -1,19 +1,21 @@
-import json
-from brownie import Contract, network, cTokenAggregator
+from brownie import Contract, cTokenV2Aggregator
 from scripts.common import loadContractFromABI, loadContractFromArtifact
 from tests.helpers import get_balance_trade_action
+
 
 class EnvironmentV2:
     def __init__(self, config) -> None:
         self.tokens = {}
         self.ctokens = {}
         self.ethOracles = {}
-        self.cTokenOracles = {}        
+        self.cTokenOracles = {}
         self.config = config
 
         # Load notional
         if "notional" in self.config:
-            self.notional = loadContractFromABI("NotionalProxy", self.config["notional"], "abi/Notional.json")
+            self.notional = loadContractFromABI(
+                "NotionalProxy", self.config["notional"], "abi/Notional.json"
+            )
 
         # Load tokens
         tokens = self.config["tokens"]
@@ -30,14 +32,23 @@ class EnvironmentV2:
             else:
                 path = "scripts/compound_artifacts/nCErc20.json"
             self.ctokens[k] = loadContractFromArtifact("c{}".format(k), v["address"], path)
-            self.cTokenOracles[k] = Contract.from_abi("c{}Oracle".format(k), v["oracle"], cTokenAggregator.abi)
+            self.cTokenOracles[k] = Contract.from_abi(
+                "c{}Oracle".format(k), v["oracle"], cTokenV2Aggregator.abi
+            )
 
         if "note" in self.config:
             self.note = loadContractFromABI("NoteProxy", self.config["note"], "abi/NoteERC20.json")
 
-    def depositAndLend(self, account, currencyId, underlying, depositAmount, market, lendAmount, slippage=0):
+    def depositAndLend(
+        self, account, currencyId, underlying, depositAmount, market, lendAmount, slippage=0
+    ):
         lendAction = [
-            {"tradeActionType": "Lend", "marketIndex": market, "notional": lendAmount, "minSlippage": slippage}
+            {
+                "tradeActionType": "Lend",
+                "marketIndex": market,
+                "notional": lendAmount,
+                "minSlippage": slippage,
+            }
         ]
         value = depositAmount if currencyId == 1 else 0
         self.notional.batchBalanceAndTradeAction(
@@ -54,7 +65,8 @@ class EnvironmentV2:
             {"from": account, "value": value},
         )
 
-def main():
-    with open("v2.{}.json".format(network.show_active()), "r") as f:
-        config = json.load(f)
-    env = EnvironmentV2(config)
+
+# def main():
+#     with open("v2.{}.json".format(network.show_active()), "r") as f:
+#         config = json.load(f)
+#     env = EnvironmentV2(config)
