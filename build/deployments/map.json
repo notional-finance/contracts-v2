@@ -224,7 +224,7 @@
       "0x10d1Ca9BcD1Fb2b7d5ecB9A53a348292ee38E524"
     ],
     "InitializeMarketsAction": [
-      "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD"
+      "0x8BA3b8f09a0AF1f1c30B294911f00eFb243adA7c"
     ],
     "LiquidateCurrencyAction": [
       "0x2Bcdec0271d3C7b75e07926646ba6975631949Ab"
@@ -239,10 +239,11 @@
       "0x76940F542aeD6a7378CeB74c363562B3196653a8"
     ],
     "PauseRouter": [
-      "0x208b4248b3d4C8Ef56409D72f6Be35cbef9903C2"
+      "0x208b4248b3d4C8Ef56409D72f6Be35cbef9903C2",
+      "0x613f379A4D65A62B7843379a5E7071e52528631f"
     ],
     "Router": [
-      "0x9990f0C756E5415FEa1241E0C66e12D6b42F5712"
+      "0x14cf27E32E35E08E2662515C2cDB422358825507"
     ],
     "SettleAssetsExternal": [
       "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6"
