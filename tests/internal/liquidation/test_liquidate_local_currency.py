@@ -242,17 +242,19 @@ class TestLiquidateLocalNTokens:
 
         if ratio <= 40:
             # In the case that the ratio is less than 40%, we liquidate up to 40%
-            assert pytest.approx(Wei(nTokenNetLocal + benefit * 0.40), abs=5) == nTokenNetLocalAfter
+            assert (
+                pytest.approx(Wei(nTokenNetLocal + benefit * 0.40), abs=10) == nTokenNetLocalAfter
+            )
             assert fcAfter >= 0
         elif ratio > 100:
             # In this scenario we liquidate all the nTokens and are still undercollateralized
             assert nTokenBalance == nTokensPurchased
-            assert pytest.approx(Wei(nTokenNetLocal + benefit), abs=5) == nTokenNetLocalAfter
+            assert pytest.approx(Wei(nTokenNetLocal + benefit), abs=10) == nTokenNetLocalAfter
             assert fcAfter < 0
         else:
             # In this case the benefit is proportional to the amount liquidated
             benefit = Wei((benefit * nTokensPurchased) / nTokenBalance)
-            assert pytest.approx(Wei(nTokenNetLocal + benefit), abs=5) == nTokenNetLocalAfter
+            assert pytest.approx(Wei(nTokenNetLocal + benefit), abs=10) == nTokenNetLocalAfter
             assert -100 <= fcAfter and fcAfter <= 0
 
     @given(

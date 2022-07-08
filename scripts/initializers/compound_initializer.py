@@ -1,11 +1,13 @@
 import json
-from scripts.common import loadContractFromArtifact, isProduction
+
+from scripts.common import isProduction, loadContractFromArtifact
 from scripts.config import TokenConfig
+
 
 class CompoundInitializer:
     def __init__(self, network, deployer, config=None, persist=True) -> None:
         self.config = config
-        if self.config == None:
+        if self.config is None:
             self.config = {}
         self.persist = persist
         self.compoundInit = {}
@@ -16,7 +18,7 @@ class CompoundInitializer:
         self.network = network
         self.deployer = deployer
         self._load()
-        
+
     def _load(self):
         print("Loading Compound config")
         if self.persist:
@@ -28,16 +30,12 @@ class CompoundInitializer:
         if "comptroller" not in self.compound:
             raise Exception("Comptroller not deployed!")
         self.comptroller = loadContractFromArtifact(
-            "nComptroller",
-            self.compound["comptroller"],
-            "scripts/compound_artifacts/nComptroller.json"
+            "nComptroller", self.compound["comptroller"], "scripts/artifacts/nComptroller.json"
         )
         if "oracle" not in self.compound:
             raise Exception("Compound price oracle not deployed!")
         self.oracle = loadContractFromArtifact(
-            "nPriceOracle",
-            self.compound["oracle"],
-            "scripts/compound_artifacts/nPriceOracle.json"
+            "nPriceOracle", self.compound["oracle"], "scripts/artifacts/nPriceOracle.json"
         )
         if "ctokens" not in self.compound:
             raise Exception("CTokens not deployed!")
@@ -50,7 +48,7 @@ class CompoundInitializer:
         self.config["compoundInit"] = self.compoundInit
         if self.persist:
             with open("v2.{}.json".format(self.network), "w") as f:
-                json.dump(self.config, f, sort_keys=True, indent=4)        
+                json.dump(self.config, f, sort_keys=True, indent=4)
 
     def initCToken(self, symbol):
         if isProduction(self.network):
@@ -81,6 +79,8 @@ class CompoundInitializer:
             return
 
         print("Initializing price oracle for {}".format(symbol))
-        self.oracle.setUnderlyingPrice(ctoken["address"], TokenConfig[symbol]["rate"], {"from": self.deployer})
+        self.oracle.setUnderlyingPrice(
+            ctoken["address"], TokenConfig[symbol]["rate"], {"from": self.deployer}
+        )
         self.compoundInit[symbol] = True
         self._save()

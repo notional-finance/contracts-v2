@@ -4,7 +4,6 @@ import brownie
 import pytest
 from brownie.network.state import Chain
 from scripts.mainnet.EnvironmentConfig import getEnvironment
-from scripts.mainnet.upgrade_notional import full_upgrade
 
 chain = Chain()
 
@@ -19,10 +18,6 @@ def run_around_tests():
 @pytest.fixture(autouse=True)
 def env():
     e = getEnvironment()
-
-    (router, pauseRouter, contracts) = full_upgrade(e.deployer, False)
-    e.notional.upgradeTo(router.address, {"from": e.owner})
-
     return e
 
 
@@ -52,7 +47,7 @@ def test_claim_comp_manager(env):
     assert env.tokens["COMP"].balanceOf(env.deployer) == 0
     env.notional.claimCOMPAndTransfer([env.tokens["cDAI"].address], {"from": env.deployer})
     assert env.tokens["COMP"].balanceOf(env.notional.address) == 0
-    assert env.tokens["COMP"].balanceOf(env.deployer) >= 3600009197861284083563
+    assert env.tokens["COMP"].balanceOf(env.deployer) >= 3113005691001499849856
 
 
 def test_claim_comp_non_manager(env):
@@ -77,11 +72,10 @@ def test_harvest_reserve_DAI_manager_more_than_buffer(env):
     env.notional.setReserveBuffer(2, 10000e8, {"from": env.notional.owner()})
 
     DAIBalBefore = env.tokens["DAI"].balanceOf(env.deployer)
-    assert DAIBalBefore == 0
 
     env.notional.transferReserveToTreasury([2], {"from": env.deployer})
     assert env.notional.getReserveBalance(2) == 10000e8
-    assert env.tokens["DAI"].balanceOf(env.deployer) > 0
+    assert env.tokens["DAI"].balanceOf(env.deployer) - DAIBalBefore > 0
 
 
 def test_harvest_reserve_DAI_non_manager(env):
@@ -124,7 +118,6 @@ def test_harvest_reserve_multiple(env):
     env.notional.setReserveBuffer(2, 10000e8, {"from": env.notional.owner()})
 
     DAIBalBefore = env.tokens["DAI"].balanceOf(env.deployer)
-    assert DAIBalBefore == 0
     cDAIReserveBefore = env.notional.getReserveBalance(2)
 
     ETHBalBefore = env.deployer.balance()
@@ -132,7 +125,7 @@ def test_harvest_reserve_multiple(env):
     env.notional.transferReserveToTreasury([1, 2], {"from": env.deployer})
 
     DAIBalAfter = env.tokens["DAI"].balanceOf(env.deployer)
-    check_reserve_balances(env, 2, cDAIReserveBefore, DAIBalAfter, 10000e8)
+    check_reserve_balances(env, 2, cDAIReserveBefore, DAIBalAfter - DAIBalBefore, 10000e8)
 
     ETHBalAfter = env.deployer.balance()
     check_reserve_balances(env, 1, cETHReserveBefore, ETHBalAfter - ETHBalBefore, 0.01e8)

@@ -3,7 +3,7 @@ import random
 
 import brownie
 import pytest
-from brownie.convert.datatypes import Wei
+from brownie.convert.datatypes import HexString, Wei
 from brownie.test import given, strategy
 from tests.constants import START_TIME
 
@@ -20,6 +20,9 @@ class TestNTokenSettings:
 
     @given(currencyId=strategy("uint16", min_value=1), tokenAddress=strategy("address"))
     def test_set_ntoken_setters(self, nToken, currencyId, tokenAddress):
+        if tokenAddress == HexString(0, "bytes20"):
+            return
+
         # This has assertions inside
         nToken.setNTokenAddress(currencyId, tokenAddress)
         assert nToken.nTokenAddress(currencyId) == tokenAddress

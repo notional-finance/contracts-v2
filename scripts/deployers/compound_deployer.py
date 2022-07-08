@@ -69,7 +69,7 @@ class CompoundDeployer:
         # Deploy interest rate model
         if config["interestRateModel"]["name"] == "whitepaper":
             interestRateModel = deployArtifact(
-                "scripts/compound_artifacts/nWhitePaperInterestRateModel.json",
+                "scripts/artifacts/nWhitePaperInterestRateModel.json",
                 [
                     config["interestRateModel"]["baseRate"],
                     config["interestRateModel"]["multiplier"],
@@ -79,7 +79,7 @@ class CompoundDeployer:
             )
         elif config["interestRateModel"]["name"] == "jump":
             interestRateModel = deployArtifact(
-                "scripts/compound_artifacts/nJumpRateModel.json",
+                "scripts/artifacts/nJumpRateModel.json",
                 [
                     config["interestRateModel"]["baseRate"],
                     config["interestRateModel"]["multiplier"],
@@ -102,7 +102,7 @@ class CompoundDeployer:
 
         config = CompoundConfig["ETH"]
         contract = deployArtifact(
-            "scripts/compound_artifacts/nCEther.json",
+            "scripts/artifacts/nCEther.json",
             [
                 self.compound["comptroller"],
                 self.ctokens["ETH"]["model"],
@@ -127,7 +127,7 @@ class CompoundDeployer:
 
         config = CompoundConfig[symbol]
         contract = deployArtifact(
-            "scripts/compound_artifacts/nCErc20.json",
+            "scripts/artifacts/nCErc20.json",
             [
                 self.config["tokens"][symbol]["address"],
                 self.compound["comptroller"],
@@ -189,7 +189,7 @@ class CompoundDeployer:
             return
 
         oracle = deployArtifact(
-            "scripts/compound_artifacts/nPriceOracle.json", [], self.deployer, "nPriceOracle"
+            "scripts/artifacts/nPriceOracle.json", [], self.deployer, "nPriceOracle"
         )
         self.compound["oracle"] = oracle.address
         # Re-deploy dependent contracts
@@ -202,7 +202,7 @@ class CompoundDeployer:
             return
 
         comptroller = deployArtifact(
-            "scripts/compound_artifacts/nComptroller.json", [], self.deployer, "nComptroller"
+            "scripts/artifacts/nComptroller.json", [], self.deployer, "nComptroller"
         )
         comptroller._setMaxAssets(20, {"from": self.deployer})
         comptroller._setPriceOracle(self.compound["oracle"], {"from": self.deployer})

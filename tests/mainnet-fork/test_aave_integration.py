@@ -6,7 +6,6 @@ from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults, nTokenDefaults
 from scripts.deployment import TokenType
 from scripts.mainnet.EnvironmentConfig import getEnvironment
-from scripts.mainnet.upgrade_notional import full_upgrade
 from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import (
     get_balance_action,
@@ -27,9 +26,6 @@ def run_around_tests():
 @pytest.fixture(autouse=True)
 def env():
     e = getEnvironment()
-
-    (router, pauseRouter, contracts) = full_upgrade(e.deployer, False)
-    e.notional.upgradeTo(router.address, {"from": e.owner})
     if e.notional.getLendingPool() != "0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9":
         e.notional.setLendingPool("0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9", {"from": e.owner})
 
@@ -193,7 +189,7 @@ def test_deposit_and_withdraw_asset_ausdc(env):
     assert cashBalance == 0
 
 
-def test_borrow_ausdc(env):
+def test_borrow_ausdc(env, accounts):
     list_atoken(env, env.tokens["aUSDC"], env.tokens["USDC"])
     enable_atoken_fcash(env, 5, "aUSDC", "USDC", 50_000_000e6)
     borrowAction = get_balance_trade_action(
@@ -205,18 +201,16 @@ def test_borrow_ausdc(env):
     )
 
     collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=5e18)
-    balanceBefore = env.tokens["USDC"].balanceOf(env.whales["ETH"])
+    balanceBefore = env.tokens["USDC"].balanceOf(accounts[4])
     env.notional.batchBalanceAndTradeAction(
-        env.whales["ETH"].address,
-        [collateral, borrowAction],
-        {"from": env.whales["ETH"], "value": 5e18},
+        accounts[4], [collateral, borrowAction], {"from": accounts[4], "value": 5e18}
     )
-    balanceAfter = env.tokens["USDC"].balanceOf(env.whales["ETH"])
+    balanceAfter = env.tokens["USDC"].balanceOf(accounts[4])
     balanceChange = balanceAfter - balanceBefore
     assert 98e6 < balanceChange and balanceChange < 100e6
 
 
-def test_borrow_adai(env):
+def test_borrow_adai(env, accounts):
     list_atoken(env, env.tokens["aDAI"], env.tokens["DAI"])
     enable_atoken_fcash(env, 5, "aDAI", "DAI", 10_000_000e18)
     borrowAction = get_balance_trade_action(
@@ -228,13 +222,11 @@ def test_borrow_adai(env):
     )
 
     collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=5e18)
-    balanceBefore = env.tokens["DAI"].balanceOf(env.whales["ETH"])
+    balanceBefore = env.tokens["DAI"].balanceOf(accounts[4])
     env.notional.batchBalanceAndTradeAction(
-        env.whales["ETH"].address,
-        [collateral, borrowAction],
-        {"from": env.whales["ETH"], "value": 5e18},
+        accounts[4], [collateral, borrowAction], {"from": accounts[4], "value": 5e18}
     )
-    balanceAfter = env.tokens["DAI"].balanceOf(env.whales["ETH"])
+    balanceAfter = env.tokens["DAI"].balanceOf(accounts[4])
     balanceChange = balanceAfter - balanceBefore
     assert 98e18 < balanceChange and balanceChange < 100e18
 

@@ -1,6 +1,6 @@
 import brownie
 import pytest
-from brownie import MockERC20, cTokenV2Aggregator
+from brownie import MockERC20
 from brownie.convert.datatypes import HexString
 from scripts.mainnet.EnvironmentConfig import getEnvironment
 from tests.helpers import get_balance_trade_action
@@ -68,22 +68,9 @@ def test_list_wsteth(env, accounts):
     borrowAction = get_balance_trade_action(
         3,
         "None",
-        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 2500e8, "maxSlippage": 0}],
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 1500e8, "maxSlippage": 0}],
         withdrawEntireCashBalance=True,
     )
     env.notional.batchBalanceAndTradeAction(
         wstETHWhale, [borrowAction, collateral], {"from": wstETHWhale}
     )
-
-
-@pytest.mark.only
-def test_aggregators(env, accounts):
-    dai = cTokenV2Aggregator.at("0x719993E82974f5b5eA0c5ebA25c260CD5AF78E00")
-    eth = cTokenV2Aggregator.at("0x8E3D447eBE244db6D28E2303bCa86Ef3033CFAd6")
-    usdc = cTokenV2Aggregator.at("0x612741825ACedC6F88D8709319fe65bCB015C693")
-    wbtc = cTokenV2Aggregator.at("0x39D9590721331B13C8e9A42941a2B961B513E69d")
-
-    assert eth.getExchangeRateView() == eth.getExchangeRateStateful.call()
-    assert dai.getExchangeRateView() == dai.getExchangeRateStateful.call()
-    assert usdc.getExchangeRateView() == usdc.getExchangeRateStateful.call()
-    assert wbtc.getExchangeRateView() == wbtc.getExchangeRateStateful.call()
