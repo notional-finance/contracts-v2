@@ -115,6 +115,75 @@ def test_enter_vault_past_maturity(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
+    with brownie.reverts("Cannot Enter"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity - SECONDS_IN_QUARTER,
+            0,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
+
+def test_enter_vault_past_max_markets(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True), maxBorrowMarketIndex=1),
+        500_000e8,
+    )
+
+    maturity = environment.notional.getActiveMarkets(1)[1][1]
+    with brownie.reverts("Invalid Maturity"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
+    with brownie.reverts("Invalid Maturity"):
+        environment.notional.enterVault(
+            accounts[1], vault.address, 100_000e18, maturity, 0, 0, "", {"from": accounts[1]}
+        )
+
+
+def test_enter_vault_idiosyncratic(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)), 100_000e8
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    with brownie.reverts("Invalid Maturity"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity + SECONDS_IN_QUARTER / 3,
+            100_001e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
+    with brownie.reverts("Invalid Maturity"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity + SECONDS_IN_QUARTER / 3,
+            0,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
 
 def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
     environment.notional.updateVault(

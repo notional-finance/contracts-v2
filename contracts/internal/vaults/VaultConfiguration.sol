@@ -775,11 +775,7 @@ library VaultConfiguration {
         uint256 maxBorrowMarketIndex,
         uint256 blockTime
     ) internal returns (int256 netAssetCash) {
-        uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
-        require(maxMarketIndex <= maxBorrowMarketIndex); // @dev: cannot borrow past market index
-        (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
-        require(!isIdiosyncratic);
-
+        uint256 marketIndex = checkValidMaturity(currencyId, maturity, maxBorrowMarketIndex, blockTime);
         // fCash is restricted from being larger than uint88 inside the trade module
         uint256 fCashAmount = uint256(netfCashToAccount.abs());
         require(fCashAmount < type(uint88).max);
@@ -794,5 +790,18 @@ library VaultConfiguration {
 
         // Use the library here to reduce the deployed bytecode size
         netAssetCash = TradingAction.executeVaultTrade(currencyId, trade);
+    }
+    
+    function checkValidMaturity(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 maxBorrowMarketIndex,
+        uint256 blockTime
+    ) internal view returns (uint256 marketIndex) {
+        bool isIdiosyncratic;
+        uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
+        (marketIndex, isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
+        require(marketIndex <= maxBorrowMarketIndex, "Invalid Maturity");
+        require(!isIdiosyncratic, "Invalid Maturity");
     }
 }

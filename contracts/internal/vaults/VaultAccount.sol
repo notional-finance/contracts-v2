@@ -132,6 +132,15 @@ library VaultAccountLib {
                 fCashToBorrow.toInt().neg(),
                 maxBorrowRate
             );
+        } else {
+            // Ensure that the maturity is a valid one if we are not borrowing (borrowing will fail)
+            // against an invalid market.
+            VaultConfiguration.checkValidMaturity(
+                vaultConfig.borrowCurrencyId,
+                maturity,
+                vaultConfig.maxBorrowMarketIndex,
+                block.timestamp
+            );
         }
 
         // Sets the maturity on the vault account, deposits tokens into the vault, and updates the vault state 
