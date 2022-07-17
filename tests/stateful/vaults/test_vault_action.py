@@ -743,7 +743,7 @@ def test_repay_secondary_currency_succeeds_over_max_capacity(environment, accoun
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 0]
         ),
         100_000_000e8,
     )

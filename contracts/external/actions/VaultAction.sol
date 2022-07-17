@@ -211,7 +211,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         // This also ensures that the caller is an actual vault
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
         uint16[2] memory currencies = vaultConfig.secondaryBorrowCurrencies;
-        require(currencies[0] != 0 && currencies[1] != 0);
+        require(currencies[0] != 0 || currencies[1] != 0);
         
         // If the borrower is rolling their primary debt forward, we need to check that here and roll
         // their secondary debt forward in the same manner (simulate lending and then borrow more in
