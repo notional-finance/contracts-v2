@@ -60,6 +60,12 @@ def test_deleverage_authentication(environment, accounts, vault):
             accounts[1], vault.address, accounts[2], 25_000e18, False, "", {"from": accounts[1]}
         )
 
+    with brownie.reverts("Unauthorized"):
+        # Liquidator must equal msg.sender
+        environment.notional.deleverageAccount(
+            accounts[1], vault.address, accounts[2], 25_000e18, False, "", {"from": accounts[3]}
+        )
+
 
 def test_deleverage_account_sufficient_collateral(environment, accounts, vault):
     environment.notional.updateVault(

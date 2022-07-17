@@ -326,6 +326,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Authorization rules for deleveraging
         if (vaultConfig.getFlag(VaultConfiguration.ONLY_VAULT_DELEVERAGE)) {
             require(msg.sender == vault, "Unauthorized");
+        } else {
+            require(msg.sender == liquidator, "Unauthorized");
         }
 
         // Cannot liquidate self, if a vault needs to deleverage itself as a whole it has other methods 
