@@ -1026,7 +1026,7 @@
             {
                 "indexed": true,
                 "internalType": "uint256",
-                "name": "newMaturity",
+                "name": "maturity",
                 "type": "uint256"
             }
         ],
@@ -2493,7 +2493,13 @@
             }
         ],
         "name": "enterVault",
-        "outputs": [],
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "strategyTokensAdded",
+                "type": "uint256"
+            }
+        ],
         "stateMutability": "payable",
         "type": "function"
     },
@@ -2536,7 +2542,13 @@
             }
         ],
         "name": "exitVault",
-        "outputs": [],
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "underlyingToReceiver",
+                "type": "uint256"
+            }
+        ],
         "stateMutability": "payable",
         "type": "function"
     },
@@ -4294,11 +4306,6 @@
                 "internalType": "int256",
                 "name": "maxLiquidatorDepositAssetCash",
                 "type": "int256"
-            },
-            {
-                "internalType": "bool",
-                "name": "mustLiquidateFull",
-                "type": "bool"
             }
         ],
         "stateMutability": "view",
@@ -5596,7 +5603,13 @@
             }
         ],
         "name": "rollVaultPosition",
-        "outputs": [],
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "strategyTokensAdded",
+                "type": "uint256"
+            }
+        ],
         "stateMutability": "nonpayable",
         "type": "function"
     },
