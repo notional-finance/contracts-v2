@@ -251,7 +251,7 @@ interface IVaultAccountAction {
         uint256 fCash,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external payable;
+    ) external payable returns (uint256 strategyTokensAdded);
 
     /**
      * @notice Re-enters the vault at a longer dated maturity. The account's existing borrow
@@ -271,7 +271,7 @@ interface IVaultAccountAction {
         uint32 minLendRate,
         uint32 maxBorrowRate,
         bytes calldata enterVaultData
-    ) external;
+    ) external returns (uint256 strategyTokensAdded);
 
     /**
      * @notice Prior to maturity, allows an account to withdraw their position from the vault. Will

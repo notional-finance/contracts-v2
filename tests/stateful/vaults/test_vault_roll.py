@@ -96,15 +96,23 @@ def test_roll_vault_over_maximum_capacity(environment, vault, roll_account, acco
     check_system_invariants(environment, accounts, [vault])
 
 
-@pytest.mark.todo
 def test_roll_vault_past_max_market(environment, vault, roll_account, accounts):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
-            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1), currencyId=2, feeRate5BPS=0
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1),
+            currencyId=2,
+            feeRate5BPS=0,
+            maxBorrowMarketIndex=1,
         ),
         100_000_000e8,
     )
+
+    maturity2 = environment.notional.getActiveMarkets(2)[1][1]
+    with brownie.reverts("Invalid Maturity"):
+        environment.notional.rollVaultPosition(
+            roll_account, vault, 102_000e8, maturity2, 0, 0, "", {"from": roll_account}
+        )
 
 
 def test_roll_vault_success(environment, vault, roll_account, accounts):
@@ -129,6 +137,10 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
         _,
     ) = environment.notional.getPrincipalFromfCashBorrow(2, 102_000e8, maturity2, 0, chain.time())
 
+    expectedStrategyTokens = environment.notional.rollVaultPosition.call(
+        roll_account, vault, 102_000e8, maturity2, 0, 0, "", {"from": roll_account}
+    )
+
     environment.notional.rollVaultPosition(
         roll_account, vault, 102_000e8, maturity2, 0, 0, "", {"from": roll_account}
     )
@@ -145,6 +157,7 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
     assert vaultStateNew["totalfCash"] == -102_000e8
     assert vaultStateNew["totalAssetCash"] == 0
     assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
+    assert vaultAccountAfter["vaultShares"] == expectedStrategyTokens
 
     assert vaultAccountAfter["maturity"] == maturity2
 

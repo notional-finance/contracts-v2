@@ -107,6 +107,8 @@ library VaultAccountLib {
     /// be carried over into the current maturity
     /// @param additionalUnderlyingExternal some amount of underlying tokens that have been deposited
     /// during enterVault as additional collateral.
+    /// @return strategyTokensAdded the total strategy tokens added to the maturity for the account,
+    /// including any strategy tokens transferred during a roll or settle
     function borrowAndEnterVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
@@ -116,7 +118,7 @@ library VaultAccountLib {
         bytes calldata vaultData,
         uint256 strategyTokenDeposit,
         uint256 additionalUnderlyingExternal
-    ) internal {
+    ) internal returns (uint256 strategyTokensAdded) {
         // The vault account can only be increasing their borrow position or not have one set. If they
         // are increasing their position they must be borrowing from the same maturity.
         require(vaultAccount.maturity == maturity || vaultAccount.fCash == 0);
@@ -144,7 +146,7 @@ library VaultAccountLib {
         }
 
         // Sets the maturity on the vault account, deposits tokens into the vault, and updates the vault state 
-        vaultState.enterMaturity(
+        strategyTokensAdded = vaultState.enterMaturity(
             vaultAccount, vaultConfig, strategyTokenDeposit, additionalUnderlyingExternal, vaultData
         );
         setVaultAccount(vaultAccount, vaultConfig);

@@ -28,6 +28,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     /// @param fCash amount to borrow
     /// @param maxBorrowRate maximum interest rate to borrow at
     /// @param vaultData additional data to pass to the vault contract
+    /// @return strategyTokensAdded the total strategy tokens added to the maturity, including any tokens
+    /// from settlement. Allows enterVault to be used by off-chain methods to get an accurate simulation
+    /// of the strategy tokens minted.
     function enterVault(
         address account,
         address vault,
@@ -36,7 +39,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint256 fCash,
         uint32 maxBorrowRate,
         bytes calldata vaultData
-    ) external payable override nonReentrant { 
+    ) external payable override nonReentrant returns (uint256 strategyTokensAdded) { 
         // Ensure that system level accounts cannot enter vaults
         requireValidAccount(account);
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
@@ -61,7 +64,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Deposits some amount of underlying tokens into the vault directly to serve as additional collateral when
         // entering the vault.
         uint256 additionalUnderlyingExternal = vaultConfig.transferUnderlyingToVaultDirect(account, depositAmountExternal);
-        vaultAccount.borrowAndEnterVault(
+        strategyTokensAdded = vaultAccount.borrowAndEnterVault(
             vaultConfig, maturity, fCash, maxBorrowRate, vaultData, strategyTokens, additionalUnderlyingExternal
         );
 
@@ -75,6 +78,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     /// @param vault the vault to reenter
     /// @param fCashToBorrow amount of fCash to borrow in the next maturity
     /// @param maturity new maturity to borrow at
+    /// @return strategyTokensAdded the total strategy tokens added to the maturity, including any tokens
+    /// rolled from the previous maturity.. Allows rollVaultPosition to be used by off-chain methods to get
+    /// an accurate simulation of the strategy tokens minted.
     function rollVaultPosition(
         address account,
         address vault,
@@ -83,7 +89,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint32 minLendRate,
         uint32 maxBorrowRate,
         bytes calldata enterVaultData
-    ) external override nonReentrant {
+    ) external override nonReentrant returns (uint256 strategyTokensAdded) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ROLL);
 
@@ -123,7 +129,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultState.setVaultState(vaultConfig.vault);
 
         // Enters the vault at the longer dated maturity
-        vaultAccount.borrowAndEnterVault(
+        strategyTokensAdded = vaultAccount.borrowAndEnterVault(
             vaultConfig,
             maturity, // This is the new maturity to enter
             fCashToBorrow,

@@ -384,6 +384,42 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
     check_system_invariants(environment, accounts, [vault])
 
 
+def test_enter_vault_return_values(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    expectedStrategyTokens = environment.notional.enterVault.call(
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
+    assert expectedStrategyTokens == vaultAccount["vaultShares"]
+
+    # Settle the vault
+    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+    chain.mine(1, timestamp=maturity)
+    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
+    environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    expectedStrategyTokens = environment.notional.enterVault.call(
+        accounts[1], vault.address, 0, maturity, 105_000e8, 0, "", {"from": accounts[1]}
+    )
+    environment.notional.enterVault(
+        accounts[1], vault.address, 0, maturity, 105_000e8, 0, "", {"from": accounts[1]}
+    )
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
+    assert expectedStrategyTokens == vaultAccount["vaultShares"]
+
+    check_system_invariants(environment, accounts, [vault])
+
+
 def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,

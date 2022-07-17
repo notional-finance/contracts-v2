@@ -211,7 +211,7 @@ library VaultStateLib {
         uint256 strategyTokenDeposit,
         uint256 additionalUnderlyingExternal,
         bytes calldata vaultData
-    ) internal {
+    ) internal returns (uint256 strategyTokensAdded) {
         // If the vault state is holding asset cash this would mean that there is some sort of emergency de-risking
         // event or the vault is in the process of settling debts. In both cases, we do not allow accounts to enter
         // the vault.
@@ -262,6 +262,9 @@ library VaultStateLib {
 
         // Clear the cash balance after the deposit
         vaultAccount.tempCashBalance = 0;
+
+        // Return this value back to the caller
+        strategyTokensAdded = strategyTokenDeposit.add(strategyTokensMinted);
     }
 
     function _setVaultSharesMinted(
