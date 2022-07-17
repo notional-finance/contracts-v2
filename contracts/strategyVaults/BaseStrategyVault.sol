@@ -95,11 +95,10 @@ abstract contract BaseStrategyVault is IStrategyVault {
         uint256 maturity,
         uint256 underlyingToRepayDebt,
         bytes calldata data
-    ) external onlyNotional {
+    ) external onlyNotional returns (uint256 transferToReceiver) {
         uint256 tokensFromRedeem = _redeemFromNotional(account, strategyTokens, maturity, data);
 
         uint256 transferToNotional;
-        uint256 transferToAccount;
         if (account == address(this) || tokensFromRedeem <= underlyingToRepayDebt) {
             // It may be the case that insufficient tokens were redeemed to repay the debt. If this
             // happens the Notional will attempt to recover the shortfall from the account directly.
@@ -110,14 +109,14 @@ abstract contract BaseStrategyVault is IStrategyVault {
             transferToNotional = tokensFromRedeem;
         } else {
             transferToNotional = underlyingToRepayDebt;
-            unchecked { transferToAccount = tokensFromRedeem - underlyingToRepayDebt; }
+            unchecked { transferToReceiver = tokensFromRedeem - underlyingToRepayDebt; }
         }
 
         if (UNDERLYING_IS_ETH) {
-            if (transferToAccount > 0) payable(receiver).transfer(transferToAccount);
+            if (transferToReceiver > 0) payable(receiver).transfer(transferToReceiver);
             if (transferToNotional > 0) payable(address(NOTIONAL)).transfer(transferToNotional);
         } else {
-            if (transferToAccount > 0) UNDERLYING_TOKEN.safeTransfer(receiver, transferToAccount);
+            if (transferToReceiver > 0) UNDERLYING_TOKEN.safeTransfer(receiver, transferToReceiver);
             if (transferToNotional > 0) UNDERLYING_TOKEN.safeTransfer(address(NOTIONAL), transferToNotional);
         }
     }

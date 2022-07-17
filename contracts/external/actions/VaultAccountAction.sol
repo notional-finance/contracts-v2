@@ -155,6 +155,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     /// @param fCashToLend amount of fCash to lend
     /// @param minLendRate the minimum rate to lend at
     /// @param exitVaultData passed to the vault during exit
+    /// @return underlyingToReceiver amount of underlying tokens returned to the receiver on exit
     function exitVault(
         address account,
         address vault,
@@ -163,7 +164,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint256 fCashToLend,
         uint32 minLendRate,
         bytes calldata exitVaultData
-    ) external payable override nonReentrant { 
+    ) external payable override nonReentrant returns (uint256 underlyingToReceiver) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_EXIT);
 
@@ -190,7 +191,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             // Redeems all strategy tokens and any profits are sent back to the account, it is possible for temp
             // cash balance to be negative here if the account is insolvent
-            vaultConfig.redeemWithDebtRepayment(vaultAccount, receiver, strategyTokens, maturity, exitVaultData);
+            underlyingToReceiver = vaultConfig.redeemWithDebtRepayment(
+                vaultAccount, receiver, strategyTokens, maturity, exitVaultData
+            );
             emit VaultExitPostMaturity(vault, account, maturity);
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
@@ -211,7 +214,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             }
 
             if (strategyTokens > 0) {
-                vaultConfig.redeemWithDebtRepayment(
+                underlyingToReceiver = vaultConfig.redeemWithDebtRepayment(
                     vaultAccount, receiver, strategyTokens, vaultState.maturity, exitVaultData
                 );
             }

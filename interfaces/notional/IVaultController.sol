@@ -288,6 +288,7 @@ interface IVaultAccountAction {
      * @param fCashToLend amount of fCash to lend
      * @param minLendRate the minimum rate to lend at
      * @param exitVaultData passed to the vault during exit
+     * @return underlyingToReceiver amount of underlying tokens returned to the receiver on exit
      */
     function exitVault(
         address account,
@@ -297,7 +298,7 @@ interface IVaultAccountAction {
         uint256 fCashToLend,
         uint32 minLendRate,
         bytes calldata exitVaultData
-    ) external payable;
+    ) external payable returns (uint256 underlyingToReceiver);
 
     /**
      * @notice If an account is below the minimum collateral ratio, this method wil deleverage (liquidate)

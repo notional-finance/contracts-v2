@@ -151,6 +151,9 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceive
     )
 
     # If vault share value > exit cost then we transfer to the account
+    expectedProfit = environment.notional.exitVault.call(
+        accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
+    )
     environment.notional.exitVault(
         accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
     )
@@ -163,6 +166,7 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceive
     vaultState = environment.notional.getVaultState(vault, maturity)
 
     assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == 150_000e18 - amountUnderlying
+    assert pytest.approx(balanceAfter - balanceBefore, abs=1000) == expectedProfit
     assert collateralRatioBefore < collateralRatioAfter
 
     assert vaultAccount["fCash"] == 0

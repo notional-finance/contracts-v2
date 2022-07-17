@@ -22,7 +22,7 @@ interface IStrategyVault {
         uint256 maturity,
         uint256 underlyingToRepayDebt,
         bytes calldata data
-    ) external;
+    ) external returns (uint256 transferToReceiver);
 
     function convertStrategyToUnderlying(
         address account,
