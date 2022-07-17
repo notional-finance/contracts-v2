@@ -492,8 +492,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             );
 
             // Calculates liquidation factors if the account is eligible
-            if (collateralRatio < minCollateralRatio) {
-                (maxLiquidatorDepositAssetCash, /* */) = vaultAccount.calculateDeleverageAmount(vaultConfig, vaultShareValue);
+            if (collateralRatio < minCollateralRatio && vaultShareValue > 0) {
+                (maxLiquidatorDepositAssetCash, /* */) = vaultAccount.calculateDeleverageAmount(
+                    vaultConfig, vaultShareValue
+                );
             }
         }
     }

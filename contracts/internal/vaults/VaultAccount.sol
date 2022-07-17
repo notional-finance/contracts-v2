@@ -59,10 +59,11 @@ library VaultAccountLib {
         // An account must maintain a minimum borrow size in order to enter the vault. If the account
         // wants to exit under the minimum borrow size it must fully exit so that we do not have dust
         // accounts that become insolvent.
-        // if (vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg()) {
-        //     require(vaultAccount.fCash == 0 || vaultAccount.vaultShares == 0, "Min Borrow");
-        // }
-        require(vaultAccount.fCash == 0 || vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
+        if (vaultAccount.fCash.neg() < vaultConfig.minAccountBorrowSize) {
+            // NOTE: use 1 to represent the minimum amount of vault shares due to rounding in the
+            // vaultSharesToLiquidator calculation
+            require(vaultAccount.fCash == 0 || vaultAccount.vaultShares <= 1, "Min Borrow");
+        }
 
         s.fCash = vaultAccount.fCash.neg().toUint().toUint80();
         s.vaultShares = vaultAccount.vaultShares.toUint80();
