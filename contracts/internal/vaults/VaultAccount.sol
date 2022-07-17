@@ -270,7 +270,7 @@ library VaultAccountLib {
         // Both denominators are in 1e9 precision
         ).divInRatePrecision(maxCollateralRatioPlusOne.sub(vaultConfig.liquidationRate));
 
-        // Check that the maxLiquidatorDepositAssetCash does not exceed the total vault shares owend by
+        // Check that the maxLiquidatorDepositAssetCash does not exceed the total vault shares owned by
         // the account:
         //      vaultSharesToLiquidator = vaultShares * [(deposit * liquidationRate) / (vaultShareValue * RATE_PRECISION)]
         //
@@ -379,6 +379,8 @@ library VaultAccountLib {
         // assets held in the vault maturity using prices snapshot at settlement. Any future prices changes
         // on these assets will not be relevant in our calculations so there is no incentive to "game" when
         // users settle their positions.
+        // NOTE: any secondary currencies borrowed are required to have a zero cash balance and zero fCash
+        // debt at settlement, therefore they do not factor into this calculation.
         int256 totalVaultShareValueAtSettlement = totalStrategyTokenValueAtSettlement
             .add(settlementRate.convertToUnderlying(vaultState.totalAssetCash.toInt()));
 
