@@ -138,7 +138,7 @@ def test_redeem_strategy_tokens(environment, vault, accounts):
 
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioBefore, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
 
@@ -147,7 +147,7 @@ def test_redeem_strategy_tokens(environment, vault, accounts):
 
     vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioAfter, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
 
@@ -188,7 +188,7 @@ def test_deposit_asset_cash(environment, vault, accounts):
     (assetCash, underlyingCash) = environment.notional.getCashRequiredToSettle(vault, maturity)
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioBefore, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
 
@@ -197,7 +197,7 @@ def test_deposit_asset_cash(environment, vault, accounts):
 
     vaultStateAfter = environment.notional.getVaultState(vault, maturity)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioAfter, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
 

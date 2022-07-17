@@ -209,10 +209,9 @@ contract MockVaultConfiguration {
         VaultAccount memory vaultAccount,
         address vault,
         int256 vaultShareValue
-    ) external view returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
-        return vaultAccount.calculateDeleverageAmount(
-            getVaultConfigView(vault),
-            vaultShareValue
+    ) external view returns (int256 maxLiquidatorDepositAssetCash) {
+        (maxLiquidatorDepositAssetCash, /* */) = vaultAccount.calculateDeleverageAmount(
+            getVaultConfigView(vault), vaultShareValue
         );
     }
 

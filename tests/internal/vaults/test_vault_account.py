@@ -70,16 +70,13 @@ def test_calculate_deleverage_amount(vaultConfig, accounts, vault, fCash, initia
         vault.address, account, state
     )
 
-    (maxDeposit, mustLiquidate) = vaultConfig.calculateDeleverageAmount(
-        account, vault.address, vaultShareValue
-    )
+    maxDeposit = vaultConfig.calculateDeleverageAmount(account, vault.address, vaultShareValue)
 
     assert maxDeposit <= maxPossibleLiquidatorDeposit
 
-    if mustLiquidate:
-        # first case is repay all debt, second case is purchase all vault shares
-        assert maxDeposit == -fCash * 50 or maxDeposit == maxPossibleLiquidatorDeposit
-    else:
+    # If maxDeposit == maxPossibleLiquidatorDeposit then all vault shares will be sold and the
+    # account is insovlant
+    if maxDeposit < maxPossibleLiquidatorDeposit:
         vaultSharesPurchased = Wei((maxDeposit * 104 * vaultShares) / (vaultShareValue * 100))
         accountAfter = get_vault_account(
             fCash=fCash + maxDeposit / 50, vaultShares=vaultShares - vaultSharesPurchased

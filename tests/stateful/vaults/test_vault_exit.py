@@ -89,7 +89,7 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
         accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioBefore, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
@@ -106,7 +106,7 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
 
     balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioAfter, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
     vaultState = environment.notional.getVaultState(vault, maturity)
@@ -140,7 +140,7 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceive
         accounts[1], vault.address, 200_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioBefore, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
@@ -160,7 +160,7 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceive
 
     balanceAfter = environment.token["DAI"].balanceOf(receiver)
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioAfter, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
     vaultState = environment.notional.getVaultState(vault, maturity)
@@ -223,7 +223,7 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     )
     assert amountAsset == 0
 
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioBefore, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
@@ -239,7 +239,7 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
     balanceAfterReceiver = environment.token["DAI"].balanceOf(receiver)
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+    (collateralRatioAfter, _, _) = environment.notional.getVaultAccountCollateralRatio(
         accounts[1], vault
     )
     vaultState = environment.notional.getVaultState(vault, maturity)

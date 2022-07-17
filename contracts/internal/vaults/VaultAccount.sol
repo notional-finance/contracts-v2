@@ -59,6 +59,9 @@ library VaultAccountLib {
         // An account must maintain a minimum borrow size in order to enter the vault. If the account
         // wants to exit under the minimum borrow size it must fully exit so that we do not have dust
         // accounts that become insolvent.
+        // if (vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg()) {
+        //     require(vaultAccount.fCash == 0 || vaultAccount.vaultShares == 0, "Min Borrow");
+        // }
         require(vaultAccount.fCash == 0 || vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
         s.fCash = vaultAccount.fCash.neg().toUint().toUint80();
@@ -251,13 +254,16 @@ library VaultAccountLib {
     /// @param vaultConfig the vault configuration
     /// @param vaultShareValue value of the vault account's vault shares
     /// @return maxLiquidatorDepositAssetCash the maximum a liquidator can deposit in asset cash internal denomination
-    /// @return mustLiquidateFullAmount if true, the liquidator must deposit the full amount to bring an account
-    /// to zero fCash (below the minBorrowAmount)
+    /// @return debtOutstandingAboveMinBorrow used to determine the threshold at which a liquidator must liquidate an account
+    /// to zero to account for minimum borrow sizes
     function calculateDeleverageAmount(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         int256 vaultShareValue
-    ) internal pure returns (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFullAmount) {
+    ) internal pure returns (
+        int256 maxLiquidatorDepositAssetCash,
+        int256 debtOutstandingAboveMinBorrow
+    ) {
         // In the base case, the liquidator can deleverage an account up to maxDeleverageCollateralRatio, this
         // assures that a liquidator cannot over-purchase assets on an account.
         int256 maxCollateralRatioPlusOne = vaultConfig.maxDeleverageCollateralRatio.add(Constants.RATE_PRECISION);
@@ -281,6 +287,22 @@ library VaultAccountLib {
         // Both denominators are in 1e9 precision
         ).divInRatePrecision(maxCollateralRatioPlusOne.sub(vaultConfig.liquidationRate));
 
+        // If an account's (debtOutstanding - maxLiquidatorDeposit) < minAccountBorrowSize it may not be profitable
+        // to liquidate a second time due to gas costs. If this occurs the liquidator must liquidate the account
+        // such that it has no fCash debt.
+        int256 postLiquidationDebtRemaining = debtOutstanding.sub(maxLiquidatorDepositAssetCash);
+        int256 minAccountBorrowSizeAssetCash = vaultConfig.assetRate.convertFromUnderlying(
+            vaultConfig.minAccountBorrowSize
+        );
+        debtOutstandingAboveMinBorrow = debtOutstanding.sub(minAccountBorrowSizeAssetCash);
+
+        // All terms here are in asset cash
+        if (postLiquidationDebtRemaining < minAccountBorrowSizeAssetCash) {
+            // If the postLiquidationDebtRemaining is negative (over liquidation) or below the minAccountBorrowSize
+            // set the max deposit amount to set the fCash debt to zero.
+            maxLiquidatorDepositAssetCash = debtOutstanding;
+        }
+
         // Check that the maxLiquidatorDepositAssetCash does not exceed the total vault shares owned by
         // the account:
         //      vaultSharesToLiquidator = vaultShares * [(deposit * liquidationRate) / (vaultShareValue * RATE_PRECISION)]
@@ -289,31 +311,12 @@ library VaultAccountLib {
         // to reach the maxDeleverageCollateralRatio) and we are over liquidating. In this case the liquidator's max deposit is
         //      (deposit * liquidationRate) / vaultShareValue == RATE_PRECISION, therefore:
         //      deposit = (RATE_PRECISION * vaultShareValue / liquidationRate)
-        
         int256 depositRatio = maxLiquidatorDepositAssetCash.mul(vaultConfig.liquidationRate).div(vaultShareValue);
 
         // Use equal to so we catch potential off by one issues, the deposit amount calculated inside the if statement
         // below will round the maxLiquidatorDepositAssetCash down
         if (depositRatio >= Constants.RATE_PRECISION) {
             maxLiquidatorDepositAssetCash = vaultShareValue.divInRatePrecision(vaultConfig.liquidationRate);
-            // Set this to true to ensure that the account gets fully liquidated
-            mustLiquidateFullAmount = true;
-        } else {
-            // If an account's (debtOutstanding - maxLiquidatorDeposit) < minAccountBorrowSize it may not be profitable
-            // to liquidate a second time due to gas costs. If this occurs the liquidator must liquidate the account
-            // such that it has no fCash debt.
-            int256 postLiquidationDebtRemaining = debtOutstanding.sub(maxLiquidatorDepositAssetCash);
-            int256 minAccountBorrowSizeAssetCash = vaultConfig.assetRate.convertFromUnderlying(
-                vaultConfig.minAccountBorrowSize
-            );
-
-            // All terms here are in asset cash
-            if (postLiquidationDebtRemaining < minAccountBorrowSizeAssetCash) {
-                // If the postLiquidationDebtRemaining is negative (over liquidation) or below the minAccountBorrowSize
-                // set the max deposit amount to set the fCash debt to zero.
-                maxLiquidatorDepositAssetCash = debtOutstanding;
-                mustLiquidateFullAmount = true;
-            }
         }
     }
 

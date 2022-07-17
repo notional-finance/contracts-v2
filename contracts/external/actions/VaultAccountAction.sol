@@ -300,9 +300,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // _calculateLiquidatorDeposit should ensure that we only ever lend up to a zero balance, but in the
             // case of any off by one issues we clear the fCash balance by down to zero.
             if (vaultAccount.fCash > 0) vaultAccount.fCash = 0;
-            emit VaultDeleverageAccount(
-                vault, account, vaultSharesToLiquidator, fCashToReduce 
-            );
+            emit VaultDeleverageAccount(vault, account, vaultSharesToLiquidator, fCashToReduce);
         }
 
         // Sets the liquidated account account
@@ -363,9 +361,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         }
 
         // Calculates the maximum deleverage amount
-        (int256 maxLiquidatorDepositAssetCash, bool mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
-            vaultConfig, vaultShareValue
-        );
+        (
+            int256 maxLiquidatorDepositAssetCash,
+            int256 debtOutstandingAboveMinBorrow
+        ) = vaultAccount.calculateDeleverageAmount(vaultConfig, vaultShareValue);
         // Catch potential edge cases where this is negative due to insolvency inside the vault itself
         require(maxLiquidatorDepositAssetCash > 0);
         // For aTokens this amount is in scaled balance external precision (the same as depositAmountExternal)
@@ -373,9 +372,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // NOTE: deposit amount external is always positive in this method
         if (depositAmountExternal < maxLiquidatorDepositExternal) {
-            // If this flag is set, the liquidator must deposit more cash in order to liquidate the account
-            // down to a zero fCash balance because it will fall under the minimum borrowing limit.
-            require(!mustLiquidateFull, "Must Liquidate All Debt");
+            // If liquidating past the debt outstanding above the min borrow, then the entire debt outstanding
+            // must be liquidated (that is set to maxLiquidatorDepositExternal)
+            require(depositAmountExternal < assetToken.convertToExternal(debtOutstandingAboveMinBorrow), "Must Liquidate All Debt");
         } else {
             // In the other case, limit the deposited amount to the maximum
             depositAmountExternal = maxLiquidatorDepositExternal;
@@ -475,8 +474,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     function getVaultAccountCollateralRatio(address account, address vault) external override view returns (
         int256 collateralRatio,
         int256 minCollateralRatio,
-        int256 maxLiquidatorDepositAssetCash,
-        bool mustLiquidateFull
+        int256 maxLiquidatorDepositAssetCash
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
@@ -495,9 +493,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             // Calculates liquidation factors if the account is eligible
             if (collateralRatio < minCollateralRatio) {
-                (maxLiquidatorDepositAssetCash, mustLiquidateFull) = vaultAccount.calculateDeleverageAmount(
-                    vaultConfig, vaultShareValue
-                );
+                (maxLiquidatorDepositAssetCash, /* */) = vaultAccount.calculateDeleverageAmount(vaultConfig, vaultShareValue);
             }
         }
     }
