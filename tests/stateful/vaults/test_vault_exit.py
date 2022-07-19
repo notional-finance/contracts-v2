@@ -166,7 +166,7 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceive
     vaultState = environment.notional.getVaultState(vault, maturity)
 
     assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == 150_000e18 - amountUnderlying
-    assert pytest.approx(balanceAfter - balanceBefore, abs=1000) == expectedProfit
+    assert pytest.approx(balanceAfter - balanceBefore, abs=1e5) == expectedProfit
     assert collateralRatioBefore < collateralRatioAfter
 
     assert vaultAccount["fCash"] == 0

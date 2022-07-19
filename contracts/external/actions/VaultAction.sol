@@ -378,7 +378,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             // Underflow checked above
             int256 assetCashShortfall = (assetCashRequiredToSettle - vaultState.totalAssetCash).toInt();
             uint256 assetCashRaised = VaultConfiguration.resolveShortfallWithReserve(
-                vaultConfig.vault, vaultConfig.borrowCurrencyId, assetCashShortfall
+                vaultConfig.vault, vaultConfig.borrowCurrencyId, assetCashShortfall, maturity
             ).toUint();
 
             vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashRaised);

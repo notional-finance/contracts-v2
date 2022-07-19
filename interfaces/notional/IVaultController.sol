@@ -17,12 +17,12 @@ interface IVaultAction {
     /// @notice Emitted when a secondary currency borrow capacity is updated
     event VaultUpdateSecondaryBorrowCapacity(address indexed vault, uint16 indexed currencyId, uint80 maxSecondaryBorrowCapacity);
     /// @notice Emitted when a vault has a shortfall upon settlement
-    event VaultShortfall(address indexed vault, uint16 indexed currencyId, int256 shortfall);
+    event VaultShortfall(address indexed vault, uint16 indexed currencyId, uint256 indexed maturity, int256 shortfall);
     /// @notice Emitted when a vault has an insolvency that cannot be covered by the
     /// cash reserve
-    event ProtocolInsolvency(address indexed vault, uint16 indexed currencyId, int256 shortfall);
+    event ProtocolInsolvency(address indexed vault, uint16 indexed currencyId, uint256 indexed maturity, int256 shortfall);
     /// @notice Emitted when a vault fee is accrued via borrowing (denominated in asset cash)
-    event VaultFeeAccrued(address indexed vault, uint16 indexed currencyId, int256 reserveFee, int256 nTokenFee);
+    event VaultFeeAccrued(address indexed vault, uint16 indexed currencyId, uint256 indexed maturity, int256 reserveFee, int256 nTokenFee);
     /// @notice Emitted when the borrow capacity on a vault changes
     event VaultBorrowCapacityChange(address indexed vault, uint16 indexed currencyId, uint256 totalUsedBorrowCapacity);
 
@@ -31,6 +31,7 @@ interface IVaultAction {
         address indexed vault,
         address indexed account,
         uint16 indexed currencyId,
+        uint256 maturity,
         uint256 debtSharesMinted,
         uint256 fCashBorrowed
     );
@@ -40,6 +41,7 @@ interface IVaultAction {
         address indexed vault,
         address indexed account,
         uint16 indexed currencyId,
+        uint256 maturity,
         uint256 debtSharesRepaid,
         uint256 fCashLent
     );

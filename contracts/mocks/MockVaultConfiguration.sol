@@ -46,10 +46,11 @@ contract MockVaultConfiguration {
         address vault,
         VaultAccount memory vaultAccount,
         int256 fCash,
-        uint256 timeToMaturity
+        uint256 maturity,
+        uint256 blockTime
     ) external returns (VaultAccount memory, int256 totalReserve, int256 nTokenCashBalance) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
+        vaultConfig.assessVaultFees(vaultAccount, fCash, maturity, blockTime);
 
         address nTokenAddress = nTokenHandler.nTokenAddress(vaultConfig.borrowCurrencyId);
         (totalReserve, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, vaultConfig.borrowCurrencyId);

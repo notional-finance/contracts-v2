@@ -157,7 +157,7 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
     assert vaultStateNew["totalfCash"] == -102_000e8
     assert vaultStateNew["totalAssetCash"] == 0
     assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
-    assert pytest.approx(vaultAccountAfter["vaultShares"], abs=1000) == expectedStrategyTokens
+    assert pytest.approx(vaultAccountAfter["vaultShares"], abs=1e5) == expectedStrategyTokens
 
     assert vaultAccountAfter["maturity"] == maturity2
 

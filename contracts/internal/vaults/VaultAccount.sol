@@ -196,9 +196,8 @@ library VaultAccountLib {
         // to unwind if we need to liquidate.
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
-        uint256 timeToMaturity = maturity.sub(block.timestamp);
         // Will reduce the tempCashBalance based on the assessed vault fee
-        vaultConfig.assessVaultFees(vaultAccount, fCash, timeToMaturity);
+        vaultConfig.assessVaultFees(vaultAccount, fCash, maturity, block.timestamp);
     }
 
     /// @notice Allows an account to exit a vault term prematurely by lending fCash.
@@ -495,7 +494,7 @@ library VaultAccountLib {
             // than the account could wait until that is completed. However, we don't revert here to allow solvent
             // accounts to withdraw whatever they can if they want to.
             int256 assetCashRaised = VaultConfiguration.resolveShortfallWithReserve(
-                vaultConfig.vault, vaultConfig.borrowCurrencyId, shortfall
+                vaultConfig.vault, vaultConfig.borrowCurrencyId, shortfall, vaultState.maturity
             );
 
             if (remainingAssetCash > 0) {

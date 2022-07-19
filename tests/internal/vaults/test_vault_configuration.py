@@ -71,7 +71,7 @@ def test_vault_fee_increases_with_debt(vaultConfig, vault, accounts):
         ),
     )
 
-    txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER)
+    txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER, 0)
     (_, initTotalReserve, initNToken) = txn.return_value
     assert initTotalReserve == 0
     assert initNToken == 0
@@ -83,7 +83,7 @@ def test_vault_fee_increases_with_debt(vaultConfig, vault, accounts):
     for i in range(0, 20):
         fCash -= decrement
         txn = vaultConfig.assessVaultFees(
-            vault.address, get_vault_account(), fCash, SECONDS_IN_QUARTER
+            vault.address, get_vault_account(), fCash, SECONDS_IN_QUARTER, 0
         )
 
         (vaultAccount, totalReserve, nTokenCashBalance) = txn.return_value
@@ -107,7 +107,7 @@ def test_vault_fee_increases_with_time_to_maturity(vaultConfig, vault, accounts)
         ),
     )
 
-    txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER)
+    txn = vaultConfig.assessVaultFees(vault.address, get_vault_account(), 0, SECONDS_IN_QUARTER, 0)
     (_, initTotalReserve, initNToken) = txn.return_value
     assert initTotalReserve == 0
     assert initNToken == 0
@@ -119,7 +119,7 @@ def test_vault_fee_increases_with_time_to_maturity(vaultConfig, vault, accounts)
     for i in range(0, 20):
         timeToMaturity += increment
         txn = vaultConfig.assessVaultFees(
-            vault.address, get_vault_account(), -100_000e8, timeToMaturity
+            vault.address, get_vault_account(), -100_000e8, timeToMaturity, 0
         )
 
         (vaultAccount, totalReserve, nTokenCashBalance) = txn.return_value
