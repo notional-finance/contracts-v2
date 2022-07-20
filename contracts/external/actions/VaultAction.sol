@@ -333,6 +333,15 @@ contract VaultAction is ActionGuards, IVaultAction {
         }
     }
 
+    /**
+     * @notice MUST be called by vaults that are using secondary borrows to initiate the settlement
+     * process. Once settlement process has been initiated, no further secondary borrows may occur in
+     * this maturity. Repayments can only occur via the vault itself, individual accounts cannot repay
+     * secondary borrows after this occurs. Can only be called by the vault.
+     * @param maturity maturity in which to initiate settlement
+     * @return secondaryBorrowSnapshot value of fCash in primary currency terms for both secondary borrow
+     * currencies
+     */
     function initiateSecondaryBorrowSettlement(
         uint256 maturity
     ) external override returns (uint256[2] memory secondaryBorrowSnapshot) {
