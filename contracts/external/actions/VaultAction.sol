@@ -173,8 +173,6 @@ contract VaultAction is ActionGuards, IVaultAction {
         }
 
         VaultState memory vaultState = VaultStateLib.getVaultState(msg.sender, maturity);
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-
         uint256 strategyTokensMinted = vaultConfig.deposit(
             vaultConfig.vault, assetCashInternal.toInt(), maturity, 0, vaultData
         );
@@ -269,7 +267,7 @@ contract VaultAction is ActionGuards, IVaultAction {
     ) private returns (uint256 underlyingTokensTransferred) {
         if (currencyId == 0 || fCashToBorrow == 0) return 0;
 
-        (int256 netBorrowedCash, uint256 accountDebtShares) = vaultConfig.increaseSecondaryBorrow(
+        (int256 netBorrowedCash, /* */) = vaultConfig.increaseSecondaryBorrow(
             account, currencyId, maturity, fCashToBorrow, maxBorrowRate
         );
 
@@ -301,7 +299,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
 
-        (int256 netAssetCash, int256 fCashToLend) = vaultConfig.repaySecondaryBorrow(
+        (int256 netAssetCash, /* */) = vaultConfig.repaySecondaryBorrow(
             account, currencyId, maturity, debtSharesToRepay, minLendRate
         );
 

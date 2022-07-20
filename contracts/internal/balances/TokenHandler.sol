@@ -327,7 +327,7 @@ library TokenHandler {
     }
 
     /// @notice Convenience method for getting the balance using a token object
-    function balanceOf(Token memory token, address account) internal returns (uint256) {
+    function balanceOf(Token memory token, address account) internal view returns (uint256) {
         if (token.tokenType == TokenType.Ether) {
             return account.balance;
         } else {
