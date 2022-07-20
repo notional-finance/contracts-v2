@@ -7,7 +7,9 @@ import {SafeUint256} from "../../math/SafeUint256.sol";
 import {
     VaultAccount,
     VaultAccountStorage,
-    VaultSettledAssetsStorage
+    VaultSettledAssetsStorage,
+    VaultAccountSecondaryDebtShareStorage,
+    VaultSecondaryBorrowStorage
 } from "../../global/Types.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {Constants} from "../../global/Constants.sol";
@@ -351,6 +353,7 @@ library VaultAccountLib {
         int256 totalAccountValue = _getTotalAccountValueAtSettlement(
             vaultAccount,
             vaultState,
+            vaultConfig,
             settlementRate,
             totalStrategyTokenValueAtSettlement
         );
@@ -370,41 +373,68 @@ library VaultAccountLib {
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(assetCashClaim);
         vaultAccount.vaultShares = 0;
         vaultAccount.maturity = 0;
-
-        // Clear secondary all secondary borrow storage if it exists, totalfCashBorrowed
-        // must be zero in order for vaults to settle so the accountDebtShare counters
-        // are no longer relevant for this maturity
-        if (
-            vaultConfig.secondaryBorrowCurrencies[0] != 0 ||
-            vaultConfig.secondaryBorrowCurrencies[1] != 0
-        ) {
-            delete LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
-        }
     }
 
     /// @notice Returns the total account value at settlement
     function _getTotalAccountValueAtSettlement(
         VaultAccount memory vaultAccount, 
         VaultState memory vaultState, 
+        VaultConfig memory vaultConfig,
         AssetRateParameters memory settlementRate,
         int256 totalStrategyTokenValueAtSettlement
-    ) private pure returns (int256 totalAccountValue) {
+    ) private returns (int256 totalAccountValue) {
         // This is the total value of all vault shares at settlement as the sum of cash and strategy token
         // assets held in the vault maturity using prices snapshot at settlement. Any future prices changes
         // on these assets will not be relevant in our calculations so there is no incentive to "game" when
         // users settle their positions.
-        // NOTE: any secondary currencies borrowed are required to have a zero cash balance and zero fCash
-        // debt at settlement, therefore they do not factor into this calculation.
         int256 totalVaultShareValueAtSettlement = totalStrategyTokenValueAtSettlement
             .add(settlementRate.convertToUnderlying(vaultState.totalAssetCash.toInt()));
+
+        // If there are secondary borrow currencies, adjust the totalVaultShareValue and the totalAccountValue
+        // accordingly. vaultShareValue will increase as a function of the totalfCashBorrowed prior to settlement
+        // and each account's value will decrease in accordance with the secondary fCash they owed.
+        if (
+            vaultConfig.secondaryBorrowCurrencies[0] != 0 ||
+            vaultConfig.secondaryBorrowCurrencies[1] != 0
+        ) {
+            VaultAccountSecondaryDebtShareStorage storage s = 
+                LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
+            
+            int256 vaultShareValueAdjustment;
+            int256 accountValueAdjustment;
+            (vaultShareValueAdjustment, accountValueAdjustment) = _getSecondaryBorrowAdjustment(
+                vaultConfig.vault,
+                vaultState.maturity,
+                vaultConfig.secondaryBorrowCurrencies[0],
+                s.accountDebtSharesOne
+            );
+            totalVaultShareValueAtSettlement = totalVaultShareValueAtSettlement.add(vaultShareValueAdjustment);
+            totalAccountValue = totalAccountValue.sub(accountValueAdjustment);
+            
+            (vaultShareValueAdjustment, accountValueAdjustment) = _getSecondaryBorrowAdjustment(
+                vaultConfig.vault,
+                vaultState.maturity,
+                vaultConfig.secondaryBorrowCurrencies[1],
+                s.accountDebtSharesTwo
+            );
+            totalVaultShareValueAtSettlement = totalVaultShareValueAtSettlement.add(vaultShareValueAdjustment);
+            totalAccountValue = totalAccountValue.sub(accountValueAdjustment);
+
+            // Clear secondary all secondary borrow storage , these debt counters are no longer relevant
+            // after accounting for the adjustment
+            delete LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
+        }
 
         // The account's value at settlement is used to determine how much resulting shares of cash and
         // strategy tokens it is allowed to withdraw from the pool of assets.
         // totalAccountValue = vaultShares * settlementVaultShareValue + fCash (fCash is negative)
+        //      + secondaryBorrowAdjustments (negative)
         totalAccountValue = 
-            vaultAccount.vaultShares.toInt().mul(totalVaultShareValueAtSettlement)
-                .div(vaultState.totalVaultShares.toInt())
-            .add(vaultAccount.fCash);
+            totalAccountValue.add(
+                vaultAccount.vaultShares.toInt().mul(totalVaultShareValueAtSettlement)
+                    .div(vaultState.totalVaultShares.toInt())
+                .add(vaultAccount.fCash)
+            );
 
         // If the total account value is negative than it is insolvent at settlement. This can happen if
         // the vault as a whole has repaid its debts but one of the accounts in the vault does not have
@@ -421,6 +451,34 @@ library VaultAccountLib {
             totalAccountValue = 0;
         }
     }
+    
+    function _getSecondaryBorrowAdjustment(
+        address vault,
+        uint256 maturity,
+        uint16 currencyId,
+        uint256 accountDebtShares
+    ) internal view returns (
+        int256 vaultShareValueAdjustment,
+        int256 accountValueAdjustment
+    ) {
+        if (currencyId == 0) return (0, 0);
+
+        VaultSecondaryBorrowStorage storage balance = 
+            LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
+        uint256 totalfCashBorrowedInPrimary = balance.totalfCashBorrowedInPrimarySnapshot;
+        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
+        
+        if (accountDebtShares > 0)  {
+            // If accountDebtShares > 0 then totalAccountDebt shares cannot be zero so we
+            // will not encounter a div by zero here.
+            accountValueAdjustment = accountDebtShares
+                .mul(totalfCashBorrowedInPrimary)
+                .div(totalAccountDebtShares).toInt();
+        }
+
+        vaultShareValueAdjustment = int256(totalfCashBorrowedInPrimary);
+    }
+
 
     /// @notice Returns the account's claims on a settled maturity. Resolves any shortfalls due to insolvent
     /// accounts within the same maturity.

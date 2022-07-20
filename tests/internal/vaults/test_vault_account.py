@@ -2,7 +2,7 @@ import logging
 
 import brownie
 import pytest
-from brownie import MockCToken, MockERC20
+from brownie import MockAggregator, MockCToken, MockERC20
 from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from fixtures import *
@@ -245,6 +245,72 @@ def test_settle_insolvent_vault(vaultConfig, accounts, vault):
 
     assert vaultConfig.getRemainingSettledTokens(vault.address, maturity) == (0, -500_000e8)
     assert vaultConfig.getReserveBalance(1) == 50_000_000e8 - 4_500_000e8
+
+
+def test_settle_with_secondary_borrow_currency(vaultConfig, accounts, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config(secondaryBorrowCurrencies=[2, 0]))
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000e8,
+            totalStrategyTokens=400e8,
+            totalAssetCash=50_000e8,
+            totalfCash=-1_000e8,
+        ),
+    )
+
+    # Secondary borrow
+    vaultConfig.setSecondaryBorrows(vault.address, maturity, 2, 10_000e8, 1_000e8)
+    daiRateOracle = MockAggregator.deploy(18, {"from": accounts[0]})
+    daiRateOracle.setAnswer(0.01e18)
+    vaultConfig.setExchangeRate(2, [daiRateOracle, 18, False, 100, 100, 100])
+    txn = vaultConfig.snapshotSecondaryBorrowAtSettlement(vault.address, 2, maturity)
+    assert txn.return_value == 100e8  # Total value of 100_000 dai borrowed in ETH
+
+    vaultConfig.setSecondaryBorrows(vault.address, maturity, 2, 0, 1_000e8)
+
+    # Account 1 has fewer secondary debt shares than account 2, they both have the same
+    # debt and the same vault shares
+    vaultConfig.setAccountDebtShares(vault.address, accounts[1], maturity, 200e8, 0)
+    account1 = get_vault_account(
+        maturity=maturity, fCash=-500e8, vaultShares=500e8, account=accounts[1].address
+    )
+
+    vaultConfig.setAccountDebtShares(vault.address, accounts[2], maturity, 800e8, 0)
+    account2 = get_vault_account(
+        maturity=maturity, fCash=-500e8, vaultShares=500e8, account=accounts[2].address
+    )
+
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
+
+    txn1 = vaultConfig.settleVaultAccount(vault.address, account1, maturity + 100)
+    (account1After, strategyTokens1) = txn1.return_value
+
+    txn2 = vaultConfig.settleVaultAccount(vault.address, account2, maturity + 100)
+    (account2After, strategyTokens2) = txn2.return_value
+    assert account1After["fCash"] == 0
+    assert account1After["maturity"] == 0
+    assert account1After["vaultShares"] == 0
+    assert account2After["fCash"] == 0
+    assert account2After["maturity"] == 0
+    assert account2After["vaultShares"] == 0
+
+    # Account gets their share of strategy tokens here, nothing else
+    assert strategyTokens1 + strategyTokens2 <= 400e8
+    assert pytest.approx(strategyTokens1 + strategyTokens2, abs=3) == 400e8
+    assert strategyTokens2 == 170e8
+    assert strategyTokens1 == 230e8
+
+    (remainingStrategyTokens, remainingAssetCash) = vaultConfig.getRemainingSettledTokens(
+        vault.address, maturity
+    )
+    assert pytest.approx(remainingStrategyTokens, abs=5) == 0
+    assert pytest.approx(remainingAssetCash, abs=5) == 0
+    assert remainingStrategyTokens >= 0
+    assert remainingAssetCash >= 0
 
 
 def get_collateral_ratio(vaultConfig, vault, **kwargs):

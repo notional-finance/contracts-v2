@@ -196,6 +196,7 @@ contract Router is StorageLayoutV1 {
             sig == IVaultAction.redeemStrategyTokensToCash.selector ||
             sig == IVaultAction.borrowSecondaryCurrencyToVault.selector ||
             sig == IVaultAction.repaySecondaryCurrencyFromVault.selector ||
+            sig == IVaultAction.initiateSecondaryBorrowSettlement.selector ||
             sig == IVaultAction.settleVault.selector ||
             sig == IVaultAction.getVaultConfig.selector ||
             sig == IVaultAction.getBorrowCapacity.selector ||

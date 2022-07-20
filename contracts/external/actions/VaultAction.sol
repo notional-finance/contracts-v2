@@ -333,6 +333,24 @@ contract VaultAction is ActionGuards, IVaultAction {
         }
     }
 
+    function initiateSecondaryBorrowSettlement(
+        uint256 maturity
+    ) external override returns (uint256[2] memory secondaryBorrowSnapshot) {
+        // This method call must come from the vault
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
+        require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
+
+        secondaryBorrowSnapshot[0] = vaultConfig.snapshotSecondaryBorrowAtSettlement(
+            vaultConfig.secondaryBorrowCurrencies[0],
+            maturity
+        ).toUint();
+
+        secondaryBorrowSnapshot[1] = vaultConfig.snapshotSecondaryBorrowAtSettlement(
+            vaultConfig.secondaryBorrowCurrencies[1],
+            maturity
+        ).toUint();
+    }
+
     /// @notice Settles a vault and sets the final settlement rates
     /// @param vault the vault to settle
     /// @param maturity the maturity of the vault
@@ -416,12 +434,20 @@ contract VaultAction is ActionGuards, IVaultAction {
         maxBorrowCapacity = cap.maxBorrowCapacity;
     }
 
-    function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
-        external view override returns (uint256 totalfCashBorrowed, uint256 totalAccountDebtShares) {
+    function getSecondaryBorrow(
+        address vault,
+        uint16 currencyId,
+        uint256 maturity
+    ) external view override returns (
+        uint256 totalfCashBorrowed,
+        uint256 totalAccountDebtShares,
+        uint256 totalfCashBorrowedInPrimarySnapshot
+    ) {
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
         totalfCashBorrowed = balance.totalfCashBorrowed;
         totalAccountDebtShares = balance.totalAccountDebtShares;
+        totalfCashBorrowedInPrimarySnapshot = balance.totalfCashBorrowedInPrimarySnapshot;
     }
 
     function getCashRequiredToSettle(

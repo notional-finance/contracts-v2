@@ -399,7 +399,7 @@ def test_enter_vault_return_values(environment, accounts, vault):
         accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
-    assert expectedStrategyTokens == vaultAccount["vaultShares"]
+    assert pytest.approx(expectedStrategyTokens, abs=1e5) == vaultAccount["vaultShares"]
 
     # Settle the vault
     environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})

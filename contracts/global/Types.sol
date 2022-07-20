@@ -496,6 +496,10 @@ struct VaultSecondaryBorrowStorage {
     // Used for accounting how much secondary borrow a single account owes as the fCashBorrowed
     // increases or decreases
     uint80 totalAccountDebtShares;
+    // The total secondary fCash borrowed converted to the primary borrow currency (underlying)
+    // snapshot prior to settlement. This is used to offset account value on settlement. Once this
+    // value is set, accounts can no longer borrow or repay on the secondary borrow currency
+    uint80 totalfCashBorrowedInPrimarySnapshot;
 }
 
 struct VaultConfig {

@@ -46,6 +46,14 @@ interface IVaultAction {
         uint256 fCashLent
     );
 
+    /// @notice Emitted when secondary borrows are snapshot prior to settlement
+    event SecondaryBorrowSnapshot(
+        address indexed vault,
+        uint16 indexed currencyId,
+        uint256 indexed maturity,
+        int256 totalfCashBorrowedInPrimarySnapshot
+    );
+
     /// @notice Emitted when a vault settles assets
     event VaultSettledAssetsRemaining(
         address indexed vault,
@@ -152,6 +160,9 @@ interface IVaultAction {
         bytes calldata callbackData
     ) external returns (bytes memory returnData);
 
+    function initiateSecondaryBorrowSettlement(uint256 maturity)
+        external returns (uint256[2] memory secondaryBorrowSnapshot);
+
     /// @notice Non-authenticated method that will set settlement values for a vault so that
     /// account holders can withdraw matured assets.
     function settleVault(address vault, uint256 maturity) external;
@@ -163,7 +174,11 @@ interface IVaultAction {
         external view returns (uint256 totalUsedBorrowCapacity, uint256 maxBorrowCapacity);
 
     function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
-        external view returns (uint256 totalfCashBorrowed, uint256 totalAccountDebtShares);
+        external view returns (
+            uint256 totalfCashBorrowed,
+            uint256 totalAccountDebtShares,
+            uint256 totalfCashBorrowedInPrimarySnapshot
+        );
 
     /// @notice View method to get vault state
     function getVaultState(address vault, uint256 maturity) external view returns (VaultState memory vaultState);

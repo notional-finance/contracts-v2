@@ -216,6 +216,45 @@ contract MockVaultConfiguration {
         );
     }
 
+    function setSecondaryBorrows(
+        address vault,
+        uint256 maturity,
+        uint16 currencyId,
+        uint80 totalfCashBorrowed,
+        uint80 totalAccountDebtShares
+    ) external {
+        VaultSecondaryBorrowStorage storage balance = 
+            LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
+        balance.totalfCashBorrowed = totalfCashBorrowed;
+        balance.totalAccountDebtShares = totalAccountDebtShares;
+    }
+
+    function setAccountDebtShares(
+        address vault,
+        address account,
+        uint32 maturity,
+        uint80 accountDebtSharesOne,
+        uint80 accountDebtSharesTwo
+    ) external {
+        VaultAccountSecondaryDebtShareStorage storage s = 
+            LibStorage.getVaultAccountSecondaryDebtShare()[account][vault];
+        s.maturity = maturity;
+        s.accountDebtSharesOne = accountDebtSharesOne;
+        s.accountDebtSharesTwo = accountDebtSharesTwo;
+    }
+
+    function snapshotSecondaryBorrowAtSettlement(
+        address vault,
+        uint16 currencyId,
+        uint256 maturity
+    ) external returns (int256) {
+        return VaultConfiguration.snapshotSecondaryBorrowAtSettlement(
+            getVaultConfigView(vault),
+            currencyId,
+            maturity
+        );
+    }
+
     /*** Set Other Globals ***/
     function setReserveBalance(uint16 currencyId, int256 balance) external {
         BalanceHandler.setReserveCashBalance(currencyId, balance);
@@ -264,6 +303,11 @@ contract MockVaultConfiguration {
         assetToken = TokenHandler.getAssetToken(currencyId);
         underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
         assetRate = AssetRate.buildAssetRateView(currencyId);
+    }
+
+    function setExchangeRate(uint16 currencyId, ETHRateStorage calldata rate) external {
+        mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
+        store[currencyId] = rate;
     }
 
     function getLendingPool() external pure returns (address) {

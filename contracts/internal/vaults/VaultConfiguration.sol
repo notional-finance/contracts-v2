@@ -10,6 +10,7 @@ import {SafeUint256} from "../../math/SafeUint256.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 import {TradingAction} from "../../external/actions/TradingAction.sol";
+import {ExchangeRate} from "../valuation/ExchangeRate.sol";
 import {DateTime} from "../markets/DateTime.sol";
 import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
 import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
@@ -24,7 +25,8 @@ import {
     VaultBorrowCapacityStorage,
     VaultSecondaryBorrowStorage,
     VaultAccountSecondaryDebtShareStorage,
-    TradeActionType
+    TradeActionType,
+    ETHRate
 } from "../../global/Types.sol";
 import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
@@ -64,6 +66,14 @@ library VaultConfiguration {
         uint256 maturity,
         uint256 debtSharesRepaid,
         uint256 fCashLent
+    );
+
+    /// @notice Emitted when secondary borrows are snapshot prior to settlement
+    event SecondaryBorrowSnapshot(
+        address indexed vault,
+        uint16 indexed currencyId,
+        uint256 indexed maturity,
+        int256 totalfCashBorrowedInPrimarySnapshot
     );
 
     /// @notice Emitted when a vault's status is updated
@@ -630,6 +640,7 @@ library VaultConfiguration {
         // Updates storage for the specific maturity so we can track this on chain.
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
+        require(balance.totalfCashBorrowedInPrimarySnapshot == 0, "In Settlement");
         uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
         uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
 
@@ -678,6 +689,9 @@ library VaultConfiguration {
         // Updates storage for the specific maturity so we can track this on chain.
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
+
+        // Once a secondary borrow is in settlement, only the vault can initiate repayment
+        require(balance.totalfCashBorrowedInPrimarySnapshot == 0 || account == vaultConfig.vault, "In Settlement");
         uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
         uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
 
@@ -701,6 +715,42 @@ library VaultConfiguration {
         );
 
         emit VaultRepaySecondaryBorrow(vaultConfig.vault, account, currencyId, maturity, debtSharesToRepay, uint256(fCashToLend));
+    }
+
+    /**
+     * @notice Takes a snapshot of the secondary borrow currencies at settlement, can only be initiated by the
+     * vault itself. This is required to get an accurate accounting of vault share value at settlement (since
+     * strategy tokens are also sold to repay accountDebtShares). Once a snapshot has been taken, no secondary
+     * borrows or repayments can occur.
+     * @param vaultConfig vault configuration
+     * @param currencyId secondary currency to snapshot
+     * @param maturity maturity to snapshot
+     * @return totalfCashBorrowedInPrimary the total fCash borrowed in this currency converted to the primary currency
+     * at the current oracle exchange rate
+     */
+    function snapshotSecondaryBorrowAtSettlement(
+        VaultConfig memory vaultConfig,
+        uint16 currencyId,
+        uint256 maturity
+    ) internal returns (int256 totalfCashBorrowedInPrimary) {
+        if (currencyId == 0) return 0;
+
+        // Updates storage for the specific maturity so we can track this on chain.
+        VaultSecondaryBorrowStorage storage balance = 
+            LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
+        // The snapshot value can only be set once when settlement is initiated
+        require(balance.totalfCashBorrowedInPrimarySnapshot == 0, "Cannot Reset Snapshot");
+
+        int256 totalfCashBorrowed = int256(uint256(balance.totalfCashBorrowed));
+        ETHRate memory primaryER = ExchangeRate.buildExchangeRate(vaultConfig.borrowCurrencyId);
+        ETHRate memory secondaryER = ExchangeRate.buildExchangeRate(currencyId);
+        int256 exchangeRate = ExchangeRate.exchangeRate(primaryER, secondaryER);
+        
+        // Converts totafCashBorrowed (in secondary, underlying) to primary underlying via ETH exchange rates
+        totalfCashBorrowedInPrimary = totalfCashBorrowed.mul(primaryER.rateDecimals).div(exchangeRate);
+        balance.totalfCashBorrowedInPrimarySnapshot = totalfCashBorrowedInPrimary.toUint().toUint80();
+
+        emit SecondaryBorrowSnapshot(vaultConfig.vault, currencyId, maturity, totalfCashBorrowedInPrimary);
     }
 
     function _updateAccountDebtShares(
