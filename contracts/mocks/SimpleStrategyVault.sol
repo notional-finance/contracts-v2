@@ -7,6 +7,10 @@ import "../strategyVaults/BaseStrategyVault.sol";
 contract SimpleStrategyVault is BaseStrategyVault {
     event SecondaryBorrow(uint256[2] underlyingTokensTransferred);
 
+    function strategy() external view override returns (bytes4) {
+        return bytes4(keccak256("SimpleVault"));
+    }
+
     bool internal _reenterNotional;
     uint256 internal _tokenExchangeRate;
     uint16 internal _secondaryCurrency;

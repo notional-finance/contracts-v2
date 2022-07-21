@@ -5,6 +5,7 @@ interface IStrategyVault {
 
     function decimals() external view returns (uint8);
     function name() external view returns (string memory);
+    function strategy() external view returns (bytes4 strategyId);
 
     // Tells a vault to deposit some amount of tokens from Notional and mint strategy tokens with it.
     function depositFromNotional(
