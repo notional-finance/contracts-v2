@@ -69,11 +69,12 @@ library VaultConfiguration {
     );
 
     /// @notice Emitted when secondary borrows are snapshot prior to settlement
-    event SecondaryBorrowSnapshot(
+    event VaultSecondaryBorrowSnapshot(
         address indexed vault,
         uint16 indexed currencyId,
         uint256 indexed maturity,
-        int256 totalfCashBorrowedInPrimarySnapshot
+        int256 totalfCashBorrowedInPrimarySnapshot,
+        int256 exchangeRate
     );
 
     /// @notice Emitted when a vault's status is updated
@@ -750,7 +751,9 @@ library VaultConfiguration {
         totalfCashBorrowedInPrimary = totalfCashBorrowed.mul(primaryER.rateDecimals).div(exchangeRate);
         balance.totalfCashBorrowedInPrimarySnapshot = totalfCashBorrowedInPrimary.toUint().toUint80();
 
-        emit SecondaryBorrowSnapshot(vaultConfig.vault, currencyId, maturity, totalfCashBorrowedInPrimary);
+        emit VaultSecondaryBorrowSnapshot(
+            vaultConfig.vault, currencyId, maturity, totalfCashBorrowedInPrimary, exchangeRate
+        );
     }
 
     function _updateAccountDebtShares(

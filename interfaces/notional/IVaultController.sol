@@ -47,11 +47,12 @@ interface IVaultAction {
     );
 
     /// @notice Emitted when secondary borrows are snapshot prior to settlement
-    event SecondaryBorrowSnapshot(
+    event VaultSecondaryBorrowSnapshot(
         address indexed vault,
         uint16 indexed currencyId,
         uint256 indexed maturity,
-        int256 totalfCashBorrowedInPrimarySnapshot
+        int256 totalfCashBorrowedInPrimarySnapshot,
+        int256 exchangeRate
     );
 
     /// @notice Emitted when a vault settles assets
