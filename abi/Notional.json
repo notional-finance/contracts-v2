@@ -433,6 +433,12 @@
                 "type": "uint16"
             },
             {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
                 "indexed": false,
                 "internalType": "int256",
                 "name": "shortfall",
@@ -497,6 +503,37 @@
             }
         ],
         "name": "ReserveFeeAccrued",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "int256",
+                "name": "totalfCashBorrowedInPrimarySnapshot",
+                "type": "int256"
+            }
+        ],
+        "name": "SecondaryBorrowSnapshot",
         "type": "event"
     },
     {
@@ -1086,6 +1123,12 @@
                 "type": "uint16"
             },
             {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
                 "indexed": false,
                 "internalType": "int256",
                 "name": "reserveFee",
@@ -1243,6 +1286,12 @@
             {
                 "indexed": false,
                 "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
                 "name": "debtSharesRepaid",
                 "type": "uint256"
             },
@@ -1307,6 +1356,12 @@
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
             },
             {
                 "indexed": false,
@@ -1418,6 +1473,12 @@
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
+            },
+            {
+                "indexed": true,
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
             },
             {
                 "indexed": false,
@@ -4148,6 +4209,11 @@
                 "internalType": "uint256",
                 "name": "totalAccountDebtShares",
                 "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "totalfCashBorrowedInPrimarySnapshot",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",
@@ -4690,6 +4756,25 @@
         ],
         "name": "initializeMarkets",
         "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            }
+        ],
+        "name": "initiateSecondaryBorrowSettlement",
+        "outputs": [
+            {
+                "internalType": "uint256[2]",
+                "name": "secondaryBorrowSnapshot",
+                "type": "uint256[2]"
+            }
+        ],
         "stateMutability": "nonpayable",
         "type": "function"
     },
