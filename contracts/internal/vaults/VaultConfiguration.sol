@@ -222,28 +222,22 @@ library VaultConfiguration {
     /// will be accrued to the nToken cash balance and the protocol cash reserve.
     /// @param vaultConfig vault configuration
     /// @param vaultAccount modifies the vault account temp cash balance in memory
-    /// @param fCash the amount of fCash the account is lending or borrowing
+    /// @param assetCashBorrowed the amount of cash the account has borrowed
     /// @param maturity maturity of fCash
     /// @param blockTime current block time
     function assessVaultFees(
         VaultConfig memory vaultConfig,
         VaultAccount memory vaultAccount,
-        int256 fCash,
+        int256 assetCashBorrowed,
         uint256 maturity,
         uint256 blockTime
     ) internal {
-        require(fCash <= 0);
-
         // The fee rate is annualized, we prorate it linearly based on the time to maturity here
         int256 proratedFeeRate = vaultConfig.feeRate
             .mul(maturity.sub(blockTime).toInt())
             .div(int256(Constants.YEAR));
 
-        // If fCash < 0 we are borrowing and the total fee is positive, if fCash > 0 then we are lending and the fee should
-        // be a rebate back to the account.
-        int256 netTotalFee = vaultConfig.assetRate.convertFromUnderlying(
-            fCash.neg().mulInRatePrecision(proratedFeeRate)
-        );
+        int256 netTotalFee = assetCashBorrowed.mulInRatePrecision(proratedFeeRate);
 
         // Reserve fee share is restricted to less than 100
         int256 reserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);

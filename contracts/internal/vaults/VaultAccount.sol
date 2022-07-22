@@ -199,7 +199,7 @@ library VaultAccountLib {
         require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
 
         // Will reduce the tempCashBalance based on the assessed vault fee
-        vaultConfig.assessVaultFees(vaultAccount, fCash, maturity, block.timestamp);
+        vaultConfig.assessVaultFees(vaultAccount, assetCashBorrowed, maturity, block.timestamp);
     }
 
     /// @notice Allows an account to exit a vault term prematurely by lending fCash.
