@@ -279,7 +279,7 @@ def test_exit_vault_during_settlement(environment, vault, accounts, useReceiver)
         accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    environment.notional.redeemStrategyTokensToCash(maturity, 120_000e8, "", {"from": vault})
+    vault.redeemStrategyTokensToCash(maturity, 120_000e8, "", {"from": accounts[0]})
 
     balanceBefore = environment.token["DAI"].balanceOf(receiver)
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
@@ -337,7 +337,7 @@ def test_exit_vault_after_settlement(environment, vault, accounts, useReceiver):
         accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
 
     chain.mine(1, timestamp=maturity)
     environment.notional.settleVault(vault, maturity, {"from": accounts[1]})

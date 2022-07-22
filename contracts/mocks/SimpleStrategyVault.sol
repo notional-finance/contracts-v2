@@ -87,4 +87,18 @@ contract SimpleStrategyVault is BaseStrategyVault {
             account, currencyId, maturity, accountDebtShares, slippageLimit, ""
         );
     }
+
+    function initiateSecondaryBorrowSettlement(
+        uint256 maturity
+    ) external {
+        NOTIONAL.initiateSecondaryBorrowSettlement(maturity);
+    }
+
+    function redeemStrategyTokensToCash(uint256 maturity, uint256 strategyTokens, bytes calldata data) external {
+        NOTIONAL.redeemStrategyTokensToCash(maturity, strategyTokens, data);
+    }
+
+    function depositVaultCashToStrategyTokens(uint256 maturity, uint256 assetCash, bytes calldata data) external {
+        NOTIONAL.depositVaultCashToStrategyTokens(maturity, assetCash, data);
+    }
 }

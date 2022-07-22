@@ -329,7 +329,7 @@ def test_enter_vault_fails_if_has_asset_cash(environment, vault, accounts):
         accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    environment.notional.redeemStrategyTokensToCash(maturity, 5_000e8, "", {"from": vault})
+    vault.redeemStrategyTokensToCash(maturity, 5_000e8, "", {"from": accounts[0]})
 
     with brownie.reverts():
         # An attempt to enter again will fail if the vault is holding asset cash
@@ -357,7 +357,7 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
     )
 
     # Settle the vault
-    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
     chain.mine(1, timestamp=maturity)
     environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
     environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
@@ -402,7 +402,7 @@ def test_enter_vault_return_values(environment, accounts, vault):
     assert pytest.approx(expectedStrategyTokens, abs=1e5) == vaultAccount["vaultShares"]
 
     # Settle the vault
-    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
     chain.mine(1, timestamp=maturity)
     environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
     environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
@@ -432,7 +432,7 @@ def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, 
         accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    environment.notional.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": vault})
+    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
     chain.mine(1, timestamp=maturity)
     environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
 
