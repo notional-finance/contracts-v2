@@ -18,8 +18,13 @@ def test_enforce_borrow_size(vaultConfig, accounts, vault):
     vaultConfig.setVaultConfig(vault.address, get_vault_config(minAccountBorrowSize=100_000))
 
     with brownie.reverts("Min Borrow"):
-        account = get_vault_account(fCash=-100e8)
+        account = get_vault_account(fCash=-100e8, vaultShares=100)
         vaultConfig.setVaultAccount(account, vault.address)
+
+    # Setting with negative fCash and no vault shares is ok (insolvency)
+    account = get_vault_account(fCash=-100e8, vaultShares=0)
+    vaultConfig.setVaultAccount(account, vault.address)
+    assert account == vaultConfig.getVaultAccount(accounts[0].address, vault.address)
 
     # Setting with 0 fCash is ok
     account = get_vault_account()
@@ -75,17 +80,20 @@ def test_calculate_deleverage_amount(vaultConfig, accounts, vault, fCash, initia
     assert maxDeposit <= maxPossibleLiquidatorDeposit
 
     # If maxDeposit == maxPossibleLiquidatorDeposit then all vault shares will be sold and the
-    # account is insovlant
+    # account is insolvent
     if maxDeposit < maxPossibleLiquidatorDeposit:
         vaultSharesPurchased = Wei((maxDeposit * 104 * vaultShares) / (vaultShareValue * 100))
         accountAfter = get_vault_account(
-            fCash=fCash + maxDeposit / 50, vaultShares=vaultShares - vaultSharesPurchased
+            fCash=Wei(fCash + maxDeposit / 50), vaultShares=vaultShares - vaultSharesPurchased
         )
         (collateralRatioAfter, _) = vaultConfig.calculateCollateralRatio(
             vault.address, accountAfter, state
         )
 
-        assert pytest.approx(collateralRatioAfter, abs=2) == 0.4e9
+        # Assert that min borrow size is respected
+        assert accountAfter[0] == 0 or -accountAfter[0] >= 10_000e8
+        if accountAfter[0] > 0:
+            assert pytest.approx(collateralRatioAfter, abs=2) == 0.4e9
 
 
 def test_settle_fails(vaultConfig, accounts, vault):
