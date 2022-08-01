@@ -241,6 +241,12 @@
     "MigrateIncentives": [
       "0xC7d73900E8Cffe0B5299a4703DfC5a9Aaf77355C"
     ],
+    "MockCToken": [
+      "0x39A60b09911Ce96a65Ca8c470755fb8288294e80"
+    ],
+    "MockERC20": [
+      "0x84e90bdDFf9a0e124F1AB7F4D1D33a7C748c1A16"
+    ],
     "NoteERC20": [
       "0x76940F542aeD6a7378CeB74c363562B3196653a8"
     ],
@@ -253,6 +259,9 @@
     ],
     "SettleAssetsExternal": [
       "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6"
+    ],
+    "SimpleStrategyVault": [
+      "0x71515FaA73F74F449Da0c8e7D8cC3C0Fa502e524"
     ],
     "TradingAction": [
       "0xBB7712663ab3BeE01a02801276A4441d35470Eb5"
