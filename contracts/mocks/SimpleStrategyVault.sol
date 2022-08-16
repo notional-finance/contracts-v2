@@ -7,7 +7,7 @@ import "../strategyVaults/BaseStrategyVault.sol";
 contract SimpleStrategyVault is BaseStrategyVault {
     event SecondaryBorrow(uint256[2] underlyingTokensTransferred);
 
-    function strategy() external view override returns (bytes4) {
+    function strategy() external pure override returns (bytes4) {
         return bytes4(keccak256("SimpleVault"));
     }
 
@@ -26,10 +26,10 @@ contract SimpleStrategyVault is BaseStrategyVault {
 
     // Vaults need to implement these two methods
     function _depositFromNotional(
-        address account,
+        address /* account */,
         uint256 deposit,
-        uint256 maturity,
-        bytes calldata data
+        uint256 /* maturity */,
+        bytes calldata /* data */
     ) internal override returns (uint256 strategyTokensMinted) {
         strategyTokensMinted = (deposit * 1e18) / (_tokenExchangeRate * 1e10);
         if (_reenterNotional) {
@@ -39,17 +39,17 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function _redeemFromNotional(
-        address account,
+        address /* account */,
         uint256 strategyTokens,
-        uint256 maturity,
-        bytes calldata data
-    ) internal override returns (uint256 assetTokensToTransfer) {
+        uint256 /* maturity */,
+        bytes calldata /* data */
+    ) internal view override returns (uint256 assetTokensToTransfer) {
         return strategyTokens * _tokenExchangeRate * 1e10 / 1e18;
     }
 
     function _repaySecondaryBorrowCallback(
         address token, uint256 underlyingTokensRequired, bytes calldata /* data */
-    ) internal override returns (bytes memory returnData) {
+    ) internal override returns (bytes memory /* returnData */) {
         if (token == address(0)) {
             payable(address(NOTIONAL)).transfer(underlyingTokensRequired);
         } else {
@@ -58,7 +58,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
     }
 
     function convertStrategyToUnderlying(
-        address account, uint256 strategyTokens, uint256 maturity
+        address /* account */, uint256 strategyTokens, uint256 /* maturity */
     ) public view override returns (int256 underlyingValue) {
         return int256((strategyTokens * _tokenExchangeRate * 1e10) / 1e18);
     }

@@ -3,7 +3,7 @@ pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import {ActionGuards} from "./ActionGuards.sol";
-import {IVaultAction} from "../../../../interfaces/notional/IVaultController.sol";
+import {IVaultAction} from "../../../interfaces/notional/IVaultController.sol";
 import "../../internal/vaults/VaultConfiguration.sol";
 import "../../internal/vaults/VaultAccount.sol";
 import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";

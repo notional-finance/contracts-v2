@@ -46,7 +46,7 @@ contract MockCToken is ERC20 {
         return block.number;
     }
 
-    function interestRateModel() external view returns (address) {
+    function interestRateModel() external pure returns (address) {
         return address(0);
     }
 
@@ -56,12 +56,16 @@ contract MockCToken is ERC20 {
 
     function mint(uint mintAmount) external returns (uint) {
         ERC20(underlying).transferFrom(msg.sender, address(this), mintAmount);
-        _mint(msg.sender, (mintAmount * 1e18) / _answer);
+        uint minted = (mintAmount * 1e18) / _answer;
+        _mint(msg.sender, minted);
+        return minted;
     }
 
     function redeem(uint redeemTokens) external returns (uint) {
         _burn(msg.sender, redeemTokens);
-        ERC20(underlying).transfer(msg.sender, (redeemTokens * _answer) / 1e18);
+        uint redeemed = (redeemTokens * _answer) / 1e18;
+        ERC20(underlying).transfer(msg.sender, redeemed);
+        return redeemed;
     }
 }
 
