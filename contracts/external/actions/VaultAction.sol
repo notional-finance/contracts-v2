@@ -210,27 +210,31 @@ contract VaultAction is ActionGuards, IVaultAction {
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
         uint16[2] memory currencies = vaultConfig.secondaryBorrowCurrencies;
         require(currencies[0] != 0 || currencies[1] != 0);
+
+        VaultAccountSecondaryDebtShareStorage storage s = 
+            LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
+        uint256 accountMaturity = s.maturity;
         
         // If the borrower is rolling their primary debt forward, we need to check that here and roll
         // their secondary debt forward in the same manner (simulate lending and then borrow more in
-        // a longer dated maturity to repay their borrowing).
+        // a longer dated maturity to repay their borrowing). Rolling debts forward can only occur if:
+        //  - borrower has an existing debt position
+        //  - borrower is rolling to a longer dated maturity
+        //  - vault allows rolling positions forward
+        //  - borrower is not the vault itself (only individual accounts can roll borrows)
         int256[2] memory costToRepay;
-        if (vaultConfig.getFlag(VaultConfiguration.ALLOW_ROLL_POSITION) && account != msg.sender) {
-            // If in here, the vault allows rolling and we are working with an individual account
-            VaultAccountSecondaryDebtShareStorage storage s = 
-                LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
-            uint256 accountMaturity = s.maturity;
-
-            if (accountMaturity != 0) {
-                // Cannot roll to a shorter term maturity
-                require(accountMaturity < maturity);
-                costToRepay[0] = _repayDuringRoll(
-                    vaultConfig, account, currencies[0], accountMaturity, s.accountDebtSharesOne, minRollLendRate[0]
-                );
-                costToRepay[1] = _repayDuringRoll(
-                    vaultConfig, account, currencies[1], accountMaturity, s.accountDebtSharesTwo, minRollLendRate[1]
-                );
-            }
+        if (
+            accountMaturity != 0 &&
+            accountMaturity < maturity &&
+            vaultConfig.getFlag(VaultConfiguration.ALLOW_ROLL_POSITION) &&
+            account != msg.sender
+        ) {
+            costToRepay[0] = _repayDuringRoll(
+                vaultConfig, account, currencies[0], accountMaturity, s.accountDebtSharesOne, minRollLendRate[0]
+            );
+            costToRepay[1] = _repayDuringRoll(
+                vaultConfig, account, currencies[1], accountMaturity, s.accountDebtSharesTwo, minRollLendRate[1]
+            );
         }
 
         underlyingTokensTransferred[0] = _borrowAndTransfer(
