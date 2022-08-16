@@ -503,11 +503,13 @@ library VaultAccountLib {
             // repay the debt). That means settledVaultValue == residualAssetCashBalance, strategyTokenClaim == 0
             // and assetCashClaim == totalAccountValue. Accounts that are still solvent will be paid from the
             // reserve, accounts that are insolvent will have a totalAccountValue == 0.
-            strategyTokenClaim = totalAccountValue.mul(vaultState.totalStrategyTokens.toInt())
-                .div(settledVaultValue).toUint();
+            if (settledVaultValue != 0) {
+                strategyTokenClaim = totalAccountValue.mul(vaultState.totalStrategyTokens.toInt())
+                    .div(settledVaultValue).toUint();
 
-            assetCashClaim = totalAccountValue.mul(residualAssetCashBalance)
-                .div(settledVaultValue);
+                assetCashClaim = totalAccountValue.mul(residualAssetCashBalance)
+                    .div(settledVaultValue);
+            }
         } 
 
         // Decrement counters for settled assets that have been distributed, resolving any shortfalls

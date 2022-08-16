@@ -107,6 +107,32 @@ def test_settle_fails(vaultConfig, accounts, vault):
         )
 
 
+def test_vault_with_zero_value(vaultConfig, accounts, vault):
+    vaultConfig.setVaultConfig(vault.address, get_vault_config())
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    vault.setExchangeRate(1e18)
+    vaultConfig.setVaultState(
+        vault.address,
+        get_vault_state(
+            maturity=maturity,
+            totalVaultShares=1_000_000e8,
+            totalStrategyTokens=0,  # This represents profits
+            totalAssetCash=0,
+            totalfCash=0,
+        ),
+    )
+    vaultConfig.setSettledVaultState(vault.address, maturity, maturity + 100)
+    account = get_vault_account(maturity=maturity, fCash=0, vaultShares=10_000e8)
+
+    # Tests a potential divide by zero issue
+    txn = vaultConfig.settleVaultAccount(vault.address, account, maturity + 100)
+    (accountAfter, strategyTokens) = txn.return_value
+    assert strategyTokens == 0
+    assert accountAfter["vaultShares"] == 0
+    assert accountAfter["tempCashBalance"] == 0
+    assert vaultConfig.getRemainingSettledTokens(vault.address, maturity) == (0, 0)
+
+
 @given(residual=strategy("uint", max_value=100_000e8))
 def test_settle_asset_cash_with_residual(vaultConfig, accounts, vault, residual):
     vaultConfig.setVaultConfig(vault.address, get_vault_config())
