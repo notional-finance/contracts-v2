@@ -359,19 +359,14 @@ library VaultConfiguration {
             TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
 
         address vault = vaultConfig.vault;
+        // Tokens with transfer fees are not allowed in vaults
+        require(!underlyingToken.hasTransferFee);
         if (underlyingToken.tokenType == TokenType.Ether) {
             require(msg.value == depositAmountExternal, "Invalid ETH");
             // Forward all the ETH to the vault
             GenericToken.transferNativeTokenOut(vault, msg.value);
 
             return msg.value;
-        } else if (underlyingToken.hasTransferFee) {
-            // In this case need to check the balance of the vault before and after
-            uint256 balanceBefore = underlyingToken.balanceOf(vault);
-            GenericToken.safeTransferFrom(underlyingToken.tokenAddress, transferFrom, vault, depositAmountExternal);
-            uint256 balanceAfter = underlyingToken.balanceOf(vault);
-
-            return balanceAfter.sub(balanceBefore);
         } else {
             GenericToken.safeTransferFrom(underlyingToken.tokenAddress, transferFrom, vault, depositAmountExternal);
             return depositAmountExternal;
