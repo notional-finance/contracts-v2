@@ -211,14 +211,13 @@
       "0xb18449Cfa0Ca8A52D18d4D02dE58Dc085c1E2E10"
     ],
     "BatchAction": [
-      "0x1859991dB0c8C973135C9ba53b92e5B7cF23b977"
+      "0x9B0276029588D2b2aa410103B6B15f630Ee517a8"
     ],
-    "Calc": [
-      "0xC6a0c1eC0736FDCbC2d32F3A03DA084Aa8c5E4Df",
-      "0x9CcBeC0Ee9b0ceC6EBb2FBe41aE822a53362728F"
+    "CalculationViews": [
+      "0x13c7DA6ed5CD843A79522Ce75F959Ab2E328cf04"
     ],
     "ERC1155Action": [
-      "0xdb7657ad39E6Ee8a08d088a89f6b211dbe05D421"
+      "0x319899082Fb5296cdd1A3954C7A68F7C19a15a6E"
     ],
     "FreeCollateralExternal": [
       "0x1add152E195527EdD03bb6a548ab3047FA219e41"
@@ -241,12 +240,6 @@
     "MigrateIncentives": [
       "0xC7d73900E8Cffe0B5299a4703DfC5a9Aaf77355C"
     ],
-    "MockCToken": [
-      "0x39A60b09911Ce96a65Ca8c470755fb8288294e80"
-    ],
-    "MockERC20": [
-      "0x84e90bdDFf9a0e124F1AB7F4D1D33a7C748c1A16"
-    ],
     "NoteERC20": [
       "0x76940F542aeD6a7378CeB74c363562B3196653a8"
     ],
@@ -255,7 +248,7 @@
       "0x613f379A4D65A62B7843379a5E7071e52528631f"
     ],
     "Router": [
-      "0xC9A7fdb13cA886113c6DC9EC3a1c6963079d5E62"
+      "0x0c20eE99D8d3b33A049C1f3F1c37DaA0C1d8d125"
     ],
     "SettleAssetsExternal": [
       "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6"
