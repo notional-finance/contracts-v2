@@ -269,7 +269,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 fCashToBorrow,
         uint32 maxBorrowRate
     ) private returns (uint256 underlyingTokensTransferred) {
-        if (currencyId == 0 || fCashToBorrow == 0) return 0;
+        if ((currencyId == 0 || fCashToBorrow == 0) && costToRepay == 0) return 0;
 
         (int256 netBorrowedCash, /* */) = vaultConfig.increaseSecondaryBorrow(
             account, currencyId, maturity, fCashToBorrow, maxBorrowRate

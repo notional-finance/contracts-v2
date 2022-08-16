@@ -909,6 +909,11 @@ def test_roll_secondary_borrow_forward(environment, accounts, vault):
     # Ensure we can increase the borrow position in an existing maturity
     vault.borrowSecondaryCurrency(accounts[1], maturity, [1e8, 1e8], [0, 0], [0, 0])
 
+    with brownie.reverts("Insufficient Secondary Borrow"):
+        vault.borrowSecondaryCurrency(
+            accounts[1], maturity + SECONDS_IN_QUARTER, [0, 0], [0, 0], [0, 0]
+        )
+
     txn = vault.borrowSecondaryCurrency(
         accounts[1], maturity + SECONDS_IN_QUARTER, [6e8, 7e8], [0, 0], [0, 0]
     )
