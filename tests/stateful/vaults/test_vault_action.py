@@ -650,6 +650,9 @@ def test_repay_secondary_currency_fails_with_no_borrow(environment, accounts, va
         vault.address, 3, 100e8, {"from": environment.notional.owner()}
     )
 
+    # Repaying a zero debt shares should have no effect
+    vault.repaySecondaryCurrency(accounts[1], 3, maturity, 0, 0)
+
     vault.borrowSecondaryCurrency(accounts[2], maturity, [0, 10e8], [0, 0], [0, 0])
 
     with brownie.reverts():

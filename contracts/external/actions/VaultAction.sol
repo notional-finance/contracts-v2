@@ -295,6 +295,9 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint32 minLendRate,
         bytes calldata callbackData
     ) external override returns (bytes memory returnData) {
+        // Short circuits a zero debt shares to repay to save gas and avoid divide by zero issues
+        if (debtSharesToRepay == 0) return returnData;
+
         // This method call must come from the vault
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");

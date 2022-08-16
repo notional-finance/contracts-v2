@@ -712,6 +712,8 @@ library VaultConfiguration {
         uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
         uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
 
+        // Debt shares to repay is never zero based on the calling method, so we do not encounter divide
+        // by zero issues here (if we did, it would be a critical accounting issue)
         fCashToLend = debtSharesToRepay.mul(totalfCashBorrowed).div(totalAccountDebtShares).toInt();
 
         if (account != vaultConfig.vault) {
