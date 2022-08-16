@@ -165,13 +165,40 @@ library VaultConfiguration {
         VaultConfigStorage calldata vaultConfig
     ) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
+        VaultConfig memory existingVaultConfig = _getVaultConfig(vaultAddress);
+        // Cannot change borrow currency once set
+        require(vaultConfig.borrowCurrencyId != 0);
+        require(existingVaultConfig.borrowCurrencyId == 0 || existingVaultConfig.borrowCurrencyId == vaultConfig.borrowCurrencyId);
+
         // Liquidation rate must be greater than or equal to 100
         require(Constants.PERCENTAGE_DECIMALS <= vaultConfig.liquidationRate);
+        // This must be true or else when deleveraging we could put an account further towards insolvency
+        require(vaultConfig.minCollateralRatioBPS < vaultConfig.maxDeleverageCollateralRatioBPS);
+        // minCollateralRatioBPS to RATE_PRECISION is minCollateralRatioBPS * BASIS_POINT (1e5)
+        // liquidationRate to RATE_PRECISION  is liquidationRate * RATE_PRECISION / PERCENTAGE_DECIMALS (net 1e7)
+        //    (liquidationRate - 100) * 1e9 / 1e2 < minCollateralRatioBPS * 1e5
+        //    (liquidationRate - 100) * 1e2 < minCollateralRatioBPS
+        uint16 liquidationRate = uint16(
+            uint256(vaultConfig.liquidationRate - uint256(Constants.PERCENTAGE_DECIMALS)) * uint256(1e2)
+        );
+        // Ensure that liquidation rate is less than minCollateralRatio so that liquidations are not locked
+        // up causing accounts to remain insolvent
+        require(liquidationRate < vaultConfig.minCollateralRatioBPS);
+
         // Reserve fee share must be less than or equal to 100
         require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
         require(vaultConfig.maxBorrowMarketIndex != 0);
-        // This must be true or else when deleveraging we could put an account further towards insolvency
-        require(vaultConfig.minCollateralRatioBPS < vaultConfig.maxDeleverageCollateralRatioBPS);
+
+        // Secondary borrow currencies cannot change once set
+        require(
+            existingVaultConfig.secondaryBorrowCurrencies[0] == 0 ||
+            existingVaultConfig.secondaryBorrowCurrencies[0] == vaultConfig.secondaryBorrowCurrencies[0]
+        );
+        require(
+            existingVaultConfig.secondaryBorrowCurrencies[1] == 0 ||
+            existingVaultConfig.secondaryBorrowCurrencies[1] == vaultConfig.secondaryBorrowCurrencies[1]
+        );
+
         // The borrow currency cannot be duplicated as a secondary borrow currency
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[0]);
         require(vaultConfig.borrowCurrencyId != vaultConfig.secondaryBorrowCurrencies[1]);

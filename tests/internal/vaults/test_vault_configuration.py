@@ -37,6 +37,12 @@ def test_set_vault_config(vaultConfig, accounts):
         conf[8] = 1000
         vaultConfig.setVaultConfig(accounts[0], conf)
 
+    with brownie.reverts():
+        # Fails on liquidation rate above min collateral ratio
+        conf = get_vault_config()
+        conf[5] = 120
+        vaultConfig.setVaultConfig(accounts[0], conf)
+
     conf = get_vault_config()
     vaultConfig.setVaultConfig(accounts[0], conf)
 
@@ -51,6 +57,32 @@ def test_set_vault_config(vaultConfig, accounts):
     assert config["reserveFeeShare"] == conf[6]
     assert config["maxBorrowMarketIndex"] == conf[7]
     assert config["maxDeleverageCollateralRatio"] == conf[8] * BASIS_POINT
+
+
+def test_cannot_change_borrow_currencies(vaultConfig, accounts):
+    conf = get_vault_config(secondaryBorrowCurrencies=[3, 0])
+    vaultConfig.setVaultConfig(accounts[0], conf)
+
+    with brownie.reverts():
+        conf = get_vault_config(secondaryBorrowCurrencies=[3, 0])
+        conf[1] = 2
+        vaultConfig.setVaultConfig(accounts[0], conf)
+
+    with brownie.reverts():
+        conf = get_vault_config(secondaryBorrowCurrencies=[3, 0])
+        conf[9] = [4, 0]
+        vaultConfig.setVaultConfig(accounts[0], conf)
+
+    # Can add an additional secondary borrow
+    conf = get_vault_config(secondaryBorrowCurrencies=[3, 0])
+    conf[9] = [3, 2]
+    vaultConfig.setVaultConfig(accounts[0], conf)
+
+    with brownie.reverts():
+        # Cannot change it once set
+        conf = get_vault_config(secondaryBorrowCurrencies=[3, 0])
+        conf[9] = [3, 5]
+        vaultConfig.setVaultConfig(accounts[0], conf)
 
 
 def test_pause_and_enable_vault(vaultConfig, accounts):
@@ -180,7 +212,7 @@ def test_transfer_eth_to_vault_direct(cTokenVaultConfig, vault, accounts):
 
 def test_transfer_dai_to_vault_direct(cTokenVaultConfig, vault, accounts):
     cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=2))
-    token = MockERC20.at(cTokenVaultConfig.getUnderlyingToken(2))
+    token = get_underlying_token(cTokenVaultConfig, 2)
     token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
 
     balanceBefore = token.balanceOf(vault)
@@ -196,7 +228,7 @@ def test_transfer_dai_to_vault_direct(cTokenVaultConfig, vault, accounts):
 
 def test_transfer_usdc_to_vault_direct(cTokenVaultConfig, vault, accounts):
     cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=4))
-    token = MockERC20.at(cTokenVaultConfig.getUnderlyingToken(4))
+    token = get_underlying_token(cTokenVaultConfig, 4)
     token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
 
     balanceBefore = token.balanceOf(vault)
@@ -210,9 +242,22 @@ def test_transfer_usdc_to_vault_direct(cTokenVaultConfig, vault, accounts):
     assert transferAmount == 100e6
 
 
+def get_asset_token(cTokenVaultConfig, currencyId):
+    (assetToken, _) = cTokenVaultConfig.getCurrency(currencyId)
+    if assetToken["tokenType"] == 4:
+        return MockERC20.at(assetToken["tokenAddress"])
+    else:
+        return MockCToken.at(assetToken["tokenAddress"])
+
+
+def get_underlying_token(cTokenVaultConfig, currencyId):
+    (_, underlying) = cTokenVaultConfig.getCurrency(currencyId)
+    return MockERC20.at(underlying["tokenAddress"])
+
+
 def test_transfer_non_mintable_to_vault_direct(cTokenVaultConfig, vault, accounts):
     cTokenVaultConfig.setVaultConfig(vault.address, get_vault_config(currencyId=5))
-    token = MockERC20.at(cTokenVaultConfig.getAssetToken(5))
+    token = get_asset_token(cTokenVaultConfig, 5)
     token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
 
     balanceBefore = token.balanceOf(vault)
@@ -245,12 +290,12 @@ def get_redeem_vault(currencyId, cTokenVaultConfig, accounts):
         balanceBefore = accounts[1].balance()
         decimals = 18
     elif currencyId == 5:
-        token = MockERC20.at(cTokenVaultConfig.getAssetToken(5))
+        token = get_asset_token(cTokenVaultConfig, 5)
         token.transfer(vault.address, 100e18, {"from": accounts[0]})
         balanceBefore = token.balanceOf(accounts[1])
         decimals = token.decimals()
     else:
-        token = MockERC20.at(cTokenVaultConfig.getUnderlyingToken(currencyId))
+        token = get_underlying_token(cTokenVaultConfig, currencyId)
         decimals = token.decimals()
         token.transfer(vault.address, 100 * (10 ** decimals), {"from": accounts[0]})
         balanceBefore = token.balanceOf(accounts[1])
@@ -298,10 +343,10 @@ def test_redeem_sufficient_to_repay_debt(cTokenVaultConfig, currencyId, accounts
     # In this redemption, the debt is split back with Notional
     if currencyId == 5:
         debtToRepay = -5e18
-        assetToken = MockERC20.at(cTokenVaultConfig.getAssetToken(currencyId))
+        assetToken = get_asset_token(cTokenVaultConfig, currencyId)
     else:
         debtToRepay = -250e8
-        assetToken = MockCToken.at(cTokenVaultConfig.getAssetToken(currencyId))
+        assetToken = get_asset_token(cTokenVaultConfig, currencyId)
 
     assetCash = cTokenVaultConfig.redeem(
         vault.address, 5e8, debtToRepay, accounts[1], "", {"from": accounts[1]}
@@ -344,7 +389,7 @@ def test_redeem_sufficient_to_repay_debt(cTokenVaultConfig, currencyId, accounts
 def test_redeem_insufficient_to_repay_debt_eth(cTokenVaultConfig, accounts):
     (vault, token, decimals, balanceBefore) = get_redeem_vault(1, cTokenVaultConfig, accounts)
     debtToRepay = -750e8
-    assetToken = MockCToken.at(cTokenVaultConfig.getAssetToken(1))
+    assetToken = get_asset_token(cTokenVaultConfig, 1)
 
     with brownie.reverts("Insufficient repayment"):
         cTokenVaultConfig.redeem(
@@ -384,10 +429,10 @@ def test_redeem_insufficient_to_repay_debt_tokens(cTokenVaultConfig, currencyId,
     # account
     if currencyId == 5:
         debtToRepay = -15e18
-        assetToken = MockERC20.at(cTokenVaultConfig.getAssetToken(currencyId))
+        assetToken = get_asset_token(cTokenVaultConfig, currencyId)
     else:
         debtToRepay = -750e8
-        assetToken = MockCToken.at(cTokenVaultConfig.getAssetToken(currencyId))
+        assetToken = get_asset_token(cTokenVaultConfig, currencyId)
 
     # Reverts on allowance
     with brownie.reverts():
@@ -435,15 +480,17 @@ def test_redeem_insufficient_to_repay_debt_tokens(cTokenVaultConfig, currencyId,
             )
 
 
+@pytest.mark.only
 @given(currencyId=strategy("uint", min_value=1, max_value=5))
 def test_redeem_with_vault_address(cTokenVaultConfig, currencyId, accounts):
     if currencyId == 3:
         return
 
     if currencyId == 5:
-        assetToken = MockERC20.at(cTokenVaultConfig.getAssetToken(currencyId))
+        assetToken = get_asset_token(cTokenVaultConfig, currencyId)
     else:
-        assetToken = MockCToken.at(cTokenVaultConfig.getAssetToken(currencyId))
+        token = get_asset_token(cTokenVaultConfig, currencyId)
+        assetToken = MockCToken.at(token.address)
 
     (vault, token, decimals, balanceBefore) = get_redeem_vault(
         currencyId, cTokenVaultConfig, accounts

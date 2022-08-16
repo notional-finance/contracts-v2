@@ -286,23 +286,11 @@ contract MockVaultConfiguration {
         });
     }
 
-    function getUnderlyingToken(uint16 currencyId) external view returns (address) {
-        return TokenHandler.getUnderlyingToken(currencyId).tokenAddress;
-    }
-
-    function getAssetToken(uint16 currencyId) external view returns (address) {
-        return TokenHandler.getAssetToken(currencyId).tokenAddress;
-    }
-
-    function getCurrencyAndRates(uint16 currencyId) external view returns (
-        Token memory assetToken,
-        Token memory underlyingToken,
-        ETHRate memory /* ethRate */,
-        AssetRateParameters memory assetRate
+    function getCurrency(uint16 currencyId) external view returns (
+        Token memory assetToken, Token memory underlyingToken
     ) {
-        assetToken = TokenHandler.getAssetToken(currencyId);
         underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
-        assetRate = AssetRate.buildAssetRateView(currencyId);
+        assetToken = TokenHandler.getAssetToken(currencyId);
     }
 
     function setExchangeRate(uint16 currencyId, ETHRateStorage calldata rate) external {

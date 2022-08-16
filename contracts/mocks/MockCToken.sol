@@ -58,14 +58,17 @@ contract MockCToken is ERC20 {
         ERC20(underlying).transferFrom(msg.sender, address(this), mintAmount);
         uint minted = (mintAmount * 1e18) / _answer;
         _mint(msg.sender, minted);
-        return minted;
+
+        // This is the error code
+        return 0;
     }
 
     function redeem(uint redeemTokens) external returns (uint) {
         _burn(msg.sender, redeemTokens);
         uint redeemed = (redeemTokens * _answer) / 1e18;
         ERC20(underlying).transfer(msg.sender, redeemed);
-        return redeemed;
+        // This is the error code
+        return 0;
     }
 }
 

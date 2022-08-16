@@ -74,9 +74,10 @@ abstract contract BaseStrategyVault is IStrategyVault {
         NOTIONAL = NotionalProxy(notional_);
         BORROW_CURRENCY_ID = borrowCurrencyId_;
 
-        (Token memory assetToken, Token memory underlyingToken, , ) = /* ETHRate memory ethRate */
-        /* AssetRateParameters memory assetRate */
-        NotionalProxy(notional_).getCurrencyAndRates(borrowCurrencyId_);
+        (
+            Token memory assetToken,
+            Token memory underlyingToken
+        ) = NotionalProxy(notional_).getCurrency(borrowCurrencyId_);
 
         address underlyingAddress = assetToken.tokenType == TokenType.NonMintable
             ? assetToken.tokenAddress
