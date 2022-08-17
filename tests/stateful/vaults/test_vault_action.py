@@ -540,6 +540,23 @@ def test_borrow_secondary_currency_fails_over_max_capacity(environment, accounts
         vault.borrowSecondaryCurrency(accounts[1], maturity, [100e8, 0], [0, 0], [0, 0])
 
 
+def test_borrow_secondary_currency_fails_via_vault(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address, 1, 100e8, {"from": environment.notional.owner()}
+    )
+
+    with brownie.reverts():
+        vault.borrowSecondaryCurrency(vault, maturity, [1e8, 1e8], [0, 0], [0, 0])
+
+
 def test_borrow_secondary_currency_account_factors(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
@@ -1072,7 +1089,6 @@ def test_settle_with_secondary_borrow_fail(environment, accounts, vault):
         vault.repaySecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
 
 
-@pytest.mark.only
 def test_settle_with_secondary_borrow_fail_zero_borrows(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,

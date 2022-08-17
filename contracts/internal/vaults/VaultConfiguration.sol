@@ -707,6 +707,8 @@ library VaultConfiguration {
         uint256 fCashToBorrow,
         uint32 maxBorrowRate
     ) internal returns (int256 netAssetCash, uint256 accountDebtShares) {
+        // Vaults cannot initiate borrows, only repayments
+        require(account != vaultConfig.vault);
         // This will revert if we overflow the maximum borrow capacity, expects a negative fCash value when borrowing
         updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToBorrow.toInt().neg());
 
@@ -717,24 +719,18 @@ library VaultConfiguration {
         uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
         uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
 
-        if (account != vaultConfig.vault) {
-            // If individual accounts are borrowing, calculate the debt shares they accrue from borrowing
-            // the specified amount of fCash.
-
-            // After this point, (accountDebtShares * totalfCashBorrowed) / totalDebtShares = fCashToBorrow
-            // therefore: accountfCashShares = (netfCash * totalfCashShares) / totalfCashBorrowed
-            if (totalfCashBorrowed == 0) {
-                accountDebtShares = fCashToBorrow;
-            } else {
-                accountDebtShares = fCashToBorrow.mul(totalAccountDebtShares).div(totalfCashBorrowed);
-            }
-
-            _updateAccountDebtShares(
-                vaultConfig, account, currencyId, maturity, accountDebtShares.toInt()
-            );
-            balance.totalAccountDebtShares = totalAccountDebtShares.add(accountDebtShares).toUint80();
+        // After this point, (accountDebtShares * totalfCashBorrowed) / totalDebtShares = fCashToBorrow
+        // therefore: accountfCashShares = (netfCash * totalfCashShares) / totalfCashBorrowed
+        if (totalfCashBorrowed == 0) {
+            accountDebtShares = fCashToBorrow;
+        } else {
+            accountDebtShares = fCashToBorrow.mul(totalAccountDebtShares).div(totalfCashBorrowed);
         }
 
+        _updateAccountDebtShares(
+            vaultConfig, account, currencyId, maturity, accountDebtShares.toInt()
+        );
+        balance.totalAccountDebtShares = totalAccountDebtShares.add(accountDebtShares).toUint80();
         balance.totalfCashBorrowed = totalfCashBorrowed.add(fCashToBorrow).toUint80();
 
         netAssetCash = _executeSecondaryCurrencyTrade(
