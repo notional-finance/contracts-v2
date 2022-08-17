@@ -1070,3 +1070,34 @@ def test_settle_with_secondary_borrow_fail(environment, accounts, vault):
     # Cannot repay secondary currency on the vault
     with brownie.reverts("In Settlement"):
         vault.repaySecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)
+
+
+@pytest.mark.only
+def test_settle_with_secondary_borrow_fail_zero_borrows(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2, flags=set_flags(0, ENABLED=True), secondaryBorrowCurrencies=[1, 3]
+        ),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 1, 100e8, {"from": environment.notional.owner()}
+    )
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault, 3, 100e8, {"from": environment.notional.owner()}
+    )
+    vault.initiateSecondaryBorrowSettlement(maturity, {"from": accounts[0]})
+
+    # Cannot re-initiate secondary borrow
+    with brownie.reverts("Cannot Reset Snapshot"):
+        vault.initiateSecondaryBorrowSettlement(maturity, {"from": accounts[0]})
+
+    # Cannot borrow secondary currency at this point
+    with brownie.reverts("In Settlement"):
+        vault.borrowSecondaryCurrency(accounts[1], maturity, [1e8, 1e8], [0, 0], [0, 0])
+
+    # Cannot repay secondary currency on the vault
+    with brownie.reverts("In Settlement"):
+        vault.repaySecondaryCurrency(accounts[1], 1, maturity, 1e8, 0)

@@ -500,6 +500,8 @@ struct VaultSecondaryBorrowStorage {
     // snapshot prior to settlement. This is used to offset account value on settlement. Once this
     // value is set, accounts can no longer borrow or repay on the secondary borrow currency
     uint80 totalfCashBorrowedInPrimarySnapshot;
+    // Set to true once when the snapshot is set
+    bool hasSnapshotBeenSet;
 }
 
 struct VaultConfig {

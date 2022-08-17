@@ -713,7 +713,7 @@ library VaultConfiguration {
         // Updates storage for the specific maturity so we can track this on chain.
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
-        require(balance.totalfCashBorrowedInPrimarySnapshot == 0, "In Settlement");
+        require(!balance.hasSnapshotBeenSet, "In Settlement");
         uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
         uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
 
@@ -764,7 +764,7 @@ library VaultConfiguration {
             LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
 
         // Once a secondary borrow is in settlement, only the vault can initiate repayment
-        require(balance.totalfCashBorrowedInPrimarySnapshot == 0 || account == vaultConfig.vault, "In Settlement");
+        require(!balance.hasSnapshotBeenSet || account == vaultConfig.vault, "In Settlement");
         uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
         uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
 
@@ -814,7 +814,7 @@ library VaultConfiguration {
         VaultSecondaryBorrowStorage storage balance = 
             LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
         // The snapshot value can only be set once when settlement is initiated
-        require(balance.totalfCashBorrowedInPrimarySnapshot == 0, "Cannot Reset Snapshot");
+        require(!balance.hasSnapshotBeenSet, "Cannot Reset Snapshot");
 
         int256 totalfCashBorrowed = int256(uint256(balance.totalfCashBorrowed));
         ETHRate memory primaryER = ExchangeRate.buildExchangeRate(vaultConfig.borrowCurrencyId);
@@ -824,6 +824,7 @@ library VaultConfiguration {
         // Converts totafCashBorrowed (in secondary, underlying) to primary underlying via ETH exchange rates
         totalfCashBorrowedInPrimary = totalfCashBorrowed.mul(primaryER.rateDecimals).div(exchangeRate);
         balance.totalfCashBorrowedInPrimarySnapshot = totalfCashBorrowedInPrimary.toUint().toUint80();
+        balance.hasSnapshotBeenSet = true;
 
         emit VaultSecondaryBorrowSnapshot(
             vaultConfig.vault, currencyId, maturity, totalfCashBorrowedInPrimary, exchangeRate
