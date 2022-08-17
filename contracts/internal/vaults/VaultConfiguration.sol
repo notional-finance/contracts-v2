@@ -330,12 +330,16 @@ library VaultConfiguration {
     ) internal view returns (int256 collateralRatio, int256 vaultShareValue) {
         vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, account, vaultShares);
 
+        // This value is the total amount of fCash borrowed in secondary currencies denominated in the
+        // primary borrow currency as a positive integer.
+        int256 secondaryDebtOutstanding = _getSecondaryDebtOutstanding(vaultConfig, account, vaultState.maturity);
+
         // We do not discount fCash to present value so that we do not introduce interest
         // rate risk in this calculation. The economic benefit of discounting will be very
         // minor relative to the added complexity of accounting for interest rate risk.
 
         // Convert fCash to a positive amount of asset cash
-        int256 debtOutstanding = vaultConfig.assetRate.convertFromUnderlying(fCash.neg());
+        int256 debtOutstanding = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().add(secondaryDebtOutstanding));
 
         // netAssetValue includes the value held in vaultShares (strategyTokenValue + assetCashHeld) net
         // off against the outstanding debt. netAssetValue can be either positive or negative here. If it
@@ -354,6 +358,58 @@ library VaultConfiguration {
             collateralRatio = netAssetValue.divInRatePrecision(debtOutstanding);
         }
     }
+
+    /**
+     * @notice Returns the total fCash borrowed in primary currency terms between both secondary
+     * borrow currencies (if they are configured).
+     */
+    function _getSecondaryDebtOutstanding(
+        VaultConfig memory vaultConfig,
+        address account,
+        uint256 maturity
+    ) private view returns (int256 totalfCashBorrowedInPrimary) {
+        if (vaultConfig.secondaryBorrowCurrencies[0] != 0 || vaultConfig.secondaryBorrowCurrencies[1] != 0) {
+            VaultAccountSecondaryDebtShareStorage storage s = 
+                LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
+            ETHRate memory primaryER = ExchangeRate.buildExchangeRate(vaultConfig.borrowCurrencyId);
+            uint256 accountDebtSharesOne = s.accountDebtSharesOne;
+            uint256 accountDebtSharesTwo = s.accountDebtSharesTwo;
+
+            if (accountDebtSharesOne > 0) {
+                totalfCashBorrowedInPrimary = totalfCashBorrowedInPrimary.add(_calculateSecondaryDebt(
+                    primaryER, vaultConfig.secondaryBorrowCurrencies[0], vaultConfig.vault, maturity, accountDebtSharesOne
+                ));
+            }
+
+            if (accountDebtSharesTwo > 0) {
+                totalfCashBorrowedInPrimary = totalfCashBorrowedInPrimary.add(_calculateSecondaryDebt(
+                    primaryER, vaultConfig.secondaryBorrowCurrencies[1], vaultConfig.vault, maturity, accountDebtSharesTwo
+                ));
+            }
+        }
+    }
+
+    /**
+     * @notice Calculates the amount of secondary debt borrowed by an account in primary currency terms.
+     */
+    function _calculateSecondaryDebt(
+        ETHRate memory primaryER,
+        uint16 currencyId,
+        address vault,
+        uint256 maturity,
+        uint256 accountDebtShares
+    ) private view returns (int256 fCashBorrowedInPrimary) {
+        VaultSecondaryBorrowStorage storage balance = LibStorage.getVaultSecondaryBorrow()
+            [vault][maturity][currencyId];
+        uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
+        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
+        
+        int256 fCashBorrowed = accountDebtShares.mul(totalfCashBorrowed).div(totalAccountDebtShares).toInt();
+        ETHRate memory secondaryER = ExchangeRate.buildExchangeRate(currencyId);
+        int256 exchangeRate = ExchangeRate.exchangeRate(primaryER, secondaryER);
+        fCashBorrowedInPrimary = fCashBorrowed.mul(primaryER.rateDecimals).div(exchangeRate);
+    }
+
 
     /// @notice Convenience method for checking that a collateral ratio remains above the configured minimum
     function checkCollateralRatio(

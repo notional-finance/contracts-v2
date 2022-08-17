@@ -2,7 +2,7 @@ import logging
 
 import brownie
 import pytest
-from brownie import MockAggregator, MockCToken, MockERC20
+from brownie import MockAggregator, MockCToken, MockERC20, cTokenV2Aggregator
 from brownie.convert.datatypes import Wei
 from brownie.test import given, strategy
 from fixtures import *
@@ -352,7 +352,7 @@ def test_settle_with_secondary_borrow_currency(vaultConfigAccount, accounts, vau
 
 
 def get_collateral_ratio(vaultConfigAccount, vault, **kwargs):
-    vault.setExchangeRate(kwargs.get("exchangeRate", 1.2e28))
+    vault.setExchangeRate(kwargs.get("exchangeRate", 1.2e18))
 
     account = get_vault_account(
         maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
@@ -430,3 +430,61 @@ def test_collateral_ratio_increases_with_vault_asset_cash(vaultConfigAccount, va
         assetCashHeld += increment
         assert ratio > lastCollateral
         lastCollateral = ratio
+
+
+@given(
+    accountDebtSharesOne=strategy("uint", max_value=200_000e8),
+    accountDebtSharesTwo=strategy("uint", max_value=200_000e8),
+)
+def test_collateral_ratio_with_secondary_debt_shares(
+    vaultConfigAccount,
+    vault,
+    accounts,
+    cToken,
+    underlying,
+    accountDebtSharesOne,
+    accountDebtSharesTwo,
+):
+    maturity = START_TIME_TREF + SECONDS_IN_QUARTER
+    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
+    vaultConfigAccount.setToken(
+        2,
+        aggregator.address,
+        18,
+        (cToken.address, False, TokenType["cToken"], 8, 0),
+        (underlying.address, False, TokenType["UnderlyingToken"], 18, 0),
+        accounts[8].address,
+        {"from": accounts[0]},
+    )
+
+    vaultConfigAccount.setVaultConfig(
+        vault.address, get_vault_config(currencyId=2, secondaryBorrowCurrencies=[3, 4])
+    )
+    vaultConfigAccount.setSecondaryBorrows(vault.address, maturity, 3, 100_000e8, 200_000e8)
+
+    vaultConfigAccount.setSecondaryBorrows(vault.address, maturity, 4, 1000e8, 200_000e8)
+
+    daiRateOracle = MockAggregator.deploy(18, {"from": accounts[0]})
+    daiRateOracle.setAnswer(0.01e18)
+    vaultConfigAccount.setExchangeRate(2, [daiRateOracle, 18, False, 100, 100, 100])
+
+    usdcRateOracle = MockAggregator.deploy(18, {"from": accounts[0]})
+    usdcRateOracle.setAnswer(0.005e18)
+    vaultConfigAccount.setExchangeRate(3, [usdcRateOracle, 18, False, 100, 100, 100])
+
+    wbtcRateOracle = MockAggregator.deploy(18, {"from": accounts[0]})
+    wbtcRateOracle.setAnswer(1e18)
+    vaultConfigAccount.setExchangeRate(4, [wbtcRateOracle, 18, False, 100, 100, 100])
+
+    ratio = get_collateral_ratio(vaultConfigAccount, vault, fCash=-100_000e8)
+    vaultConfigAccount.setAccountDebtShares(
+        vault.address, accounts[0], maturity, accountDebtSharesOne, accountDebtSharesTwo
+    )
+
+    # Borrowing 50_000e8 USDC at $0.50, equivalent to borrowing another 25_000e8 DAI
+    fCashOffsetOne = accountDebtSharesOne * 100_000e8 / 200_000e8 * 0.5
+    fCashOffsetTwo = accountDebtSharesTwo * 1000e8 / 200_000e8 * 100
+    ratio2 = get_collateral_ratio(
+        vaultConfigAccount, vault, fCash=-100_000e8 + fCashOffsetOne + fCashOffsetTwo
+    )
+    assert pytest.approx(ratio, abs=1) == ratio2
