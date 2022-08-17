@@ -573,7 +573,10 @@ struct VaultAccountStorage {
 }
 
 struct VaultAccountSecondaryDebtShareStorage {
-    // Maturity for the account's secondary borrows
+    // Maturity for the account's secondary borrows. This is stored separately from
+    // the vault account maturity to ensure that we have access to the proper state
+    // during a roll borrow position. It should never be allowed to deviate from the
+    // vaultAccount.maturity value (unless it is cleared to zero).
     uint32 maturity;
     // Account debt shares for the first secondary currency
     uint80 accountDebtSharesOne;

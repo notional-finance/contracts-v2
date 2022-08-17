@@ -225,6 +225,10 @@ library VaultConfiguration {
         cap.maxBorrowCapacity = maxBorrowCapacity;
     }
 
+    function hasSecondaryBorrows(VaultConfig memory vaultConfig) internal pure returns (bool) {
+        return vaultConfig.secondaryBorrowCurrencies[0] != 0 || vaultConfig.secondaryBorrowCurrencies[1] != 0;
+    }
+
     /// @notice Authorizes callers based on the vault flags set in the confiuration
     function authorizeCaller(
         VaultConfig memory vaultConfig,
@@ -368,7 +372,7 @@ library VaultConfiguration {
         address account,
         uint256 maturity
     ) private view returns (int256 totalfCashBorrowedInPrimary) {
-        if (vaultConfig.secondaryBorrowCurrencies[0] != 0 || vaultConfig.secondaryBorrowCurrencies[1] != 0) {
+        if (hasSecondaryBorrows(vaultConfig)) {
             VaultAccountSecondaryDebtShareStorage storage s = 
                 LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
             ETHRate memory primaryER = ExchangeRate.buildExchangeRate(vaultConfig.borrowCurrencyId);

@@ -67,6 +67,13 @@ library VaultAccountLib {
             require(vaultAccount.fCash == 0 || vaultAccount.vaultShares <= 1, "Min Borrow");
         }
 
+        if (vaultConfig.hasSecondaryBorrows()) {
+            VaultAccountSecondaryDebtShareStorage storage _s = 
+                LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
+            uint256 secondaryMaturity = _s.maturity;
+            require(vaultAccount.maturity == secondaryMaturity || secondaryMaturity == 0); // dev: invalid maturity
+        }
+
         s.fCash = vaultAccount.fCash.neg().toUint().toUint80();
         s.vaultShares = vaultAccount.vaultShares.toUint80();
         s.maturity = vaultAccount.maturity.toUint32();
@@ -393,10 +400,7 @@ library VaultAccountLib {
         // If there are secondary borrow currencies, adjust the totalVaultShareValue and the totalAccountValue
         // accordingly. vaultShareValue will increase as a function of the totalfCashBorrowed prior to settlement
         // and each account's value will decrease in accordance with the secondary fCash they owed.
-        if (
-            vaultConfig.secondaryBorrowCurrencies[0] != 0 ||
-            vaultConfig.secondaryBorrowCurrencies[1] != 0
-        ) {
+        if (vaultConfig.hasSecondaryBorrows()) {
             VaultAccountSecondaryDebtShareStorage storage s = 
                 LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
             
