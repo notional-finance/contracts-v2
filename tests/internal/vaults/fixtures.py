@@ -20,8 +20,26 @@ def cToken(MockCToken, accounts, underlying):
 
 
 @pytest.fixture(scope="module", autouse=True)
-def vaultConfig(MockVaultConfiguration, cToken, cTokenV2Aggregator, accounts, underlying):
-    mockVaultConf = MockVaultConfiguration.deploy({"from": accounts[0]})
+def vaultConfigState(MockVaultConfigurationState, cToken, cTokenV2Aggregator, accounts, underlying):
+    mockVaultConf = MockVaultConfigurationState.deploy({"from": accounts[0]})
+    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
+    mockVaultConf.setToken(
+        1,
+        aggregator.address,
+        18,
+        (cToken.address, False, TokenType["cToken"], 8, 0),
+        (underlying.address, False, TokenType["UnderlyingToken"], 18, 0),
+        accounts[9].address,
+        {"from": accounts[0]},
+    )
+    return mockVaultConf
+
+
+@pytest.fixture(scope="module", autouse=True)
+def vaultConfigAccount(
+    MockVaultConfigurationAccount, cToken, cTokenV2Aggregator, accounts, underlying
+):
+    mockVaultConf = MockVaultConfigurationAccount.deploy({"from": accounts[0]})
     aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
     mockVaultConf.setToken(
         1,
@@ -36,8 +54,10 @@ def vaultConfig(MockVaultConfiguration, cToken, cTokenV2Aggregator, accounts, un
 
 
 @pytest.fixture(scope="module")
-def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenV2Aggregator, MockERC20, accounts):
-    mockVaultConf = MockVaultConfiguration.deploy({"from": accounts[0]})
+def cTokenVaultConfig(
+    MockVaultConfigurationAccount, MockCToken, cTokenV2Aggregator, MockERC20, accounts
+):
+    mockVaultConf = MockVaultConfigurationAccount.deploy({"from": accounts[0]})
 
     cETH = MockCToken.deploy(8, {"from": accounts[0]})
     aggregator = cTokenV2Aggregator.deploy(cETH.address, {"from": accounts[0]})
@@ -103,9 +123,9 @@ def cTokenVaultConfig(MockVaultConfiguration, MockCToken, cTokenV2Aggregator, Mo
 
 
 @pytest.fixture(scope="module", autouse=True)
-def vault(SimpleStrategyVault, vaultConfig, accounts):
+def vault(SimpleStrategyVault, vaultConfigAccount, accounts):
     return SimpleStrategyVault.deploy(
-        "Simple Strategy", vaultConfig.address, 1, {"from": accounts[0]}
+        "Simple Strategy", vaultConfigAccount.address, 1, {"from": accounts[0]}
     )
 
 

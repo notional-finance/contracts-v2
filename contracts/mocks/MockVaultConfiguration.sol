@@ -114,6 +114,78 @@ contract MockVaultConfiguration {
         );
     }
 
+
+    function calculateCollateralRatio(
+        address vault,
+        VaultAccount memory vaultAccount,
+        VaultState memory vaultState
+    ) external view returns (int256 collateralRatio, int256 vaultShareValue) {
+        (collateralRatio, vaultShareValue) = getVaultConfigView(vault).calculateCollateralRatio(
+            vaultState,
+            vaultAccount.account,
+            vaultAccount.vaultShares,
+            vaultAccount.fCash
+        );
+    }
+
+    /*** Vault Account Methods ***/
+    function getVaultAccount(address account, address vault) external view returns (VaultAccount memory) {
+        return VaultAccountLib.getVaultAccount(account, vault);
+    }
+
+    function setVaultAccount(VaultAccount memory vaultAccount, address vault) external {
+        vaultAccount.setVaultAccount(getVaultConfigView(vault));
+    }
+
+    /*** Set Other Globals ***/
+    function setReserveBalance(uint16 currencyId, int256 balance) external {
+        BalanceHandler.setReserveCashBalance(currencyId, balance);
+    }
+
+    function getReserveBalance(uint16 currencyId) external view returns (int256 cashBalance) {
+        (cashBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(address(0), currencyId);
+    }
+
+    function setToken(
+        uint16 currencyId,
+        AssetRateAdapter rateOracle,
+        uint8 underlyingDecimals,
+        TokenStorage memory assetToken,
+        TokenStorage memory underlyingToken,
+        address nTokenAddress
+    ) external {
+        if (assetToken.tokenType != TokenType.NonMintable) {
+            TokenHandler.setToken(currencyId, true, underlyingToken);
+        }
+        TokenHandler.setToken(currencyId, false, assetToken);
+
+        nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
+
+        mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
+        store[currencyId] = AssetRateStorage({
+            rateOracle: rateOracle,
+            underlyingDecimalPlaces: underlyingDecimals
+        });
+    }
+
+    function getCurrency(uint16 currencyId) external view returns (
+        Token memory assetToken, Token memory underlyingToken
+    ) {
+        underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
+        assetToken = TokenHandler.getAssetToken(currencyId);
+    }
+
+    function setExchangeRate(uint16 currencyId, ETHRateStorage calldata rate) external {
+        mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
+        store[currencyId] = rate;
+    }
+
+    receive() external payable { }
+}
+
+contract MockVaultConfigurationState is MockVaultConfiguration {
+    using VaultStateLib for VaultState;
+
     function exitMaturity(
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
@@ -152,28 +224,12 @@ contract MockVaultConfiguration {
     ) external pure returns (uint256 assetCash, uint256 strategyTokens) {
         return vaultState.getPoolShare(vaultShares);
     }
+}
 
-    function calculateCollateralRatio(
-        address vault,
-        VaultAccount memory vaultAccount,
-        VaultState memory vaultState
-    ) external view returns (int256 collateralRatio, int256 vaultShareValue) {
-        (collateralRatio, vaultShareValue) = getVaultConfigView(vault).calculateCollateralRatio(
-            vaultState,
-            vaultAccount.account,
-            vaultAccount.vaultShares,
-            vaultAccount.fCash
-        );
-    }
-
-    /*** Vault Account Methods ***/
-    function getVaultAccount(address account, address vault) external view returns (VaultAccount memory) {
-        return VaultAccountLib.getVaultAccount(account, vault);
-    }
-
-    function setVaultAccount(VaultAccount memory vaultAccount, address vault) external {
-        vaultAccount.setVaultAccount(getVaultConfigView(vault));
-    }
+contract MockVaultConfigurationAccount is MockVaultConfiguration {
+    using VaultConfiguration for VaultConfig;
+    using VaultStateLib for VaultState;
+    using VaultAccountLib for VaultAccount;
 
     function settleVaultAccount(
         address vault,
@@ -254,53 +310,4 @@ contract MockVaultConfiguration {
             maturity
         );
     }
-
-    /*** Set Other Globals ***/
-    function setReserveBalance(uint16 currencyId, int256 balance) external {
-        BalanceHandler.setReserveCashBalance(currencyId, balance);
-    }
-
-    function getReserveBalance(uint16 currencyId) external view returns (int256 cashBalance) {
-        (cashBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(address(0), currencyId);
-    }
-
-    function setToken(
-        uint16 currencyId,
-        AssetRateAdapter rateOracle,
-        uint8 underlyingDecimals,
-        TokenStorage memory assetToken,
-        TokenStorage memory underlyingToken,
-        address nTokenAddress
-    ) external {
-        if (assetToken.tokenType != TokenType.NonMintable) {
-            TokenHandler.setToken(currencyId, true, underlyingToken);
-        }
-        TokenHandler.setToken(currencyId, false, assetToken);
-
-        nTokenHandler.setNTokenAddress(currencyId, nTokenAddress);
-
-        mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
-        store[currencyId] = AssetRateStorage({
-            rateOracle: rateOracle,
-            underlyingDecimalPlaces: underlyingDecimals
-        });
-    }
-
-    function getCurrency(uint16 currencyId) external view returns (
-        Token memory assetToken, Token memory underlyingToken
-    ) {
-        underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
-        assetToken = TokenHandler.getAssetToken(currencyId);
-    }
-
-    function setExchangeRate(uint16 currencyId, ETHRateStorage calldata rate) external {
-        mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
-        store[currencyId] = rate;
-    }
-
-    function getLendingPool() external pure returns (address) {
-        return address(0);
-    }
-
-    receive() external payable { }
 }
