@@ -1034,6 +1034,12 @@
                 "internalType": "uint256",
                 "name": "maturity",
                 "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "underlyingToReceiver",
+                "type": "uint256"
             }
         ],
         "name": "VaultExitPostMaturity",
@@ -1070,6 +1076,12 @@
                 "indexed": false,
                 "internalType": "uint256",
                 "name": "vaultSharesToRedeem",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "underlyingToReceiver",
                 "type": "uint256"
             }
         ],
