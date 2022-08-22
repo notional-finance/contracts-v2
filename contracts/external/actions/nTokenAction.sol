@@ -351,9 +351,9 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
         return (
             address(FreeCollateralExternal),
             address(MigrateIncentives),
+            address(SettleAssetsExternal),
             address(nTokenMintAction),
-            address(nTokenRedeemAction),
-            address(SettleAssetsExternal)
+            address(nTokenRedeemAction)
         );
     }
 }

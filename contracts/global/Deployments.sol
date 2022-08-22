@@ -5,5 +5,5 @@ pragma solidity >=0.7.6;
 /// gas costs for immutable addresses. They must be updated per environment that Notional
 /// is deployed to.
 library Deployments {
-    address internal constant NOTE_TOKEN_ADDRESS = 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
+    address internal constant NOTE_TOKEN_ADDRESS = 0xC5e91B01F9B23952821410Be7Aa3c45B6429C670; // 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
 }

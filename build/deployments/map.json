@@ -208,10 +208,10 @@
   },
   "5": {
     "AccountAction": [
-      "0xb18449Cfa0Ca8A52D18d4D02dE58Dc085c1E2E10"
+      "0x3fD257F1EB41Ec02c3C46cb0b5D7D7cd5341e0bA"
     ],
     "BatchAction": [
-      "0x9B0276029588D2b2aa410103B6B15f630Ee517a8"
+      "0x88eEF02aD87837d2b112e49CCb8Ed318Fa11A483"
     ],
     "CalculationViews": [
       "0x13c7DA6ed5CD843A79522Ce75F959Ab2E328cf04"
@@ -232,10 +232,10 @@
       "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD"
     ],
     "LiquidateCurrencyAction": [
-      "0x2Bcdec0271d3C7b75e07926646ba6975631949Ab"
+      "0x3109F5C0Fd6A34AEBC57fd2E9bd037aDDe18cF78"
     ],
     "LiquidatefCashAction": [
-      "0x79e514531450f066f6adB36afa2Ff21790D4f30E"
+      "0x6C7A4303707A86958f59aB9DFFaCE32573780156"
     ],
     "MigrateIncentives": [
       "0xC7d73900E8Cffe0B5299a4703DfC5a9Aaf77355C"
@@ -248,7 +248,7 @@
       "0x613f379A4D65A62B7843379a5E7071e52528631f"
     ],
     "Router": [
-      "0x0c20eE99D8d3b33A049C1f3F1c37DaA0C1d8d125"
+      "0x436199EDa0b5DED43944C4b44ed3D9a70ce720fc"
     ],
     "SettleAssetsExternal": [
       "0xECe81f27fADd4743B6f574c8202366a3dF25DDC6"
@@ -260,24 +260,23 @@
       "0xBB7712663ab3BeE01a02801276A4441d35470Eb5"
     ],
     "TreasuryAction": [
-      "0x6F30b7E18868d55BAe4Cd9B07a188D41bDcA0321"
+      "0xeB0112019DB7B647d94eb1a010e62bD8aBAF158d"
     ],
     "VaultAccountAction": [
-      "0x8747122f774f29aa940216f9e790964902E15ba4"
+      "0xc560977166B3E59E8CF116a0ca5EEb8A6C1ffa8C"
     ],
     "VaultAction": [
-      "0x164D1266a307949Af7e9447fe3dC7aa96A1B9f8A"
+      "0xD00e97Cd70a184e1CB34098355a24c20eaE63E5E"
     ],
     "Views": [
-      "0xcD5dedF4a1d7a0c070218cA568DcbF7395282ffa",
-      "0xFDC8f5f6e626934Fe6209C7477e992a79e0cf64E"
+      "0x5a133dD3AF33b2E9EeEB40ED2AD52a10B154bf90"
     ],
     "nProxy": [
       "0xc92F08dD497CDe3885c4745E0A49b86cf32E53eD",
       "0xC5e91B01F9B23952821410Be7Aa3c45B6429C670"
     ],
     "nTokenAction": [
-      "0x98978d9e7cb298ff4b5EC5135e7a3D429E275735"
+      "0x03CeAC91e716864E40b04d8ae9bCa343Be0179A0"
     ],
     "nTokenMintAction": [
       "0x8e97F4e7685835d126EA9E9BD3f97562d87CF54E"
