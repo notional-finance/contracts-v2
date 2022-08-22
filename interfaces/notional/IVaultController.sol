@@ -213,7 +213,8 @@ interface IVaultAccountAction {
     event VaultExitPostMaturity(
         address indexed vault,
         address indexed account,
-        uint256 indexed maturity
+        uint256 indexed maturity,
+        uint256 underlyingToReceiver
     );
 
     event VaultExitPreMaturity(
@@ -221,7 +222,8 @@ interface IVaultAccountAction {
         address indexed account,
         uint256 indexed maturity,
         uint256 fCashToLend,
-        uint256 vaultSharesToRedeem
+        uint256 vaultSharesToRedeem,
+        uint256 underlyingToReceiver
     );
 
     event VaultDeleverageAccount(

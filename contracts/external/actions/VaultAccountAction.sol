@@ -194,7 +194,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             underlyingToReceiver = vaultConfig.redeemWithDebtRepayment(
                 vaultAccount, receiver, strategyTokens, maturity, exitVaultData
             );
-            emit VaultExitPostMaturity(vault, account, maturity);
+            emit VaultExitPostMaturity(vault, account, maturity, underlyingToReceiver);
         } else {
             VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
             // Puts a negative cash balance on the vault's temporary cash balance
@@ -227,7 +227,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             // Set the vault state after redemption completes
             vaultState.setVaultState(vaultConfig.vault);
-            emit VaultExitPreMaturity(vault, account, vaultState.maturity, fCashToLend, vaultSharesToRedeem);
+            emit VaultExitPreMaturity(vault, account, vaultState.maturity, fCashToLend, vaultSharesToRedeem, underlyingToReceiver);
         }
 
         if (vaultAccount.fCash == 0 && vaultAccount.vaultShares == 0) {
