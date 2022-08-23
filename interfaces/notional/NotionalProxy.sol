@@ -3,7 +3,7 @@ pragma solidity >=0.7.6;
 pragma abicoder v2;
 
 import "../../contracts/global/Types.sol";
-import "./INTokenAction.sol";
+import "./nTokenERC20.sol";
 import "./nERC1155Interface.sol";
 import "./NotionalGovernance.sol";
 import "./NotionalCalculations.sol";
@@ -12,7 +12,7 @@ import "./NotionalTreasury.sol";
 import {IVaultController} from "./IVaultController.sol";
 
 interface NotionalProxy is
-    INTokenAction,
+    nTokenERC20,
     nERC1155Interface,
     NotionalGovernance,
     NotionalTreasury,

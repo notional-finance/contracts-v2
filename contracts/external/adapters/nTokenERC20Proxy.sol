@@ -2,33 +2,52 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import {INTokenAction} from "../../../../interfaces/notional/INTokenAction.sol";
-import {BaseNTokenProxy} from "./BaseNTokenProxy.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-contract nTokenERC20Proxy is BaseNTokenProxy {
+/// @notice ERC20 proxy for nToken contracts that forwards calls to the Router, all nToken
+/// balances and allowances are stored in at single address for gas efficiency. This contract
+/// is used simply for ERC20 compliance.
+contract nTokenERC20Proxy is IERC20 {
+    /// @notice Will be "nToken {Underlying Token}.name()", therefore "USD Coin" will be
+    /// nToken USD Coin
+    string public name;
 
-    constructor(address notional_, address weth_) BaseNTokenProxy(notional_, weth_) { }
+    /// @notice Will be "n{Underlying Token}.symbol()", therefore "USDC" will be "nUSDC"
+    string public symbol;
 
-    function initialize(
+    /// @notice Inherits from Constants.INTERNAL_TOKEN_PRECISION
+    uint8 public constant decimals = 8;
+
+    /// @notice Address of the notional proxy
+    nTokenERC20 public immutable proxy;
+
+    /// @notice Currency id that this nToken refers to
+    uint16 public immutable currencyId;
+
+    constructor(
+        nTokenERC20 proxy_,
         uint16 currencyId_,
         string memory underlyingName_,
         string memory underlyingSymbol_
-    ) external override {
-        // This method is marked as an initializer and will prevent this from being called twice
-        _initialize(currencyId_, underlyingName_, underlyingSymbol_, false);
+    ) {
+        proxy = proxy_;
+        currencyId = currencyId_;
+        name = string(abi.encodePacked("nToken ", underlyingName_));
+        symbol = string(abi.encodePacked("n", underlyingSymbol_));
     }
 
     /// @notice Total number of tokens in circulation
-    function totalSupply() public view override returns (uint256) {
+    function totalSupply() external view override returns (uint256) {
         // Total supply is looked up via the token address
-        return INTokenAction(Notional).nTokenTotalSupply(address(this));
+        return proxy.nTokenTotalSupply(address(this));
     }
 
     /// @notice Get the number of tokens held by the `account`
     /// @param account The address of the account to get the balance of
     /// @return The number of tokens held
-    function balanceOf(address account) public view override returns (uint256) {
-        return INTokenAction(Notional).nTokenBalanceOf(currencyId, account);
+    function balanceOf(address account) external view override returns (uint256) {
+        return proxy.nTokenBalanceOf(currencyId, account);
     }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
@@ -36,8 +55,7 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
     /// @param spender The address of the account spending the funds
     /// @return The number of tokens approved
     function allowance(address account, address spender) external view override returns (uint256) {
-        // For the nToken proxy, allowances are tracked on the Notional contract itself.
-        return INTokenAction(Notional).nTokenTransferAllowance(currencyId, account, spender);
+        return proxy.nTokenTransferAllowance(currencyId, account, spender);
     }
 
     /// @notice Approve `spender` to transfer up to `amount` from `src`
@@ -48,10 +66,10 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
     /// @param amount The number of tokens that are approved (2^256-1 means infinite)
     /// @return Whether or not the approval succeeded
     function approve(address spender, uint256 amount) external override returns (bool) {
-        bool success = INTokenAction(Notional).nTokenTransferApprove(currencyId, msg.sender, spender, amount);
+        bool success = proxy.nTokenTransferApprove(currencyId, msg.sender, spender, amount);
         // Emit approvals here so that they come from the correct contract address
         if (success) emit Approval(msg.sender, spender, amount);
-        return true;
+        return success;
     }
 
     /// @notice Transfer `amount` tokens from `msg.sender` to `to`
@@ -60,7 +78,7 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
     /// @param amount The number of tokens to transfer
     /// @return Whether or not the transfer succeeded
     function transfer(address to, uint256 amount) external override returns (bool) {
-        bool success = INTokenAction(Notional).nTokenTransfer(currencyId, msg.sender, to, amount);
+        bool success = proxy.nTokenTransfer(currencyId, msg.sender, to, amount);
         // Emit transfer events here so they come from the correct contract
         if (success) emit Transfer(msg.sender, to, amount);
         return success;
@@ -78,7 +96,7 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
         uint256 amount
     ) external override returns (bool) {
         bool success =
-            INTokenAction(Notional).nTokenTransferFrom(currencyId, msg.sender, from, to, amount);
+            proxy.nTokenTransferFrom(currencyId, msg.sender, from, to, amount);
 
         // Emit transfer events here so they come from the correct contract
         if (success) emit Transfer(from, to, amount);
@@ -87,38 +105,11 @@ contract nTokenERC20Proxy is BaseNTokenProxy {
 
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
     function getPresentValueAssetDenominated() external view returns (int256) {
-        return INTokenAction(Notional).nTokenPresentValueAssetDenominated(currencyId);
+        return proxy.nTokenPresentValueAssetDenominated(currencyId);
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in underlying
     function getPresentValueUnderlyingDenominated() external view returns (int256) {
-        return INTokenAction(Notional).nTokenPresentValueUnderlyingDenominated(currencyId);
-    }
-
-    /// @notice Returns the present value in underlying external precision, used for the ERC4626 methods
-    function _getUnderlyingPVExternal() internal view override returns (uint256 pvUnderlyingExternal) {
-        return INTokenAction(Notional).nTokenPresentValueUnderlyingExternal(currencyId);
-    }
-
-    /// @notice Suffers from estimation issues related to nToken redemption. maxAssets is an overestimation
-    /// of the amount the owner can withdraw.
-    function maxWithdraw(address owner) external override view returns (uint256 maxAssets) {
-        return convertToAssets(balanceOf(owner));
-    }
-
-    /// @notice All nTokens are freely redeemable, however, in certain economic conditions they may need to
-    /// be converted to fCash.
-    function maxRedeem(address owner) external view override returns (uint256 maxShares) {
-        return balanceOf(owner);
-    }
-
-    function _redeem(uint256 shares, address receiver, address owner) internal override returns (uint256 assets) {
-        // We don't support any redemption delegation in the nToken proxy
-        require(msg.sender == owner);
-        return INTokenAction(Notional).nTokenRedeemViaProxy(currencyId, shares, receiver, owner);
-    }
-
-    function _mint(uint256 assets, uint256 msgValue, address receiver) internal override returns (uint256 tokensMinted) {
-        return INTokenAction(Notional).nTokenMintViaProxy{value: msgValue}(currencyId, assets, receiver);
+        return proxy.nTokenPresentValueUnderlyingDenominated(currencyId);
     }
 }

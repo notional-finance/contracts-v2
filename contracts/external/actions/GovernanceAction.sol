@@ -11,23 +11,17 @@ import "../../global/StorageLayoutV2.sol";
 import "../../global/LibStorage.sol";
 import "../../global/Types.sol";
 import "../../proxy/utils/UUPSUpgradeable.sol";
-import {nBeaconProxy} from "../../proxy/nBeaconProxy.sol";
-import {UpgradeableBeacon} from "../../proxy/beacon/UpgradeableBeacon.sol";
+import "../adapters/nTokenERC20Proxy.sol";
 import "../../../interfaces/notional/IRewarder.sol";
 import "../../../interfaces/notional/AssetRateAdapter.sol";
 import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 import "../../../interfaces/notional/NotionalGovernance.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
 import "./ActionGuards.sol";
 import "@openzeppelin/contracts/utils/Address.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable, ActionGuards {
-    /// @notice Address of the upgradeable nToken Beacon. This UpgradeableBeacon can have its
-    /// implementation upgraded which will change the implementation for all nToken proxies.
-    /// Governance deploys  nBeaconProxies which point to this beacon.
-    address public immutable NTOKEN_UPGRADEABLE_BEACON;
-
-    constructor(address nTokenBeacon) { NTOKEN_UPGRADEABLE_BEACON = nTokenBeacon; }
 
     /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
     /// Can only be invoked by the current `owner`.
@@ -62,12 +56,6 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         emit OwnershipTransferred(owner, _pendingOwner);
         owner = _pendingOwner;
         pendingOwner = address(0);
-    }
-
-    /// @notice Allows the owner to upgrade the nToken Beacon which will upgrade the implementation
-    /// on all the nToken beacon proxies.
-    function upgradeNTokenBeacon(address newImplementation) external override onlyOwner {
-        UpgradeableBeacon(NTOKEN_UPGRADEABLE_BEACON).upgradeTo(newImplementation);
     }
 
     /// @dev Only the owner may upgrade the contract, the pauseGuardian may downgrade the contract
@@ -198,15 +186,12 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         _updateAssetRate(currencyId, assetRateOracle);
 
         // Creates the nToken erc20 proxy that routes back to the main contract
-        bytes memory initCallData = abi.encodeWithSignature(
-            "initialize(uint16,string,string)",
+        nTokenERC20Proxy proxy = new nTokenERC20Proxy(
+            nTokenERC20(address(this)),
             currencyId,
             underlyingName,
             underlyingSymbol
         );
-
-        // A beacon proxy gets its implementation via the UpgradeableBeacon set here.
-        nBeaconProxy proxy = new nBeaconProxy(NTOKEN_UPGRADEABLE_BEACON, initCallData);
         nTokenHandler.setNTokenAddress(currencyId, address(proxy));
         emit DeployNToken(currencyId, address(proxy));
     }

@@ -454,7 +454,13 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
             // We have to do a special rounding adjustment for underlying internal deposits from lending.
             amountExternal = token.convertToUnderlyingExternalWithAdjustment(depositAmountInternal.neg());
         } else {
-            amountExternal = token.convertAssetInternalToNativeExternal(currencyId, depositAmountInternal).abs();
+            amountExternal = token.convertToExternal(depositAmountInternal).abs();
+        }
+
+        if (token.tokenType == TokenType.aToken) {
+            // Special handling for aTokens, we use scaled balance internally
+            Token memory underlying = TokenHandler.getUnderlyingToken(currencyId);
+            amountExternal = AaveHandler.convertFromScaledBalanceExternal(underlying.tokenAddress, amountExternal);
         }
 
         return SafeInt256.toUint(amountExternal);

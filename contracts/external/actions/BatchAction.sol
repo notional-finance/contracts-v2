@@ -8,15 +8,12 @@ import "./nTokenMintAction.sol";
 import "./nTokenRedeemAction.sol";
 import "../SettleAssetsExternal.sol";
 import "../FreeCollateralExternal.sol";
+import "../../math/SafeInt256.sol";
 import "../../global/StorageLayoutV1.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/portfolio/PortfolioHandler.sol";
 import "../../internal/AccountContextHandler.sol";
 import "../../../interfaces/notional/NotionalCallback.sol";
-
-import {SafeInt256} from "../../math/SafeInt256.sol";
-import {SafeUint256} from "../../math/SafeUint256.sol";
-import {INTokenProxy} from "../../../interfaces/notional/INTokenProxy.sol";
 
 contract BatchAction is StorageLayoutV1, ActionGuards {
     using BalanceHandler for BalanceState;
@@ -25,7 +22,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     using AssetRate for AssetRateParameters;
     using TokenHandler for Token;
     using SafeInt256 for int256;
-    using SafeUint256 for uint256;
 
     /// @notice Executes a batch of balance transfers including minting and redeeming nTokens.
     /// @param account the account for the action
@@ -334,7 +330,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         }
 
         _executeNTokenAction(
-            account,
             balanceState,
             depositType,
             depositActionAmount,
@@ -344,13 +339,11 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
     /// @dev Executes nToken actions
     function _executeNTokenAction(
-        address account,
         BalanceState memory balanceState,
         DepositActionType depositType,
         int256 depositActionAmount,
         int256 assetInternalAmount
     ) private {
-        address nToken = nTokenHandler.nTokenAddress(balanceState.currencyId);
         // After deposits have occurred, check if we are minting nTokens
         if (
             depositType == DepositActionType.DepositAssetAndMintNToken ||
@@ -362,13 +355,14 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
 
             // Converts a given amount of cash (denominated in internal precision) into nTokens
-            int256 tokensMinted = nTokenMintAction.nTokenMint(balanceState.currencyId, assetInternalAmount);
-            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(tokensMinted);
+            int256 tokensMinted = nTokenMintAction.nTokenMint(
+                balanceState.currencyId,
+                assetInternalAmount
+            );
 
-            // Emits a Transfer(address(0), account, tokensMinted) event (if the proxy has this method),
-            // so that off chain tracking tools can do proper accounting. The original nTokenProxy does
-            // not have this method, it is only available in newer proxies.
-            try INTokenProxy(nToken).emitMint(account, SafeInt256.toUint(tokensMinted)) {} catch {}
+            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
+                tokensMinted
+            );
         } else if (depositType == DepositActionType.RedeemNToken) {
             require(
                 // prettier-ignore
@@ -379,14 +373,16 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 "Insufficient token balance"
             );
 
-            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(depositActionAmount);
-            int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(balanceState.currencyId, depositActionAmount);
-            balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
+            balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(
+                depositActionAmount
+            );
 
-            // Emits a Transfer(account, address(0), tokensRedeemed) event (if the proxy has this method),
-            // so that off chain tracking tools can do proper accounting. The original nTokenProxy does
-            // not have this method, it is only available in newer proxies.
-            try INTokenProxy(nToken).emitBurn(account, SafeInt256.toUint(depositActionAmount)) {} catch {}
+            int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(
+                balanceState.currencyId,
+                depositActionAmount
+            );
+
+            balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
         }
     }
 

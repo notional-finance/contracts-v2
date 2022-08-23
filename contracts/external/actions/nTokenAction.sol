@@ -2,49 +2,64 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import {StorageLayoutV1} from "../../global/StorageLayoutV1.sol";
-import {Constants} from "../../global/Constants.sol";
-import {nTokenHandler, nTokenPortfolio} from "../../internal/nToken/nTokenHandler.sol";
-import {AccountContext, AccountContextHandler} from "../../internal/AccountContextHandler.sol";
-import {nTokenSupply} from "../../internal/nToken/nTokenSupply.sol";
-import {nTokenCalculations} from "../../internal/nToken/nTokenCalculations.sol";
-import {AssetRate, AssetRateParameters} from "../../internal/markets/AssetRate.sol";
-import {BalanceHandler, BalanceState} from "../../internal/balances/BalanceHandler.sol";
-import {Token, TokenType, TokenHandler} from "../../internal/balances/TokenHandler.sol";
-import {Incentives} from "../../internal/balances/Incentives.sol";
+import "./ActionGuards.sol";
+import "../../internal/nToken/nTokenHandler.sol";
+import "../../internal/nToken/nTokenSupply.sol";
+import "../../internal/nToken/nTokenCalculations.sol";
+import "../../internal/markets/AssetRate.sol";
+import "../../internal/balances/BalanceHandler.sol";
+import "../../internal/balances/Incentives.sol";
+import "../../math/SafeInt256.sol";
+import "../../global/StorageLayoutV1.sol";
+import "../../external/FreeCollateralExternal.sol";
+import "../../../interfaces/notional/nTokenERC20.sol";
+import "@openzeppelin/contracts/utils/SafeCast.sol";
+import "@openzeppelin/contracts/math/SafeMath.sol";
 
-import {ActionGuards} from "./ActionGuards.sol";
-import {nTokenRedeemAction} from "./nTokenRedeemAction.sol";
-import {nTokenMintAction} from "./nTokenMintAction.sol";
-import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
-import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
-import {MigrateIncentives} from "../MigrateIncentives.sol";
-import {INTokenAction} from "../../../interfaces/notional/INTokenAction.sol";
-import {SafeInt256} from "../../math/SafeInt256.sol";
-import {SafeUint256} from "../../math/SafeUint256.sol";
-
-contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
+contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     using BalanceHandler for BalanceState;
     using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
-    using TokenHandler for Token;
     using SafeInt256 for int256;
-    using SafeUint256 for uint256;
+    using SafeMath for uint256;
 
     /// @notice Total number of tokens in circulation
     /// @param nTokenAddress The address of the nToken
     /// @return totalSupply number of tokens held
-    function nTokenTotalSupply(address nTokenAddress) external view override returns (uint256 totalSupply) {
-        (totalSupply, /* */, /* */) = nTokenSupply.getStoredNTokenSupplyFactors(nTokenAddress);
+    function nTokenTotalSupply(address nTokenAddress)
+        external
+        view
+        override
+        returns (uint256 totalSupply)
+    {
+        // prettier-ignore
+        (
+            totalSupply,
+            /* accumulatedNOTEPerNToken */,
+            /* lastAccumulatedTime */
+        ) = nTokenSupply.getStoredNTokenSupplyFactors(nTokenAddress);
     }
 
     /// @notice Get the number of tokens held by the `account`
     /// @param account The address of the account to get the balance of
     /// @return The number of tokens held
-    function nTokenBalanceOf(uint16 currencyId, address account) external view override returns (uint256) {
-        ( /* */, int256 nTokenBalance, /* */, /*  */) = BalanceHandler.getBalanceStorage(account, currencyId);
-        return nTokenBalance.toUint();
+    function nTokenBalanceOf(uint16 currencyId, address account)
+        external
+        view
+        override
+        returns (uint256)
+    {
+        // prettier-ignore
+        (
+            /* int cashBalance */,
+            int256 nTokenBalance,
+            /* uint lastClaimTime */,
+            /* uint accountIncentiveDebt */
+        ) = BalanceHandler.getBalanceStorage(account, currencyId);
+
+        require(nTokenBalance >= 0); // dev: negative nToken balance
+        return uint256(nTokenBalance);
     }
 
     /// @notice Get the number of tokens `spender` is approved to spend on behalf of `account`
@@ -160,7 +175,7 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
         returns (bool)
     {
         nTokenWhitelist[msg.sender][spender] = amount;
-        emit nTokenApproveAll(msg.sender, spender, amount);
+        emit Approval(msg.sender, spender, amount);
         return true;
     }
 
@@ -201,110 +216,45 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
-    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view override returns (
-        int256 totalAssetPV
-    ) {
-        (totalAssetPV, /* portfolio */) = _getNTokenPV(currencyId);
+    function nTokenPresentValueAssetDenominated(uint16 currencyId)
+        external
+        view
+        override
+        returns (int256)
+    {
+        // prettier-ignore
+        (
+            int256 totalAssetPV,
+            /* portfolio */
+        ) = _getNTokenPV(currencyId);
+
+        return totalAssetPV;
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in underlying
-    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId) external view override returns (
-        int256 totalUnderlyingPVInternal
-    ) {
-        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
-        totalUnderlyingPVInternal = nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
-    }
-
-    /// @notice Returns the present value of the nToken's assets denominated in the underlying's native
-    /// token precision
-    function nTokenPresentValueUnderlyingExternal(uint16 currencyId) external view override returns (
-        uint256 underlyingExternal
-    ) {
-        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
-        AssetRateParameters memory assetRate = nToken.cashGroup.assetRate;
-        underlyingExternal = SafeInt256.toUint(
-            assetRate.convertToUnderlying(totalAssetPV)
-                .mul(assetRate.underlyingDecimals)
-                .div(Constants.INTERNAL_TOKEN_PRECISION)
-        );
-    }
-
-    function _getNTokenPV(uint16 currencyId) private view returns (
-        int256 totalAssetPV, nTokenPortfolio memory nToken
-    ) {
-        nToken.loadNTokenPortfolioView(currencyId);
-        totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, block.timestamp);
-    }
-
-    /// @notice Redeems nTokens via the ERC4626 proxy which means that the shares (nTokens to redeem)
-    /// are always redeemed to underlying (reverting on residuals) and transferred back to the owner.
-    /// Due to how BalanceState.finalize is structured, we do not handle cases where receiver != owner.
-    function nTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
-        external override returns (uint256) 
+    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
+        external
+        view
+        override
+        returns (int256)
     {
-        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        // We don't implement separate receivers for ERC4626
-        require(msg.sender == nTokenAddress && receiver == owner, "Unauthorized caller");
-        int256 tokensToRedeem = shares.toInt();
-        BalanceState memory balanceState;
-        AccountContext memory ownerContext = AccountContextHandler.getAccountContext(owner);
-        // If the owner has debt we will have to do a FC check, so here we settle assets first.
-        if (ownerContext.mustSettleAssets()) {
-            ownerContext = SettleAssetsExternal.settleAccount(owner, ownerContext);
-        }
+        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
 
-        balanceState.loadBalanceState(owner, currencyId, ownerContext);
-        balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.sub(tokensToRedeem);
-        int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(currencyId, tokensToRedeem);
-        // All of the tokens redeemed will be transferred back to the owner and redeemed to underlying
-        balanceState.netCashChange = assetCash;
-        balanceState.netAssetTransferInternalPrecision = assetCash.neg();
-        balanceState.finalize({account: owner, accountContext: ownerContext, redeemToUnderlying: true});
-        ownerContext.setAccountContext(owner);
-
-        // If the owner has debts, we must nee a free collateral check here
-        if (ownerContext.hasDebt != 0x00) {
-            FreeCollateralExternal.checkFreeCollateralAndRevert(owner);
-        }
-
-        // Calling proxy will emit the proper transfer event
-        return assetCash.toUint();
+        return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
     }
 
-    /// @notice Mints nTokens via the ERC4626 proxy which means that the proxy will have transferred underlying
-    /// tokens to Notional before this method is called.
-    function nTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
-        external payable override returns (uint256) {
-        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "Unauthorized caller");
+    function _getNTokenPV(uint16 currencyId)
+        private
+        view
+        returns (int256, nTokenPortfolio memory)
+    {
+        uint256 blockTime = block.timestamp;
+        nTokenPortfolio memory nToken;
+        nToken.loadNTokenPortfolioView(currencyId);
 
-        // If we are minting nETH then we assets must equal the ETH sent
-        if (currencyId == Constants.ETH_CURRENCY_ID) require(assets == msg.value);
+        int256 totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
 
-        // At this point the proxy will have transferred underlying so we convert it to asset tokens.
-        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-        int256 assetTokensReceivedInternal;
-        if (assetToken.tokenType == TokenType.NonMintable) {
-            // NonMintable asset tokens are just converted to internal precision
-            assetTokensReceivedInternal = assetToken.convertToInternal(assets.toInt());
-        } else {
-            assetTokensReceivedInternal = assetToken.convertToInternal(
-                assetToken.mint({currencyId: currencyId, underlyingAmountExternal: assets})
-            );
-        }
-
-        BalanceState memory balanceState;
-        AccountContext memory receiverContext = AccountContextHandler.getAccountContext(receiver);
-        balanceState.loadBalanceState(receiver, currencyId, receiverContext);
-
-        int256 nTokensMinted = nTokenMintAction.nTokenMint(currencyId, assetTokensReceivedInternal);
-        balanceState.netNTokenSupplyChange = nTokensMinted;
-        balanceState.finalize(receiver, receiverContext, true);
-        receiverContext.setAccountContext(receiver);
-
-        // No need for a free collateral check, we are depositing into the account and their collateral
-        // position will necessarily increase.
-        return nTokensMinted.toUint();
+        return (totalAssetPV, nToken);
     }
 
     /// @notice Transferring tokens will also claim incentives at the same time
@@ -315,7 +265,7 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
         uint256 amount
     ) internal returns (bool) {
         // This prevents amountInt from being negative
-        int256 amountInt = SafeInt256.toInt(amount);
+        int256 amountInt = SafeCast.toInt256(amount);
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
         // If sender has debt then we will check free collateral which will revert if we have not
@@ -347,13 +297,11 @@ contract nTokenAction is StorageLayoutV1, INTokenAction, ActionGuards {
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
-    function getLibInfo() external pure returns (address, address, address, address, address) {
+    function getLibInfo() external pure returns (address, address, address) {
         return (
             address(FreeCollateralExternal),
             address(MigrateIncentives),
-            address(SettleAssetsExternal),
-            address(nTokenMintAction),
-            address(nTokenRedeemAction)
+            address(SettleAssetsExternal)
         );
     }
 }

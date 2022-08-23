@@ -9,7 +9,6 @@ import "../FreeCollateralExternal.sol";
 import "../../math/SafeInt256.sol";
 import "../../internal/balances/BalanceHandler.sol";
 import "../../internal/AccountContextHandler.sol";
-import {INTokenProxy} from "../../../interfaces/notional/INTokenProxy.sol";
 
 contract AccountAction is ActionGuards {
     using BalanceHandler for BalanceState;
@@ -210,11 +209,7 @@ contract AccountAction is ActionGuards {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
 
-        // Emits a Transfer(redeemer, address(0), tokensToRedeem) event (if the proxy has this method),
-        // so that off chain tracking tools can do proper accounting
-        address nToken = nTokenHandler.nTokenAddress(currencyId);
-        try INTokenProxy(nToken).emitBurn(redeemer, SafeInt256.toUint(tokensToRedeem)) {} catch {}
-
+        emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
         return (totalAssetCash, hasResidual);
     }
 

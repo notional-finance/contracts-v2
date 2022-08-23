@@ -5,7 +5,7 @@ pragma abicoder v2;
 import "./actions/nTokenMintAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
-import {INTokenAction} from "../../interfaces/notional/INTokenAction.sol";
+import {nTokenERC20} from "../../interfaces/notional/nTokenERC20.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
 import {IVaultAction, IVaultAccountAction} from "../../interfaces/notional/IVaultController.sol";
 import {nERC1155Interface} from "../../interfaces/notional/nERC1155Interface.sol";
@@ -158,19 +158,16 @@ contract Router is StorageLayoutV1 {
         ) {
             return ERC1155;
         } else if (
-            sig == INTokenAction.nTokenTotalSupply.selector ||
-            sig == INTokenAction.nTokenTransferAllowance.selector ||
-            sig == INTokenAction.nTokenBalanceOf.selector ||
-            sig == INTokenAction.nTokenTransferApprove.selector ||
-            sig == INTokenAction.nTokenTransfer.selector ||
-            sig == INTokenAction.nTokenTransferFrom.selector ||
-            sig == INTokenAction.nTokenTransferApproveAll.selector ||
-            sig == INTokenAction.nTokenClaimIncentives.selector ||
-            sig == INTokenAction.nTokenPresentValueAssetDenominated.selector ||
-            sig == INTokenAction.nTokenPresentValueUnderlyingDenominated.selector ||
-            sig == INTokenAction.nTokenPresentValueUnderlyingExternal.selector ||
-            sig == INTokenAction.nTokenRedeemViaProxy.selector ||
-            sig == INTokenAction.nTokenMintViaProxy.selector
+            sig == nTokenERC20.nTokenTotalSupply.selector ||
+            sig == nTokenERC20.nTokenTransferAllowance.selector ||
+            sig == nTokenERC20.nTokenBalanceOf.selector ||
+            sig == nTokenERC20.nTokenTransferApprove.selector ||
+            sig == nTokenERC20.nTokenTransfer.selector ||
+            sig == nTokenERC20.nTokenTransferFrom.selector ||
+            sig == nTokenERC20.nTokenTransferApproveAll.selector ||
+            sig == nTokenERC20.nTokenClaimIncentives.selector ||
+            sig == nTokenERC20.nTokenPresentValueAssetDenominated.selector ||
+            sig == nTokenERC20.nTokenPresentValueUnderlyingDenominated.selector
         ) {
             return NTOKEN_ACTIONS;
         } else if (
@@ -226,7 +223,6 @@ contract Router is StorageLayoutV1 {
             sig == NotionalGovernance.updateGlobalTransferOperator.selector ||
             sig == NotionalGovernance.updateAuthorizedCallbackContract.selector ||
             sig == NotionalGovernance.setLendingPool.selector ||
-            sig == NotionalGovernance.upgradeNTokenBeacon.selector ||
             sig == NotionalProxy.upgradeTo.selector ||
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {

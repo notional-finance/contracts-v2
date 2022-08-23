@@ -30,8 +30,6 @@ interface NotionalGovernance {
 
     function claimOwnership() external;
 
-    function upgradeNTokenBeacon(address newImplementation) external;
-
     function setPauseRouterAndGuardian(address pauseRouter_, address pauseGuardian_) external;
 
     function listCurrency(

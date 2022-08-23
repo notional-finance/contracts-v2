@@ -2,8 +2,10 @@
 pragma solidity >=0.7.6;
 pragma abicoder v2;
 
-interface INTokenAction {
-    event nTokenApproveAll(address indexed owner, address indexed spender, uint256 amount);
+interface nTokenERC20 {
+    event Transfer(address indexed from, address indexed to, uint256 amount);
+
+    event Approval(address indexed owner, address indexed spender, uint256 amount);
 
     function nTokenTotalSupply(address nTokenAddress) external view returns (uint256);
 
@@ -47,16 +49,4 @@ interface INTokenAction {
         external
         view
         returns (int256);
-
-    function nTokenPresentValueUnderlyingExternal(uint16 currencyId)
-        external
-        view
-        returns (uint256);
-
-    function nTokenRedeemViaProxy(uint16 currencyId, uint256 shares, address receiver, address owner)
-        external
-        returns (uint256);
-
-    function nTokenMintViaProxy(uint16 currencyId, uint256 assets, address receiver)
-        external payable returns (uint256);
 }
