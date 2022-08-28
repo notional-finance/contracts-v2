@@ -100,6 +100,10 @@
         "wstETH": {
             "address": "0x5Ca3cd3467e307D5841b81E8A6C6652F717229BF",
             "oracle": "0xD803E586EDc74732539230B5CC383c8C66dEB3C3"
+        },
+        "wstETH": {
+            "address": "0x5Ca3cd3467e307D5841b81E8A6C6652F717229BF",
+            "oracle": "0xD803E586EDc74732539230B5CC383c8C66dEB3C3"
         }
     }
 }

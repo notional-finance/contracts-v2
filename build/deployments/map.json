@@ -6,7 +6,7 @@
       "0x5f11E94E0A69ac8490f45eB27a6478dCDDB0227E"
     ],
     "BatchAction": [
-      "0x59074a5E588de093fc5f04A7173D86b2B48e9d39"
+      "0x1d1a531CBcb969040Da7527bf1092DfC4FF7DD46"
     ],
     "CalculationViews": [
       "0xbE4AbA25915BAd390edf83B7e1ca44b6145F261e"
@@ -59,7 +59,7 @@
       "0x0f9e06C4180418B781d2816914834710360055f8"
     ],
     "Router": [
-      "0x16eD130F7A6dcAc7e3B0617A7bafa4b470189962"
+      "0x2C67B0C0493e358cF368073bc0B5fA6F01E981e0"
     ],
     "SettleAssetsExternal": [
       "0x01713633a1b85a4a3d2f9430C68Bd4392c4a90eA"
@@ -82,8 +82,8 @@
       "0x181900d998A8a922E68b3fc186CE0Fa525c3C424"
     ],
     "cTokenLegacyAggregator": [
-      "0x612741825ACedC6F88D8709319fe65bCB015C693",
-      "0x8E3D447eBE244db6D28E2303bCa86Ef3033CFAd6"
+      "0x8E3D447eBE244db6D28E2303bCa86Ef3033CFAd6",
+      "0x612741825ACedC6F88D8709319fe65bCB015C693"
     ],
     "cTokenV2Aggregator": [
       "0xE329E81800219Aefeef79D74DB35f8877fE1abdE",
@@ -229,7 +229,7 @@
       "0x10d1Ca9BcD1Fb2b7d5ecB9A53a348292ee38E524"
     ],
     "InitializeMarketsAction": [
-      "0xCa3A0c6e06f4b5EdDceDD0c7720549B221bD8FAD"
+      "0x8BA3b8f09a0AF1f1c30B294911f00eFb243adA7c"
     ],
     "LiquidateCurrencyAction": [
       "0x3109F5C0Fd6A34AEBC57fd2E9bd037aDDe18cF78"
