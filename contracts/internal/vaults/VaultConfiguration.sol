@@ -524,9 +524,10 @@ library VaultConfiguration {
         uint256 strategyTokens,
         uint256 maturity,
         bytes calldata data
-    ) internal returns (int256 assetCashInternalRaised) {
-        /// NOTE: assetInternalToRepayDebt is set to zero here
-        (assetCashInternalRaised, /* */) = _redeem(
+    ) internal returns (int256 assetCashInternalRaised, uint256 underlyingToReceiver) {
+        // Asset cash internal raised is only used by the vault, in all other cases it
+        // should return 0
+        (assetCashInternalRaised, underlyingToReceiver) = _redeem(
             vaultConfig, 
             RedeemParams(account, account, strategyTokens, maturity, 0),
             data
@@ -603,9 +604,22 @@ library VaultConfiguration {
         uint256 amountTransferred;
         if (params.strategyTokens > 0) {
             uint256 balanceBefore = underlyingToken.balanceOf(address(this));
-            // The vault will either transfer underlyingExternalToRepay back to Notional or it will
-            // transfer all the underlying tokens it has redeemed and we will have to recover any remaining
-            // underlying from the account directly.
+            // There are four possibilities here during the transfer:
+            //   1. If the account == vaultConfig.vault then the strategy vault must always transfer
+            //      tokens back to Notional. underlyingToReceiver will equal 0, amountTransferred will
+            //      be the value of the redemption.
+            //   2. If the account has debt to repay and is redeeming sufficient tokens to repay the debt,
+            //      the vault will transfer back underlyingExternalToRepay and transfer underlyingToReceiver
+            //      directly to the receiver.
+            //   3. If the account has redeemed insufficient tokens to repay the debt, the vault will transfer
+            //      back as much as it can (less than underlyingExternalToRepay) and underlyingToReceiver will
+            //      be zero. If this occurs, then the next if block will be triggered where we attempt to recover
+            //      the shortfall from the account's wallet.
+            //   4. During liquidation, the liquidator will redeem their strategy token profits without any debt
+            //      to repay (underlyingExternalToRepay == 0). This means that all the profits will be returned
+            //      to the liquidator (params.receiver) from the vault (underlyingToReceiver will be the full value
+            //      of the redemption) and amountTransferred will equal 0. A similar scenario will occur when
+            //      accounts exit post maturity and have no debt associated with their account.
             underlyingToReceiver = IStrategyVault(vaultConfig.vault).redeemFromNotional(
                 params.account, params.receiver, params.strategyTokens, params.maturity, underlyingExternalToRepay, data
             );
@@ -650,7 +664,8 @@ library VaultConfiguration {
         }
 
         // Due to the adjustment in underlyingExternalToRepay, this returns a dust amount more
-        // than the value of assetInternalToRepayDebt.
+        // than the value of assetInternalToRepayDebt. This value is only used when we are
+        // redeeming strategy tokens to the vault.
         assetCashInternalRaised = assetToken.convertToInternal(assetCashExternal);
     }
 

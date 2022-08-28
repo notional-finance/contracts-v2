@@ -310,9 +310,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         emit VaultLiquidatorProfit(vault, account, liquidator, vaultSharesToLiquidator, transferSharesToLiquidator);
         if (transferSharesToLiquidator) {
             vaultState.setVaultState(vaultConfig.vault);
-            return _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);
+            profitFromLiquidation = _transferLiquidatorProfits(liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity);
         } else {
-            return _redeemLiquidatorProfits(
+            profitFromLiquidation = _redeemLiquidatorProfits(
                 liquidator, vaultConfig, vaultState, vaultSharesToLiquidator, redeemData, assetToken
             );
         }
@@ -419,32 +419,22 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         uint256 vaultShares,
         bytes calldata redeemData,
         Token memory assetToken
-    ) private returns (uint256) {
+    ) private returns (uint256 underlyingToReceiver) {
         (uint256 assetCash, uint256 strategyTokens) = vaultState.exitMaturityDirect(vaultShares);
-        int256 assetCashInternal = vaultConfig.redeemWithoutDebtRepayment(
+        (/* */, underlyingToReceiver) = vaultConfig.redeemWithoutDebtRepayment(
             liquidator, strategyTokens, vaultState.maturity, redeemData
         );
-        assetCashInternal = assetCashInternal.add(assetCash.toInt());
 
         // Set the vault state after redemption completes
         vaultState.setVaultState(vaultConfig.vault);
 
-        // Returns a negative amount to signify assets have left the protocol. For aTokens this is the scaled
-        // balance external.
-        int256 actualTransferExternal = assetToken.transfer(
-            liquidator, vaultConfig.borrowCurrencyId, assetToken.convertToExternal(assetCashInternal.neg())
-        );
-
-        if (assetToken.tokenType == TokenType.aToken) {
-            // Convert this back to aToken balanceOf amount to return back to the liquidator
-            Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
-            actualTransferExternal = AaveHandler.convertFromScaledBalanceExternal(
-                underlyingToken.tokenAddress, actualTransferExternal
-            );
+        if (assetCash > 0) {
+            // Represents the amount of asset cash returned to the liquidator in underlying terms
+            uint256 underlyingRedeemed = assetToken.redeem(
+                vaultConfig.borrowCurrencyId, liquidator, assetToken.convertToExternal(assetCash.toInt()).toUint()
+            ).neg().toUint();
+            underlyingToReceiver = underlyingToReceiver.add(underlyingRedeemed);
         }
-
-        // actualTransferExternal is negative to signify assets have left the protocol
-        return actualTransferExternal.neg().toUint();
     }
 
     /** View Methods **/
