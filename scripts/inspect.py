@@ -11,6 +11,8 @@ def main():
     networkName = network.show_active()
     if networkName == "hardhat-fork":
         networkName = "mainnet"
+    if networkName == "goerli-fork":
+        networkName = "goerli"
     output_file = "v2.{}.json".format(networkName)
     addresses = None
     with open(output_file, "r") as f:

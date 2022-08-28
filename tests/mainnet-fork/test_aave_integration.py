@@ -11,6 +11,7 @@ from tests.helpers import (
     get_balance_action,
     get_balance_trade_action,
     get_cash_group_with_max_markets,
+    get_lend_action,
 )
 
 chain = Chain()
@@ -297,3 +298,32 @@ def test_lend_and_settle_ausdc(env):
     balanceAfter = env.tokens["USDC"].balanceOf(env.whales["USDC"])
     balanceChange = balanceAfter - balanceBefore
     assert 100_000e6 < balanceChange and balanceChange < 100_000.1e6
+
+
+def test_batch_lend_adai(env):
+    list_atoken(env, env.tokens["aDAI"], env.tokens["DAI"])
+    enable_atoken_fcash(env, 5, "aDAI", "DAI", 10_000_000e18)
+    lendAction = get_lend_action(
+        5,
+        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0}],
+        False,
+    )
+
+    env.tokens["aDAI"].approve(env.notional.address, 2 ** 255 - 1, {"from": env.whales["aDAI"]})
+    balanceBefore = env.tokens["aDAI"].balanceOf(env.whales["aDAI"])
+    env.notional.batchLend(env.whales["aDAI"].address, [lendAction], {"from": env.whales["aDAI"]})
+    balanceAfter = env.tokens["aDAI"].balanceOf(env.whales["aDAI"])
+    balanceChange = balanceBefore - balanceAfter
+    assert 98e18 < balanceChange and balanceChange < 100e18
+
+    chain.mine(1, chain.time() + SECONDS_IN_QUARTER)
+    env.notional.initializeMarkets(5, False, {"from": env.owner})
+
+    env.notional.settleAccount(env.whales["aDAI"].address, {"from": env.owner})
+    (cashBalance, _, _) = env.notional.getAccountBalance(5, env.whales["aDAI"].address)
+
+    balanceBefore = env.tokens["aDAI"].balanceOf(env.whales["aDAI"])
+    env.notional.withdraw(5, cashBalance, False, {"from": env.whales["aDAI"]})
+    balanceAfter = env.tokens["aDAI"].balanceOf(env.whales["aDAI"])
+    balanceChange = balanceAfter - balanceBefore
+    assert 100e18 < balanceChange and balanceChange < 100.1e18
