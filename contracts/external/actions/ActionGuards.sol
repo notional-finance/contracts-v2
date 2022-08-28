@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "../../global/StorageLayoutV1.sol";
@@ -45,5 +45,15 @@ abstract contract ActionGuards is StorageLayoutV1 {
             /* parameters */
         ) = nTokenHandler.getNTokenContext(account);
         require(isNToken == 0);
+    }
+
+    /// @dev Throws if called by any account other than the owner.
+    modifier onlyOwner() {
+        require(owner == msg.sender, "Ownable: caller is not the owner");
+        _;
+    }
+
+    function _checkValidCurrency(uint16 currencyId) internal view {
+        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
     }
 }

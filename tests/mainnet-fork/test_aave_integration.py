@@ -6,7 +6,6 @@ from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults, nTokenDefaults
 from scripts.deployment import TokenType
 from scripts.mainnet.EnvironmentConfig import getEnvironment
-from scripts.mainnet.upgrade_notional import full_upgrade
 from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import (
     get_balance_action,
@@ -28,9 +27,6 @@ def run_around_tests():
 @pytest.fixture(autouse=True)
 def env():
     e = getEnvironment()
-
-    (router, pauseRouter, contracts) = full_upgrade(e.deployer, False)
-    e.notional.upgradeTo(router.address, {"from": e.owner})
     if e.notional.getLendingPool() != "0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9":
         e.notional.setLendingPool("0x7d2768de32b0b80b7a3454c06bdac94a69ddc7a9", {"from": e.owner})
 
@@ -206,11 +202,11 @@ def test_borrow_ausdc(env, accounts):
     )
 
     collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=5e18)
-    balanceBefore = env.tokens["USDC"].balanceOf(accounts[1])
+    balanceBefore = env.tokens["USDC"].balanceOf(accounts[4])
     env.notional.batchBalanceAndTradeAction(
-        accounts[1].address, [collateral, borrowAction], {"from": accounts[1], "value": 5e18}
+        accounts[4], [collateral, borrowAction], {"from": accounts[4], "value": 5e18}
     )
-    balanceAfter = env.tokens["USDC"].balanceOf(accounts[1])
+    balanceAfter = env.tokens["USDC"].balanceOf(accounts[4])
     balanceChange = balanceAfter - balanceBefore
     assert 98e6 < balanceChange and balanceChange < 100e6
 
@@ -227,11 +223,11 @@ def test_borrow_adai(env, accounts):
     )
 
     collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=5e18)
-    balanceBefore = env.tokens["DAI"].balanceOf(accounts[0])
+    balanceBefore = env.tokens["DAI"].balanceOf(accounts[4])
     env.notional.batchBalanceAndTradeAction(
-        accounts[0], [collateral, borrowAction], {"from": accounts[0], "value": 5e18}
+        accounts[4], [collateral, borrowAction], {"from": accounts[4], "value": 5e18}
     )
-    balanceAfter = env.tokens["DAI"].balanceOf(accounts[0])
+    balanceAfter = env.tokens["DAI"].balanceOf(accounts[4])
     balanceChange = balanceAfter - balanceBefore
     assert 98e18 < balanceChange and balanceChange < 100e18
 

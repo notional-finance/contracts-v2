@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "../external/FreeCollateralExternal.sol";
@@ -165,7 +165,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     /// @notice Returns current ownership status of the contract
     /// @return owner is the current owner of the Notional system
     /// @return pendingOwner can claim ownership from the owner
-    function getOwnershipStatus() external view override returns (address owner, address pendingOwner) {
+    function getOwnershipStatus() external view override returns (address, address) {
         return (owner, pendingOwner);
     }
 
@@ -288,7 +288,7 @@ contract Views is StorageLayoutV2, NotionalViews {
             /* incentiveRate */,
             uint256 lastInitializedTime,
             uint8 assetArrayLength,
-            bytes5 parameters
+            /* bytes5 parameters */
         ) = nTokenHandler.getNTokenContext(tokenAddress);
 
         liquidityTokens = PortfolioHandler.getSortedPortfolio(tokenAddress, assetArrayLength);
@@ -493,7 +493,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
-    function getLibInfo() external view returns (address, address) {
+    function getLibInfo() external pure returns (address, address) {
         return (address(FreeCollateralExternal), address(MigrateIncentives));
     }
 

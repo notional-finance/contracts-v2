@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "./actions/nTokenMintAction.sol";
@@ -516,7 +516,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
-    function getLibInfo() external view returns (address) {
+    function getLibInfo() external pure returns (address) {
         return (address(MigrateIncentives));
     }
 }

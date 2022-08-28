@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 
 import "../../math/SafeInt256.sol";
 import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";

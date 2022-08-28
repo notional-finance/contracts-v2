@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "../global/LibStorage.sol";
@@ -41,7 +41,7 @@ library AccountContextHandler {
         AccountContext memory accountContext,
         uint16 currencyId,
         uint256 blockTime
-    ) internal view {
+    ) internal pure {
         require(!isBitmapEnabled(accountContext), "Cannot change bitmap");
         require(0 < currencyId && currencyId <= Constants.MAX_CURRENCIES, "Invalid currency id");
 

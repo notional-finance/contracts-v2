@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts/math/SafeMath.sol";
@@ -23,21 +23,10 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
     IERC20 public immutable COMP;
     Comptroller public immutable COMPTROLLER;
 
-    /// @dev Throws if called by any account other than the owner.
-    modifier onlyOwner() {
-        require(owner == msg.sender, "Ownable: caller is not the owner");
-        _;
-    }
-
     /// @dev Harvest methods are only callable by the authorized treasury manager contract
     modifier onlyManagerContract() {
         require(treasuryManagerContract == msg.sender, "Treasury manager required");
         _;
-    }
-
-    /// @dev Checks if the currency ID is valid
-    function _checkValidCurrency(uint16 currencyId) internal view {
-        require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");
     }
 
     constructor(Comptroller _comptroller) {
@@ -71,8 +60,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         onlyOwner
     {
         _checkValidCurrency(currencyId);
-        // prettier-ignore
-        (int256 reserveBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
         // newBalance cannot be negative and is checked inside BalanceHandler.setReserveCashBalance
         BalanceHandler.setReserveCashBalance(currencyId, newBalance);
     }
@@ -104,7 +91,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         Token memory asset,
         int256 assetInternalRedeemAmount
     ) private returns (uint256) {
-        Token memory underlying = TokenHandler.getUnderlyingToken(currencyId);
         int256 assetExternalRedeemAmount = asset.convertToExternal(assetInternalRedeemAmount);
 
         // This is the actual redeemed amount in underlying external precision

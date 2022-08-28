@@ -1,8 +1,7 @@
-black==21.11b1
-eth-brownie>=1.17.2
-flake8==3.7.9
+black==22.1.0
+eth-brownie>=1.18.1
+flake8==4.0.1
 isort==4.3.21
 pre-commit==2.4.0
-tox==3.15.1
 certora-cli==2.7.1
 eth-abi==2.1.1

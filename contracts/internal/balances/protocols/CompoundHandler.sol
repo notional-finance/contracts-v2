@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity ^0.7.0;
+pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "./GenericToken.sol";
@@ -19,7 +19,7 @@ library CompoundHandler {
         CEtherInterface(token.tokenAddress).mint{value: msg.value}();
     }
 
-    function mint(Token memory token, uint256 underlyingAmountExternal) internal returns (int256) {
+    function mint(Token memory token, uint256 underlyingAmountExternal) internal {
         uint256 success = CErc20Interface(token.tokenAddress).mint(underlyingAmountExternal);
         require(success == COMPOUND_RETURN_CODE_NO_ERROR, "Mint");
     }
