@@ -2,7 +2,7 @@
 pragma solidity =0.8.11;
 pragma abicoder v2;
 
-import "../strategyVaults/BaseStrategyVault.sol";
+import "./BaseStrategyVault.sol";
 
 contract SimpleStrategyVault is BaseStrategyVault {
     event SecondaryBorrow(uint256[2] underlyingTokensTransferred);
