@@ -94,10 +94,6 @@ def deployNotionalContracts(deployer, **kwargs):
     if network.show_active() in ["kovan", "mainnet"]:
         raise Exception("update governance deployment!")
 
-    # Deploy nToken Beacon Contracts
-    emptyImpl = EmptyProxy.deploy({"from": deployer})
-    contracts["nTokenProxyBeacon"] = UpgradeableBeacon.deploy(emptyImpl.address, {"from": deployer})
-
     # Deploy Libraries
     contracts["SettleAssetsExternal"] = SettleAssetsExternal.deploy({"from": deployer})
     contracts["FreeCollateralExternal"] = FreeCollateralExternal.deploy({"from": deployer})
@@ -107,9 +103,7 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["MigrateIncentives"] = MigrateIncentives.deploy({"from": deployer})
 
     # Deploy logic contracts
-    contracts["Governance"] = GovernanceAction.deploy(
-        contracts["nTokenProxyBeacon"].address, {"from": deployer}
-    )
+    contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
 
     if network.show_active() in ["kovan", "mainnet"]:
         raise Exception("update governance deployment!")
@@ -177,13 +171,6 @@ def deployNotional(deployer, cETHAddress, guardianAddress, comptroller, COMP, WE
     proxy = nProxy.deploy(
         router.address, initializeData, {"from": deployer}  # Deployer is set to owner
     )
-
-    # Once we have the proxy, we can upgrade the nToken Beacons
-    nTokenProxyImplementation = nTokenERC20Proxy.deploy(
-        proxy.address, WETH.address, {"from": deployer}
-    )
-    contracts["nTokenProxyBeacon"].upgradeTo(nTokenProxyImplementation.address, {"from": deployer})
-    contracts["nTokenProxyBeacon"].transferOwnership(proxy.address, {"from": deployer})
 
     notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi(

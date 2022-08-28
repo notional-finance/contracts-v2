@@ -92,8 +92,8 @@ def test_borrow_failures(environment, accounts):
                 {
                     "tradeActionType": "Borrow",
                     "marketIndex": 2,
-                    "notional": 1000000e8,
-                    "maxSlippage": 0.01 * RATE_PRECISION,
+                    "notional": 1_000_000e8,
+                    "maxSlippage": 0,
                 }
             ],
         )
