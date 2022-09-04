@@ -1,6 +1,6 @@
 {
     "actions": {
-        "AccountAction": "0xddA3988fD40c83da8B630f963e3Bc7c8fa4d35Fc",
+        "AccountAction": "0x41Ec192cea2632e723C67D32638B45e596Aec7aB",
         "BatchAction": "0x1d1a531CBcb969040Da7527bf1092DfC4FF7DD46",
         "CalculationViews": "0xbE4AbA25915BAd390edf83B7e1ca44b6145F261e",
         "ERC1155Action": "0xBf12d7e41a25f449293AB8cd1364Fe74A175bFa5",
@@ -56,7 +56,7 @@
     "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
     "routers": {
         "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8",
-        "Router": "0x2C67B0C0493e358cF368073bc0B5fA6F01E981e0"
+        "Router": "0x42C7c34433eE1A3C7dbff02E7CfAbF05daD523F3"
     },
     "startBlock": 13094883,
     "tokens": {

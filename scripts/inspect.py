@@ -9,7 +9,7 @@ from tests.constants import DEPOSIT_ACTION_TYPE, TRADE_ACTION_TYPE
 
 def main():
     networkName = network.show_active()
-    if networkName == "hardhat-fork":
+    if networkName == "mainnet-fork":
         networkName = "mainnet"
     if networkName == "goerli-fork":
         networkName = "goerli"
