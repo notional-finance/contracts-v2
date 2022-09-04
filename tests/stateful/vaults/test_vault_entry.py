@@ -454,11 +454,88 @@ def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, 
     check_system_invariants(environment, accounts, [vault])
 
 
-@pytest.mark.todo
-def test_enter_vault_with_usdc(environment, accounts):
-    pass
+def test_enter_vault_with_usdc(environment, accounts, SimpleStrategyVault):
+    vault = SimpleStrategyVault.deploy(
+        "Simple Strategy", environment.notional.address, 3, {"from": accounts[0]}
+    )
+    vault.setExchangeRate(1e12)
+
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=3, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e6, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
+    (collateralRatio, _, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+    vaultState = environment.notional.getVaultState(vault, maturity)
+
+    assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
+    assert vaultAccount["fCash"] == -100_000e8
+    assert vaultAccount["maturity"] == maturity
+
+    assert vaultState["totalfCash"] == -100_000e8
+    assert vaultState["totalAssetCash"] == 0
+    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
+    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
+
+    totalValue = vault.convertStrategyToUnderlying(
+        accounts[1], vaultState["totalStrategyTokens"], maturity
+    )
+    assert 122_000e6 < totalValue and totalValue < 125_000e6
+
+    check_system_invariants(environment, accounts, [vault])
 
 
-@pytest.mark.todo
-def test_enter_vault_with_eth(environment, accounts):
-    pass
+def test_enter_vault_with_eth(environment, accounts, SimpleStrategyVault):
+    vault = SimpleStrategyVault.deploy(
+        "Simple Strategy", environment.notional.address, 1, {"from": accounts[0]}
+    )
+    vault.setExchangeRate(1e18)
+
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=1, flags=set_flags(0, ENABLED=True), minAccountBorrowSize=100),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    environment.notional.enterVault(
+        accounts[1],
+        vault.address,
+        25e18,
+        maturity,
+        100e8,
+        0,
+        "",
+        {"from": accounts[1], "value": 25e18},
+    )
+
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
+    (collateralRatio, _, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+    vaultState = environment.notional.getVaultState(vault, maturity)
+
+    assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
+    assert vaultAccount["fCash"] == -100e8
+    assert vaultAccount["maturity"] == maturity
+
+    assert vaultState["totalfCash"] == -100e8
+    assert vaultState["totalAssetCash"] == 0
+    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
+    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
+
+    totalValue = vault.convertStrategyToUnderlying(
+        accounts[1], vaultState["totalStrategyTokens"], maturity
+    )
+    assert 122e18 < totalValue and totalValue < 125e18
+
+    check_system_invariants(environment, accounts, [vault])

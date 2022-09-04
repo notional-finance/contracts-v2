@@ -346,7 +346,6 @@ def test_exit_vault_after_settlement(environment, vault, accounts, useReceiver):
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
 
-    # TODO: test the receiver here
     environment.notional.exitVault(
         accounts[1],
         vault.address,

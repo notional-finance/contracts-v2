@@ -237,7 +237,6 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)
 
 
-@pytest.mark.only
 def test_roll_vault_with_deposit_amount(environment, accounts, vault, roll_account):
     environment.notional.updateVault(
         vault.address,
@@ -294,9 +293,3 @@ def test_roll_vault_with_deposit_amount(environment, accounts, vault, roll_accou
     assert pytest.approx(rollBorrowLendCostInternal + 2000e8, rel=1e-6) == netSharesMinted
 
     check_system_invariants(environment, accounts, [vault])
-
-
-@pytest.mark.only
-def test_roll_vault_with_eth_deposit_amount(environment, accounts, vault, roll_account):
-    # TODO
-    pass
