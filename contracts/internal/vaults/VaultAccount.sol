@@ -281,7 +281,7 @@ library VaultAccountLib {
             assetCashExternal = assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred);
         }
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-            assetToken.convertToInternal(vaultAccount.tempCashBalance)
+            assetToken.convertToInternal(assetCashExternal)
         );
     }
 

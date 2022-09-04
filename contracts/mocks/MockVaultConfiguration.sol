@@ -262,6 +262,15 @@ contract MockVaultConfigurationAccount is MockVaultConfiguration {
         );
     }
 
+    function depositForRollPosition(
+        address vault,
+        VaultAccount memory vaultAccount,
+        uint256 depositAmountExternal
+    ) external payable returns (int256) {
+        vaultAccount.depositForRollPosition(getVaultConfigView(vault), depositAmountExternal);
+        return vaultAccount.tempCashBalance;
+    }
+
     function calculateDeleverageAmount(
         VaultAccount memory vaultAccount,
         address vault,

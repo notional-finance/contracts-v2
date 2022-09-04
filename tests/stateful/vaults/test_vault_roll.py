@@ -235,3 +235,68 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     )
     vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity1, "fCash": -100_000e8}]
     check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)
+
+
+@pytest.mark.only
+def test_roll_vault_with_deposit_amount(environment, accounts, vault, roll_account):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1), currencyId=2, feeRate5BPS=0
+        ),
+        100_000e8,
+    )
+    maturity1 = environment.notional.getActiveMarkets(2)[0][1]
+    maturity2 = environment.notional.getActiveMarkets(2)[1][1]
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
+
+    (lendAmountUnderlying, lendAmountAsset, _, _) = environment.notional.getDepositFromfCashLend(
+        2, 100_000e8, maturity1, 0, chain.time()
+    )
+    (
+        borrowAmountUnderlying,
+        borrowAmountAsset,
+        _,
+        _,
+    ) = environment.notional.getPrincipalFromfCashBorrow(2, 100_000e8, maturity2, 0, chain.time())
+
+    # Since the borrow capacity is at the max here, we cannot roll the position with 102_000e8
+    # fCash, instead we will deposit 2_000e8 and ensure that we can roll the position by only
+    # borrow 100_000e8 fCash
+    expectedStrategyTokens = environment.notional.rollVaultPosition.call(
+        roll_account, vault, 100_000e8, maturity2, 2_000e18, 0, 0, "", {"from": roll_account}
+    )
+
+    environment.notional.rollVaultPosition(
+        roll_account, vault, 100_000e8, maturity2, 2_000e18, 0, 0, "", {"from": roll_account}
+    )
+
+    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
+    vaultState1After = environment.notional.getVaultState(vault, maturity1)
+    vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
+
+    assert vaultState1After["totalfCash"] == 0
+    assert vaultState1After["totalVaultShares"] == 0
+    assert vaultState1After["totalAssetCash"] == 0
+    assert vaultState1After["totalStrategyTokens"] == 0
+
+    assert vaultStateNew["totalfCash"] == -100_000e8
+    assert vaultStateNew["totalAssetCash"] == 0
+    assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
+    assert pytest.approx(vaultAccountAfter["vaultShares"], abs=1e5) == expectedStrategyTokens
+
+    assert vaultAccountAfter["maturity"] == maturity2
+
+    rollBorrowLendCostInternal = (borrowAmountUnderlying - lendAmountUnderlying) / 1e10
+    netSharesMinted = vaultAccountAfter["vaultShares"] - vaultAccountBefore["vaultShares"]
+    assert netSharesMinted > 0
+    # This is approx equal because there is no vault fee assessed
+    assert pytest.approx(rollBorrowLendCostInternal + 2000e8, rel=1e-6) == netSharesMinted
+
+    check_system_invariants(environment, accounts, [vault])
+
+
+@pytest.mark.only
+def test_roll_vault_with_eth_deposit_amount(environment, accounts, vault, roll_account):
+    # TODO
+    pass

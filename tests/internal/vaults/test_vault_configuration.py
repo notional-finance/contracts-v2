@@ -523,3 +523,30 @@ def test_redeem_with_vault_address(cTokenVaultConfig, currencyId, accounts):
     else:
         assert assetToken.balanceOf(cTokenVaultConfig.address) == assetCash
         assert assetCash == 500e8
+
+
+@given(currencyId=strategy("uint", min_value=1, max_value=5))
+def test_deposit_for_roll_vault(cTokenVaultConfig, currencyId, accounts):
+    # No transfer fee tokens allowed
+    if currencyId == 3:
+        return
+
+    vaultAccount = get_vault_account()
+    (vault, token, decimals, _) = get_redeem_vault(currencyId, cTokenVaultConfig, accounts)
+
+    if currencyId != 1:
+        token.approve(cTokenVaultConfig.address, 2 ** 255, {"from": accounts[0]})
+
+    depositAmount = 100
+    depositAmountExternal = 100 * 10 ** decimals
+    tempCashBalance = cTokenVaultConfig.depositForRollPosition(
+        vault.address,
+        vaultAccount,
+        depositAmountExternal,
+        {"from": accounts[0], "value": depositAmountExternal if currencyId == 1 else 0},
+    ).return_value
+
+    if currencyId == 5:
+        assert tempCashBalance == depositAmount * 1e8
+    else:
+        assert tempCashBalance == depositAmount * 50e8
