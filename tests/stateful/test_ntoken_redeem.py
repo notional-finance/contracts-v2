@@ -1,5 +1,7 @@
+import brownie
 import pytest
 from brownie.network.state import Chain
+from brownie.test import given, strategy
 from scripts.config import CurrencyDefaults
 from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import (
@@ -245,9 +247,18 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-def test_redeem_ntoken_with_ifCash_residual_leave_assets(environment, accounts):
+@given(
+    residualType=strategy("uint8", min_value=0, max_value=2),
+    marketResiduals=strategy("bool"),
+    canSellResiduals=strategy("bool"),
+)
+def test_redeem_ntoken_batch_balance_action(
+    environment, accounts, residualType, marketResiduals, canSellResiduals
+):
     currencyId = 2
-    setup_residual_environment(environment, accounts)
+    setup_residual_environment(
+        environment, accounts, residualType, marketResiduals, canSellResiduals
+    )
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
@@ -259,7 +270,17 @@ def test_redeem_ntoken_with_ifCash_residual_leave_assets(environment, accounts):
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
     action = get_balance_action(2, "RedeemNToken", depositActionAmount=50000e8)
-    environment.notional.batchBalanceAction(accounts[2].address, [action], {"from": accounts[2]})
+
+    if not canSellResiduals:
+        # If residual sales fail then this must revert
+        with brownie.reverts():
+            environment.notional.batchBalanceAction(
+                accounts[2].address, [action], {"from": accounts[2]}
+            )
+    else:
+        environment.notional.batchBalanceAction(
+            accounts[2].address, [action], {"from": accounts[2]}
+        )
 
     # Account should have redeemed around the ifCash residual
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
@@ -269,53 +290,194 @@ def test_redeem_ntoken_with_ifCash_residual_leave_assets(environment, accounts):
     (cash, _, _) = environment.notional.getAccountBalance(2, accounts[2])
     cashRatio = cash / nTokenPV
     supplyRatio = 50000e8 / totalSupply
-    assert cashRatio < supplyRatio
+
+    if residualType == 0 and not marketResiduals:
+        # In this scenario (with no residuals anywhere) valuation is at par
+        assert cashRatio == supplyRatio
+    else:
+        assert cashRatio < supplyRatio
 
     check_system_invariants(environment, accounts)
 
 
-def test_redeem_ntoken_with_ifCash_residual_take_assets(environment, accounts):
+@given(
+    residualType=strategy("uint8", min_value=0, max_value=2),
+    marketResiduals=strategy("bool"),
+    canSellResiduals=strategy("bool"),
+)
+def test_redeem_ntoken_sell_fcash_no_residuals(
+    environment, accounts, residualType, marketResiduals, canSellResiduals
+):
+    currencyId = 2
+    setup_residual_environment(
+        environment, accounts, residualType, marketResiduals, canSellResiduals
+    )
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
+    environment.nToken[currencyId].transfer(accounts[2], 50000e8, {"from": accounts[0]})
+    assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
+
+    nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
+    totalSupply = environment.nToken[currencyId].totalSupply()
+
+    if not canSellResiduals:
+        # If residual sales fail then this must revert
+        with brownie.reverts():
+            environment.notional.nTokenRedeem(
+                accounts[2].address, currencyId, 50_000e8, True, False, {"from": accounts[2]}
+            )
+    else:
+        environment.notional.nTokenRedeem(
+            accounts[2].address, currencyId, 50_000e8, True, False, {"from": accounts[2]}
+        )
+
+    # Account should have redeemed around the ifCash residual
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    assert len(portfolio) == 0
+
+    # Test for PV of account[2] assets relative to redeem
+    (cash, _, _) = environment.notional.getAccountBalance(2, accounts[2])
+    cashRatio = cash / nTokenPV
+    supplyRatio = 50000e8 / totalSupply
+
+    if residualType == 0 and not marketResiduals:
+        # In this scenario (with no residuals anywhere) valuation is at par
+        assert cashRatio == supplyRatio
+    else:
+        assert cashRatio < supplyRatio
+
+    check_system_invariants(environment, accounts)
+
+
+@given(
+    residualType=strategy("uint8", min_value=0, max_value=2),
+    marketResiduals=strategy("bool"),
+    canSellResiduals=strategy("bool"),
+)
+def test_redeem_ntoken_keep_assets_no_residuals(
+    environment, accounts, residualType, marketResiduals, canSellResiduals
+):
+    currencyId = 2
+    setup_residual_environment(
+        environment, accounts, residualType, marketResiduals, canSellResiduals
+    )
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
+    environment.nToken[currencyId].transfer(accounts[2], 50_000e8, {"from": accounts[0]})
+    assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
+
+    environment.notional.nTokenRedeem(
+        accounts[2].address, currencyId, 50_000e8, False, False, {"from": accounts[2]}
+    )
+
+    # Should have fCash assets for each liquid market
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    assert len(portfolio) == 3
+    assert portfolio[0][1] == ifCashAssets[0][1]
+    assert portfolio[1][1] == ifCashAssets[1][1]
+    # Skips the illiquid asset
+    assert portfolio[3][1] == ifCashAssets[3][1]
+
+    if residualType == 0:
+        pass
+        # TODO: assert that the fCash assets are at par to the nToken PV
+    else:
+        pass
+        # TODO: assert that the fCash assets are at a discount to the nToken PV
+
+    check_system_invariants(environment, accounts)
+
+
+@given(
+    residualType=strategy("uint8", min_value=0, max_value=2),
+    marketResiduals=strategy("bool"),
+    canSellResiduals=strategy("bool"),
+)
+def test_redeem_ntoken_keep_assets_accept_residuals(
+    environment, accounts, residualType, marketResiduals, canSellResiduals
+):
     currencyId = 2
     setup_residual_environment(environment, accounts, postRollResiduals=False)
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 500e8, {"from": accounts[0]})
-    portfolio = environment.notional.getAccountPortfolio(accounts[2])
-    assert len(portfolio) == 0
+    environment.nToken[currencyId].transfer(accounts[2], 50_000e8, {"from": accounts[0]})
+    assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
 
     environment.notional.nTokenRedeem(
-        accounts[2].address, currencyId, 500e8, False, True, {"from": accounts[2]}
+        accounts[2].address, currencyId, 50_000e8, False, True, {"from": accounts[2]}
     )
 
-    # Idiosyncratic residual should be in portfolio now
+    # Should have fCash assets for each liquid market and the ifCash asset
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
-    assert len(portfolio) == 1
-    assert portfolio[0][1] == ifCashAssets[2][1]
+
+    if residualType == 0:
+        assert len(portfolio) == 3
+        assert portfolio[0][1] == ifCashAssets[0][1]
+        assert portfolio[1][1] == ifCashAssets[1][1]
+        assert portfolio[2][1] == ifCashAssets[2][1]
+    else:
+        assert len(portfolio) == 4
+        assert portfolio[0][1] == ifCashAssets[0][1]
+        assert portfolio[1][1] == ifCashAssets[1][1]
+        assert portfolio[2][1] == ifCashAssets[2][1]
+        assert portfolio[3][1] == ifCashAssets[3][1]
+
+    # TODO: assert that par to the nToken PV
 
     check_system_invariants(environment, accounts)
 
 
-def test_redeem_ntoken_with_ifCash_residual_sell_and_accept(environment, accounts):
+@given(
+    residualType=strategy("uint8", min_value=0, max_value=2),
+    marketResiduals=strategy("bool"),
+    canSellResiduals=strategy("bool"),
+)
+def test_redeem_ntoken_sell_assets_accept_residuals(
+    environment, accounts, residualType, marketResiduals, canSellResiduals
+):
     currencyId = 2
     setup_residual_environment(environment, accounts)
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 500e8, {"from": accounts[0]})
-    portfolio = environment.notional.getAccountPortfolio(accounts[2])
-    assert len(portfolio) == 0
+    environment.nToken[currencyId].transfer(accounts[2], 50_000e8, {"from": accounts[0]})
+    assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
 
     environment.notional.nTokenRedeem(
-        accounts[2].address, currencyId, 500e8, True, True, {"from": accounts[2]}
+        accounts[2].address, currencyId, 50_000e8, True, True, {"from": accounts[2]}
     )
 
-    # Idiosyncratic residual should be in portfolio now
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
-    assert len(portfolio) == 1
-    assert portfolio[0][1] == ifCashAssets[2][1]
+    if not canSellResiduals:
+        # All assets are in the portfolio
+        assert len(portfolio) == 4
+        assert portfolio[0][1] == ifCashAssets[0][1]
+        assert portfolio[1][1] == ifCashAssets[1][1]
+        assert portfolio[2][1] == ifCashAssets[2][1]
+        assert portfolio[3][1] == ifCashAssets[3][1]
+        # TODO: test that PV is not at a discount to residuals
+    elif residualType == 0:
+        # No ifCash residuals so no assets
+        assert len(portfolio) == 0
+    else:
+        # Only the ifCash asset is in the portfolio
+        assert len(portfolio) == 1
+        assert portfolio[0][1] == ifCashAssets[2][1]
+        # TODO: test that PV is not at a discount to residuals
+
+    if not marketResiduals and canSellResiduals:
+        # TODO: assert discount to the nToken PV
+        pass
+    else:
+        # TODO: assert par to the nToken PV
+        pass
 
     check_system_invariants(environment, accounts)
 

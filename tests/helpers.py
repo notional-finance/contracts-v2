@@ -445,8 +445,12 @@ def initialize_environment(accounts):
     return env
 
 
+# Sets up a residual environment given the parameters:
+# - residualType: 0 = no residuals, 1 = positive, or 2=negative ifCash residuals
+# - marketResiduals: true if there are residuals in the fCash markets
+# - canSellResiduals: true if the residuals can be sold
 def setup_residual_environment(
-    environment, accounts, residualType="Negative", postRollResiduals=True
+    environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
@@ -492,8 +496,8 @@ def setup_residual_environment(
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    # Creates fCash residuals that require trading
-    if postRollResiduals:
+    # Creates fCash residuals that require selling fCash
+    if marketResiduals:
         action = get_balance_trade_action(
             2,
             "DepositUnderlying",
@@ -508,3 +512,7 @@ def setup_residual_environment(
         environment.notional.batchBalanceAndTradeAction(
             accounts[1], [action], {"from": accounts[1]}
         )
+
+    if not canSellResiduals:
+        # Redeem the vast majority of the nTokens
+        pass
