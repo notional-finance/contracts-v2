@@ -78,6 +78,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     /// @param vault the vault to reenter
     /// @param fCashToBorrow amount of fCash to borrow in the next maturity
     /// @param maturity new maturity to borrow at
+    /// @param depositAmountExternal amount to deposit into the new maturity
+    /// @param minLendRate slippage protection for repaying debts
+    /// @param maxBorrowRate slippage protection for new borrow position
     /// @return strategyTokensAdded the total strategy tokens added to the maturity, including any tokens
     /// rolled from the previous maturity.. Allows rollVaultPosition to be used by off-chain methods to get
     /// an accurate simulation of the strategy tokens minted.
@@ -86,10 +89,11 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         address vault,
         uint256 fCashToBorrow,
         uint256 maturity,
+        uint256 depositAmountExternal,
         uint32 minLendRate,
         uint32 maxBorrowRate,
         bytes calldata enterVaultData
-    ) external override nonReentrant returns (uint256 strategyTokensAdded) {
+    ) external payable override nonReentrant returns (uint256 strategyTokensAdded) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ROLL);
 
@@ -127,6 +131,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // above but we check it for safety here.
         require(vaultAccount.fCash == 0, "Failed Lend");
         vaultState.setVaultState(vaultConfig.vault);
+
+        // Takes a deposit from the user as repayment for the lending, allows an account to roll their position
+        // even if they are close to the max borrow capacity.
+        if (depositAmountExternal > 0) {
+            vaultAccount.depositForRollPosition(vaultConfig, depositAmountExternal);
+        }
 
         // Enters the vault at the longer dated maturity
         strategyTokensAdded = vaultAccount.borrowAndEnterVault(

@@ -257,6 +257,33 @@ library VaultAccountLib {
         updateAccountfCash(vaultAccount, vaultConfig, vaultState, fCash, assetCashCostToLend);
         // NOTE: vault account and vault state are not set into storage in this method.
     }
+    
+    function depositForRollPosition(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        uint256 depositAmountExternal
+    ) internal {
+        (Token memory assetToken, Token memory underlyingToken) = vaultConfig.getTokens();
+        uint256 amountTransferred;
+        if (underlyingToken.tokenType == TokenType.Ether) {
+            require(depositAmountExternal == msg.value, "Invalid ETH");
+            amountTransferred = msg.value;
+        } else {
+            amountTransferred = underlyingToken.transfer(
+                vaultAccount.account, vaultConfig.borrowCurrencyId, depositAmountExternal.toInt()
+            ).toUint();
+        }
+
+        int256 assetCashExternal;
+        if (assetToken.tokenType == TokenType.NonMintable) {
+            assetCashExternal = amountTransferred.toInt();
+        } else if (amountTransferred > 0) {
+            assetCashExternal = assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred);
+        }
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
+            assetToken.convertToInternal(vaultAccount.tempCashBalance)
+        );
+    }
 
     /// @notice Calculates the amount a liquidator can deposit in asset cash terms to deleverage an account.
     /// @param vaultAccount the vault account to deleverage

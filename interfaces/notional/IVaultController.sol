@@ -288,10 +288,11 @@ interface IVaultAccountAction {
         address vault,
         uint256 fCashToBorrow,
         uint256 maturity,
+        uint256 depositAmountExternal,
         uint32 minLendRate,
         uint32 maxBorrowRate,
         bytes calldata enterVaultData
-    ) external returns (uint256 strategyTokensAdded);
+    ) external payable returns (uint256 strategyTokensAdded);
 
     /**
      * @notice Prior to maturity, allows an account to withdraw their position from the vault. Will
