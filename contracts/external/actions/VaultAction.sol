@@ -312,16 +312,11 @@ contract VaultAction is ActionGuards, IVaultAction {
             account, currencyId, maturity, debtSharesToRepay, minLendRate
         );
 
-        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
+        (Token memory assetToken, Token memory underlyingToken) = vaultConfig.getTokens();
         // The vault MUST return exactly this amount of underlying tokens to the vault in the callback. We use
         // a callback here because it is more precise and gas efficient than calculating netAssetCash twice
         uint256 balanceTransferred;
         {
-            // If the asset token is NonMintable then the underlying is the same object.
-            Token memory underlyingToken = assetToken.tokenType == TokenType.NonMintable ? 
-                assetToken :
-                TokenHandler.getUnderlyingToken(currencyId);
-
             uint256 underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(
                 vaultConfig.assetRate.convertToUnderlying(netAssetCash).neg()
             ).toUint();

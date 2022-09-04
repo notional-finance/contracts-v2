@@ -580,11 +580,7 @@ library VaultConfiguration {
         RedeemParams memory params,
         bytes calldata data
     ) internal returns (int256 assetCashInternalRaised, uint256 underlyingToReceiver) {
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        // If the asset token is NonMintable then the underlying is the same object.
-        Token memory underlyingToken = assetToken.tokenType == TokenType.NonMintable ? 
-            assetToken :
-            TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+        (Token memory assetToken, Token memory underlyingToken) = getTokens(vaultConfig);
 
         // Calculates the amount of underlying tokens required to repay the debt, adjusting for potential
         // dust values.
@@ -964,5 +960,16 @@ library VaultConfiguration {
         (marketIndex, isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
         require(marketIndex <= maxBorrowMarketIndex, "Invalid Maturity");
         require(!isIdiosyncratic, "Invalid Maturity");
+    }
+
+    function getTokens(VaultConfig memory vaultConfig) internal view returns (
+        Token memory assetToken,
+        Token memory underlyingToken
+    ) {
+        assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
+        // If the asset token is NonMintable then the underlying is the same object.
+        underlyingToken = assetToken.tokenType == TokenType.NonMintable ? 
+            assetToken :
+            TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
     }
 }
