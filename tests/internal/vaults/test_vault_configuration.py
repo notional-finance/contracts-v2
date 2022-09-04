@@ -492,7 +492,6 @@ def test_redeem_insufficient_to_repay_debt_tokens(cTokenVaultConfig, currencyId,
             )
 
 
-@pytest.mark.only
 @given(currencyId=strategy("uint", min_value=1, max_value=5))
 def test_redeem_with_vault_address(cTokenVaultConfig, currencyId, accounts):
     if currencyId == 3:
@@ -524,11 +523,3 @@ def test_redeem_with_vault_address(cTokenVaultConfig, currencyId, accounts):
     else:
         assert assetToken.balanceOf(cTokenVaultConfig.address) == assetCash
         assert assetCash == 500e8
-
-
-def test_resolve_shortfall_with_reserve_sufficient():
-    pass
-
-
-def test_resolve_shortfall_with_reserve_insolvent():
-    pass

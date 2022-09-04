@@ -100,7 +100,7 @@ def test_pause_vault(environment, vault, accounts):
     with brownie.reverts("No Roll Allowed"):
         # Vault is disabled, cannot enter
         environment.notional.rollVaultPosition(
-            accounts[1], vault.address, maturity, 100_000e8, 0, 0, "", {"from": accounts[1]}
+            accounts[1], vault.address, maturity, 100_000e8, 0, 0, 0, "", {"from": accounts[1]}
         )
 
 
@@ -866,6 +866,7 @@ def test_settle_fails_on_secondary_currency_balance(environment, vault, accounts
     assert debtShares == [0, 0]
 
 
+@pytest.mark.only
 def test_repay_secondary_currency_succeeds_at_zero_interest(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,

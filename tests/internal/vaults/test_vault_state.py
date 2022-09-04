@@ -27,7 +27,6 @@ def test_cash_value_of_shares(vaultConfigState, vault, accounts):
 
 
 def test_get_and_set_vault_state(vaultConfigState, vault):
-    # TODO: randomize these values
     state = get_vault_state(
         maturity=START_TIME_TREF + SECONDS_IN_QUARTER,
         totalAssetCash=1_000e8,
@@ -119,7 +118,6 @@ def test_exit_maturity_pool(vaultConfigState, vault):
     assert totalStrategyTokens - newState.dict()["totalStrategyTokens"] == tokens
 
 
-@pytest.mark.only
 @given(
     strategyTokenDeposit=strategy("uint", min_value=0, max_value=200_000e8),
     isMaturity=strategy("bool"),
