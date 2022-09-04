@@ -445,7 +445,9 @@ def initialize_environment(accounts):
     return env
 
 
-def setup_residual_environment(environment, accounts, residualType="Negative"):
+def setup_residual_environment(
+    environment, accounts, residualType="Negative", postRollResiduals=True
+):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
@@ -489,3 +491,20 @@ def setup_residual_environment(environment, accounts, residualType="Negative"):
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
+
+    # Creates fCash residuals that require trading
+    if postRollResiduals:
+        action = get_balance_trade_action(
+            2,
+            "DepositUnderlying",
+            [
+                {"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0},
+                {"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0},
+                {"tradeActionType": "Lend", "marketIndex": 3, "notional": 100e8, "minSlippage": 0},
+            ],
+            depositActionAmount=500e18,
+            withdrawEntireCashBalance=True,
+        )
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [action], {"from": accounts[1]}
+        )

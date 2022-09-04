@@ -180,38 +180,39 @@ contract AccountAction is ActionGuards {
         bool sellTokenAssets,
         bool acceptResidualAssets
     ) external nonReentrant returns (int256, bool) {
-        revert();
-        // // ERC1155 can call this method during a post transfer event
-        // require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
-        // int256 tokensToRedeem = int256(tokensToRedeem_);
+        // ERC1155 can call this method during a post transfer event
+        require(msg.sender == redeemer || msg.sender == address(this), "Unauthorized caller");
+        int256 tokensToRedeem = int256(tokensToRedeem_);
 
-        // (AccountContext memory context, /* didSettle */) = _settleAccountIfRequired(redeemer);
+        (AccountContext memory context, /* didSettle */) = _settleAccountIfRequired(redeemer);
 
-        // BalanceState memory balance;
-        // balance.loadBalanceState(redeemer, currencyId, context);
+        BalanceState memory balance;
+        balance.loadBalanceState(redeemer, currencyId, context);
 
-        // require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
-        // balance.netNTokenSupplyChange = tokensToRedeem.neg();
+        require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
+        balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
-        // (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
-        //     nTokenRedeemAction.redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets);
+        (int256 totalAssetCash, /* bool hasResidual */, PortfolioAsset[] memory assets) =
+            nTokenRedeemAction.redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets);
 
-        // // Set balances before transferring assets
-        // balance.netCashChange = totalAssetCash;
-        // balance.finalize(redeemer, context, false);
+        // Set balances before transferring assets
+        balance.netCashChange = totalAssetCash;
+        balance.finalize(redeemer, context, false);
 
-        // if (assets.length > 0) {
-        //     // This method will store assets and update the account context in memory
-        //     context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
-        // }
+        // The hasResidual flag is only set to true if selling residuals has failed, checking
+        // if the length of assets is greater than zero will detect the presence of ifCash
+        // assets that have not been sold.
+        if (assets.length > 0) {
+            // This method will store assets and update the account context in memory
+            context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
+        }
 
-        // context.setAccountContext(redeemer);
-        // if (context.hasDebt != 0x00) {
-        //     FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
-        // }
+        context.setAccountContext(redeemer);
+        if (context.hasDebt != 0x00) {
+            FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
+        }
 
-        // emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
-        // return (totalAssetCash, hasResidual);
+        return (totalAssetCash, assets.length > 0);
     }
 
     /// @notice Settle the account if required, returning a reference to the account context. Also

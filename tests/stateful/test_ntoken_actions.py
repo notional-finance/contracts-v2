@@ -354,7 +354,7 @@ def test_redeem_ntoken_with_ifCash_residual_leave_assets(environment, accounts):
 
 def test_redeem_ntoken_with_ifCash_residual_take_assets(environment, accounts):
     currencyId = 2
-    setup_residual_environment(environment, accounts)
+    setup_residual_environment(environment, accounts, postRollResiduals=False)
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
@@ -365,6 +365,30 @@ def test_redeem_ntoken_with_ifCash_residual_take_assets(environment, accounts):
 
     environment.notional.nTokenRedeem(
         accounts[2].address, currencyId, 500e8, False, True, {"from": accounts[2]}
+    )
+
+    # Idiosyncratic residual should be in portfolio now
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    assert len(portfolio) == 1
+    assert portfolio[0][1] == ifCashAssets[2][1]
+
+    check_system_invariants(environment, accounts)
+
+
+@pytest.mark.only
+def test_redeem_ntoken_with_ifCash_residual_sell_and_accept(environment, accounts):
+    currencyId = 2
+    setup_residual_environment(environment, accounts)
+    nTokenAddress = environment.notional.nTokenAddress(currencyId)
+    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
+
+    # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
+    environment.nToken[currencyId].transfer(accounts[2], 500e8, {"from": accounts[0]})
+    portfolio = environment.notional.getAccountPortfolio(accounts[2])
+    assert len(portfolio) == 0
+
+    environment.notional.nTokenRedeem(
+        accounts[2].address, currencyId, 500e8, True, True, {"from": accounts[2]}
     )
 
     # Idiosyncratic residual should be in portfolio now
