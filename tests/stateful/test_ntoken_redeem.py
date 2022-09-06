@@ -1,5 +1,6 @@
 import brownie
 import pytest
+from brownie.exceptions import RPCRequestError
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from scripts.config import CurrencyDefaults
@@ -257,6 +258,7 @@ def test_redeem_ntoken_batch_balance_action(
     environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
+    redeemAmount = 1_000_000e8
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
@@ -264,22 +266,23 @@ def test_redeem_ntoken_batch_balance_action(
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 50000e8, {"from": accounts[0]})
+    environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
     assert len(portfolio) == 0
 
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
-    action = get_balance_action(2, "RedeemNToken", depositActionAmount=50000e8)
+    action = get_balance_action(2, "RedeemNToken", depositActionAmount=redeemAmount)
 
     if not canSellResiduals and marketResiduals:
-        pass
-        # TODO: Getting RPC error even though this reverts
-        # # If residual sales fail then this must revert
-        # with brownie.reverts("Residuals"):
-        #     environment.notional.batchBalanceAction(
-        #         accounts[2].address, [action], {"from": accounts[2]}
-        #     )
+        try:
+            environment.notional.nTokenRedeem(
+                accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
+            )
+            assert False
+        except RPCRequestError:
+            # This is how we detect a revert when Ganache throws an Invalid String Length error
+            pass
     else:
         environment.notional.batchBalanceAction(
             accounts[2].address, [action], {"from": accounts[2]}
@@ -292,7 +295,7 @@ def test_redeem_ntoken_batch_balance_action(
     # Test for PV of account[2] assets relative to redeem
     (cash, _, _) = environment.notional.getAccountBalance(2, accounts[2])
     cashRatio = cash / nTokenPV
-    supplyRatio = 50000e8 / totalSupply
+    supplyRatio = redeemAmount / totalSupply
 
     if residualType == 0 and not marketResiduals:
         # In this scenario (with no residuals anywhere) valuation is at par
@@ -312,6 +315,7 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
     environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
+    redeemAmount = 1_000_000e8
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
@@ -319,23 +323,25 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 50000e8, {"from": accounts[0]})
+    environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
     assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
 
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
 
     if not canSellResiduals and marketResiduals:
-        pass
         # If residual sales fail then this must revert
-        # TODO: Invalid string length bug
-        # with brownie.reverts("Residuals"):
-        #     environment.notional.nTokenRedeem(
-        #         accounts[2].address, currencyId, 50_000e8, True, False, {"from": accounts[2]}
-        #     )
+        try:
+            environment.notional.nTokenRedeem(
+                accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
+            )
+            assert False
+        except RPCRequestError:
+            # This is how we detect a revert when Ganache throws an Invalid String Length error
+            pass
     else:
         environment.notional.nTokenRedeem(
-            accounts[2].address, currencyId, 50_000e8, True, False, {"from": accounts[2]}
+            accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
         )
 
     # Account should have redeemed around the ifCash residual
@@ -345,7 +351,7 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
     # Test for PV of account[2] assets relative to redeem
     (cash, _, _) = environment.notional.getAccountBalance(2, accounts[2])
     cashRatio = cash / nTokenPV
-    supplyRatio = 50000e8 / totalSupply
+    supplyRatio = redeemAmount / totalSupply
 
     if residualType == 0 and not marketResiduals:
         # In this scenario (with no residuals anywhere) valuation is at par
