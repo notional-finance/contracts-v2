@@ -152,7 +152,9 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
 
 def test_purchase_ntoken_residual_negative(environment, accounts):
     currencyId = 2
-    setup_residual_environment(environment, accounts)
+    setup_residual_environment(
+        environment, accounts, residualType=1, marketResiduals=False, canSellResiduals=True
+    )
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)

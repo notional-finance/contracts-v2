@@ -138,8 +138,8 @@ library nTokenRedeemAction {
 
         if (netfCashRemaining) {
             // If the account is unwilling to accept residuals then will fail here.
-            require(acceptResidualAssets, "Residuals");
             newifCashAssets = _addResidualsToAssets(nToken.portfolioState.storedAssets, newifCashAssets, netfCash);
+            require(acceptResidualAssets || newifCashAssets.length == 0, "Residuals");
         }
 
         return (totalAssetCash, netfCashRemaining, newifCashAssets);
