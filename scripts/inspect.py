@@ -7,6 +7,23 @@ from brownie.project import ContractsV2Project
 from tests.constants import DEPOSIT_ACTION_TYPE, TRADE_ACTION_TYPE
 
 
+def get_router_args(router):
+    return [
+        router.GOVERNANCE(),
+        router.VIEWS(),
+        router.INITIALIZE_MARKET(),
+        router.NTOKEN_ACTIONS(),
+        router.BATCH_ACTION(),
+        router.ACCOUNT_ACTION(),
+        router.ERC1155(),
+        router.LIQUIDATE_CURRENCY(),
+        router.LIQUIDATE_FCASH(),
+        router.cETH(),
+        router.TREASURY(),
+        router.CALCULATION_VIEWS(),
+    ]
+
+
 def main():
     networkName = network.show_active()
     if networkName == "mainnet-fork":
