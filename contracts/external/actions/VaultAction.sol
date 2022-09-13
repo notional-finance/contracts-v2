@@ -78,6 +78,20 @@ contract VaultAction is ActionGuards, IVaultAction {
         emit VaultUpdateSecondaryBorrowCapacity(vaultAddress, secondaryCurrencyId, maxBorrowCapacity);
     }
 
+
+    /// @notice Allows the owner to reduce the max borrow capacity on the vault
+    /// @param vaultAddress address of the vault
+    /// @param maxVaultBorrowCapacity the new max vault borrow capacity on the primary currency
+    function setMaxBorrowCapacity(
+        address vaultAddress,
+        uint80 maxVaultBorrowCapacity
+    ) external override onlyOwner {
+        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vaultAddress);
+        VaultConfiguration.setMaxBorrowCapacity(vaultAddress, vaultConfig.borrowCurrencyId, maxVaultBorrowCapacity);
+
+        emit VaultUpdated(vaultAddress, vaultConfig.getFlag(VaultConfiguration.ENABLED), maxVaultBorrowCapacity);
+    }
+
     /// @notice Allows the owner to reduce the max borrow capacity on the vault and force
     /// the redemption of strategy tokens to cash to reduce the overall risk of the vault.
     /// This method is intended to be used in emergencies to mitigate insolvency risk. The effect

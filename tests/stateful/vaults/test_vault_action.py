@@ -104,6 +104,35 @@ def test_pause_vault(environment, vault, accounts):
         )
 
 
+def test_set_max_capacity(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True), minAccountBorrowSize=1),
+        100_000_000e8,
+    )
+    with brownie.reverts("Ownable: caller is not the owner"):
+        environment.notional.setMaxBorrowCapacity(vault.address, 100e8, {"from": accounts[1]})
+
+    environment.notional.setMaxBorrowCapacity(vault.address, 100e8, {"from": accounts[0]})
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    with brownie.reverts("Max Capacity"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            maturity,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 100_000e18, maturity, 50e8, 0, "", {"from": accounts[1]}
+    )
+
+
 def test_deposit_and_redeem_vault_auth(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address, get_vault_config(flags=set_flags(0, ENABLED=True)), 100_000_000e8

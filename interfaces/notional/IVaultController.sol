@@ -111,6 +111,12 @@ interface IVaultAction {
         bool enable
     ) external;
 
+    /// @notice Governance only method to set the borrow capacity
+    function setMaxBorrowCapacity(
+        address vaultAddress,
+        uint80 maxVaultBorrowCapacity
+    ) external;
+
     /// @notice Governance only method to force a particular vault to deleverage
     function reduceMaxBorrowCapacity(
         address vaultAddress,
