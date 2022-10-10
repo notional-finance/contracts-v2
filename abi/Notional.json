@@ -1014,7 +1014,13 @@
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "underlyingTokensTransferred",
+                "name": "underlyingTokensDeposited",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "cashTransferToVault",
                 "type": "uint256"
             },
             {
