@@ -53,7 +53,8 @@ library VaultStateLib {
         address indexed vault,
         uint256 indexed maturity,
         address indexed account,
-        uint256 underlyingTokensTransferred,
+        uint256 underlyingTokensDeposited,
+        uint256 cashTransferToVault,
         uint256 strategyTokenDeposited,
         uint256 vaultSharesMinted
     );
@@ -254,8 +255,9 @@ library VaultStateLib {
             vaultConfig.vault,
             vaultState.maturity,
             vaultAccount.account,
+            additionalUnderlyingExternal,
             // Overflow checked above
-            uint256(vaultAccount.tempCashBalance).add(additionalUnderlyingExternal),
+            uint256(vaultAccount.tempCashBalance),
             strategyTokenDeposit,
             vaultSharesMinted
         );

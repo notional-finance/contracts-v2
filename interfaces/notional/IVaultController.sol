@@ -251,7 +251,8 @@ interface IVaultAccountAction {
         address indexed vault,
         uint256 indexed maturity,
         address indexed account,
-        uint256 underlyingTokensTransferred,
+        uint256 underlyingTokensDeposited,
+        uint256 cashTransferToVault,
         uint256 strategyTokenDeposited,
         uint256 vaultSharesMinted
     );

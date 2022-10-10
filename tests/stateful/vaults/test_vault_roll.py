@@ -266,7 +266,7 @@ def test_roll_vault_with_deposit_amount(environment, accounts, vault, roll_accou
         roll_account, vault, 100_000e8, maturity2, 2_000e18, 0, 0, "", {"from": roll_account}
     )
 
-    environment.notional.rollVaultPosition(
+    txn = environment.notional.rollVaultPosition(
         roll_account, vault, 100_000e8, maturity2, 2_000e18, 0, 0, "", {"from": roll_account}
     )
 
@@ -291,5 +291,12 @@ def test_roll_vault_with_deposit_amount(environment, accounts, vault, roll_accou
     assert netSharesMinted > 0
     # This is approx equal because there is no vault fee assessed
     assert pytest.approx(rollBorrowLendCostInternal + 2000e8, rel=1e-6) == netSharesMinted
+
+    assert txn.events["VaultEnterMaturity"]
+    assert txn.events["VaultEnterMaturity"]["underlyingTokensDeposited"] == 0
+    assert (
+        pytest.approx(txn.events["VaultEnterMaturity"]["cashTransferToVault"], rel=1e-6)
+        == (rollBorrowLendCostInternal + 2000e8) * 50
+    )
 
     check_system_invariants(environment, accounts, [vault])

@@ -290,9 +290,13 @@ def test_enter_vault_with_dai(environment, vault, accounts):
     )
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
-    environment.notional.enterVault(
+    txn = environment.notional.enterVault(
         accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
+    assert txn.events["VaultEnterMaturity"]
+    assert txn.events["VaultEnterMaturity"]["underlyingTokensDeposited"] == 25_000e18
+    assert txn.events["VaultEnterMaturity"]["cashTransferToVault"] > 100_000e8 * 49
+    assert txn.events["VaultEnterMaturity"]["cashTransferToVault"] < 100_000e8 * 50
 
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
     (collateralRatio, _, _) = environment.notional.getVaultAccountCollateralRatio(
