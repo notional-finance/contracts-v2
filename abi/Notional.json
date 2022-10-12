@@ -4421,6 +4421,11 @@
                 "internalType": "int256",
                 "name": "maxLiquidatorDepositAssetCash",
                 "type": "int256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "vaultSharesToLiquidator",
+                "type": "uint256"
             }
         ],
         "stateMutability": "view",

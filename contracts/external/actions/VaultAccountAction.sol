@@ -474,7 +474,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     function getVaultAccountCollateralRatio(address account, address vault) external override view returns (
         int256 collateralRatio,
         int256 minCollateralRatio,
-        int256 maxLiquidatorDepositAssetCash
+        int256 maxLiquidatorDepositAssetCash,
+        uint256 vaultSharesToLiquidator
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
@@ -496,6 +497,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 (maxLiquidatorDepositAssetCash, /* */) = vaultAccount.calculateDeleverageAmount(
                     vaultConfig, vaultShareValue
                 );
+
+                vaultSharesToLiquidator = maxLiquidatorDepositAssetCash.toUint()
+                    .mul(vaultConfig.liquidationRate.toUint())
+                    .mul(vaultAccount.vaultShares)
+                    .div(vaultShareValue.toUint())
+                    .div(uint256(Constants.RATE_PRECISION));
             }
         }
     }
