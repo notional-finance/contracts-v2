@@ -42,6 +42,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) external payable override nonReentrant returns (uint256 strategyTokensAdded) { 
         // Ensure that system level accounts cannot enter vaults
         requireValidAccount(account);
+        require(account != vault);
+
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
         vaultConfig.authorizeCaller(account, VaultConfiguration.ONLY_VAULT_ENTRY);
 
