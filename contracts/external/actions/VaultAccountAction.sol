@@ -268,6 +268,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bool transferSharesToLiquidator,
         bytes calldata redeemData
     ) external nonReentrant override returns (uint256 profitFromLiquidation) {
+        // Do not allow invalid accounts to liquidate
+        requireValidAccount(liquidator);
+
         VaultConfig memory vaultConfig = _authenticateDeleverage(account, vault, liquidator);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
         VaultState memory vaultState = VaultStateLib.getVaultState(vault, vaultAccount.maturity);
