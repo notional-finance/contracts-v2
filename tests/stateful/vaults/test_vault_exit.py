@@ -126,6 +126,55 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     check_system_invariants(environment, accounts, [vault])
 
 
+def test_exit_vault_transfer_from_account_sell_zero_shares(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
+    balanceBefore = environment.token["DAI"].balanceOf(accounts[1])
+
+    (amountUnderlying, _, _, _) = environment.notional.getDepositFromfCashLend(
+        2, 100_000e8, maturity, 0, chain.time()
+    )
+
+    # If vault share value < exit cost then we need to transfer from the account
+    environment.notional.exitVault(
+        accounts[1], vault.address, accounts[1], 0, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
+    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
+        accounts[1], vault
+    )
+    vaultState = environment.notional.getVaultState(vault, maturity)
+
+    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-8) == amountUnderlying
+    assert collateralRatioBefore < collateralRatioAfter
+
+    assert vaultAccount["fCash"] == 0
+    assert vaultAccount["maturity"] == maturity
+    assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"]
+
+    assert vaultState["totalfCash"] == 0
+    assert vaultState["totalAssetCash"] == 0
+    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
+    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
+
+    check_system_invariants(environment, accounts, [vault])
+
+
 @given(useReceiver=strategy("bool"))
 def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceiver):
     environment.notional.updateVault(

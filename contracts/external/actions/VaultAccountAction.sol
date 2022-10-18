@@ -225,11 +225,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 vaultAccount.tempCashBalance = 0;
             }
 
-            if (strategyTokens > 0) {
-                underlyingToReceiver = vaultConfig.redeemWithDebtRepayment(
-                    vaultAccount, receiver, strategyTokens, vaultState.maturity, exitVaultData
-                );
-            }
+            // If insufficient strategy tokens are redeemed (or if it is set to zero), then
+            // redeem with debt repayment will recover the repayment from the account's wallet
+            // directly.
+            underlyingToReceiver = vaultConfig.redeemWithDebtRepayment(
+                vaultAccount, receiver, strategyTokens, vaultState.maturity, exitVaultData
+            );
 
             if (vaultAccount.fCash < 0) {
                 // It's possible that the user redeems more vault shares than they lend (it is not always the case
