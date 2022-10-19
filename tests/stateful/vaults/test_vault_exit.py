@@ -16,6 +16,31 @@ def isolation(fn_isolation):
     pass
 
 
+def test_cannot_exit_within_min_blocks(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    with brownie.reverts("Min Entry Blocks"):
+        environment.notional.exitVault(
+            accounts[1],
+            vault.address,
+            accounts[1],
+            50_000e8,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
+
 def test_only_vault_exit(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
@@ -41,6 +66,7 @@ def test_only_vault_exit(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
+    chain.mine(5)
     # Execution from vault is allowed
     environment.notional.exitVault(
         accounts[1], vault.address, accounts[1], 50_000e8, 100_000e8, 0, "", {"from": vault.address}
@@ -61,6 +87,7 @@ def test_exit_vault_min_borrow(environment, vault, accounts):
         accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
+    chain.mine(5)
     with brownie.reverts("Min Borrow"):
         # User account cannot directly exit vault
         environment.notional.exitVault(
@@ -100,6 +127,7 @@ def test_exit_vault_transfer_from_account(environment, vault, accounts):
     )
 
     # If vault share value < exit cost then we need to transfer from the account
+    chain.mine(5)
     environment.notional.exitVault(
         accounts[1], vault.address, accounts[1], 50_000e8, 100_000e8, 0, "", {"from": accounts[1]}
     )
@@ -149,6 +177,7 @@ def test_exit_vault_transfer_from_account_sell_zero_shares(environment, vault, a
     )
 
     # If vault share value < exit cost then we need to transfer from the account
+    chain.mine(5)
     environment.notional.exitVault(
         accounts[1], vault.address, accounts[1], 0, 100_000e8, 0, "", {"from": accounts[1]}
     )
@@ -200,6 +229,7 @@ def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceive
     )
 
     # If vault share value > exit cost then we transfer to the account
+    chain.mine(5)
     expectedProfit = environment.notional.exitVault.call(
         accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
     )
@@ -243,6 +273,7 @@ def test_exit_vault_insufficient_collateral(environment, vault, accounts):
     )
 
     # Cannot exit a vault below min collateral ratio
+    chain.mine(5)
     with brownie.reverts("Insufficient Collateral"):
         environment.notional.exitVault(
             accounts[1], vault.address, accounts[1], 10_000e8, 0, 0, "", {"from": accounts[1]}
@@ -281,6 +312,7 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
 
     # NOTE: this adds 5_000_000e8 cDAI into the contract but there is no offsetting fCash position
     # recorded, similarly, the fCash erased is not recorded anywhere either
+    chain.mine(5)
     environment.notional.exitVault(
         accounts[1], vault.address, receiver, 10_000e8, 100_000e8, 0, "", {"from": accounts[1]}
     )
@@ -337,6 +369,7 @@ def test_exit_vault_during_settlement(environment, vault, accounts, useReceiver)
     (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
         2, 100_000e8, maturity, 0, chain.time()
     )
+    chain.mine(5)
     environment.notional.exitVault(
         accounts[1], vault.address, receiver, 100_000e8, 100_000e8, 0, "", {"from": accounts[1]}
     )
@@ -395,6 +428,7 @@ def test_exit_vault_after_settlement(environment, vault, accounts, useReceiver):
     vaultStateBefore = environment.notional.getVaultState(vault, maturity)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
 
+    chain.mine(5)
     environment.notional.exitVault(
         accounts[1],
         vault.address,

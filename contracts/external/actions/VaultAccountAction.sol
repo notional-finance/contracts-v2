@@ -192,6 +192,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         }
 
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
+        require(
+            vaultAccount.lastEntryBlockHeight + Constants.VAULT_ACCOUNT_MIN_BLOCKS <= block.number,
+            "Min Entry Blocks"
+        );
 
         if (vaultAccount.maturity <= block.timestamp) {
             // Save this off because settleVaultAccount will clear the maturity

@@ -895,7 +895,6 @@ def test_settle_fails_on_secondary_currency_balance(environment, vault, accounts
     assert debtShares == [0, 0]
 
 
-@pytest.mark.only
 def test_repay_secondary_currency_succeeds_at_zero_interest(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,
