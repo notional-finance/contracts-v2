@@ -121,6 +121,7 @@ library VaultConfiguration {
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.maxDeleverageCollateralRatio = int256(uint256(s.maxDeleverageCollateralRatioBPS).mul(Constants.BASIS_POINT));
+        vaultConfig.maxRequiredAccountCollateralRatio = int256(uint256(s.maxRequiredAccountCollateralRatioBPS).mul(Constants.BASIS_POINT));
         // This is used in 1e9 precision on the stack (no overflow possible)
         vaultConfig.liquidationRate = (int256(uint256(s.liquidationRate)) * Constants.RATE_PRECISION) / Constants.PERCENTAGE_DECIMALS;
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
@@ -172,8 +173,6 @@ library VaultConfiguration {
 
         // Liquidation rate must be greater than or equal to 100
         require(Constants.PERCENTAGE_DECIMALS <= vaultConfig.liquidationRate);
-        // This must be true or else when deleveraging we could put an account further towards insolvency
-        require(vaultConfig.minCollateralRatioBPS < vaultConfig.maxDeleverageCollateralRatioBPS);
         // minCollateralRatioBPS to RATE_PRECISION is minCollateralRatioBPS * BASIS_POINT (1e5)
         // liquidationRate to RATE_PRECISION  is liquidationRate * RATE_PRECISION / PERCENTAGE_DECIMALS (net 1e7)
         //    (liquidationRate - 100) * 1e9 / 1e2 < minCollateralRatioBPS * 1e5
@@ -184,6 +183,18 @@ library VaultConfiguration {
         // Ensure that liquidation rate is less than minCollateralRatio so that liquidations are not locked
         // up causing accounts to remain insolvent
         require(liquidationRate < vaultConfig.minCollateralRatioBPS);
+
+        // Collateral ratio values must satisfy this inequality:
+        // insolvent < 0 < [liquidatable account] <  ...
+        //      minCollateralRatio < [account] < maxDeleverageCollateralRatio < ...
+        //      [account] < maxRequiredAccountCollateralRatio
+
+        // This must be true or else when deleveraging we could put an account further towards insolvency
+        require(vaultConfig.minCollateralRatioBPS < vaultConfig.maxDeleverageCollateralRatioBPS);
+        if (vaultConfig.maxRequiredAccountCollateralRatioBPS > 0) {
+            // This must be true or accounts cannot enter the vault
+            require(vaultConfig.maxDeleverageCollateralRatioBPS < vaultConfig.maxRequiredAccountCollateralRatioBPS);
+        }
 
         // Reserve fee share must be less than or equal to 100
         require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
@@ -424,6 +435,13 @@ library VaultConfiguration {
         (int256 collateralRatio, /* */) = calculateCollateralRatio(
             vaultConfig, vaultState, vaultAccount.account, vaultAccount.vaultShares, vaultAccount.fCash
         );
+
+        // If this value is set then we will enforce a maximum account collateral ratio that must be
+        // satisfied for vault entry and vault exit.
+        if (vaultConfig.maxRequiredAccountCollateralRatio > 0) {
+            require(collateralRatio <= vaultConfig.maxRequiredAccountCollateralRatio, "Above Max Collateral");
+        }
+
         require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
     }
 

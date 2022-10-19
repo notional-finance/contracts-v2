@@ -96,6 +96,16 @@ def test_no_system_level_accounts(environment, vault, accounts):
             "",
             {"from": vault.address},
         )
+        environment.notional.enterVault(
+            vault.address,
+            vault.address,
+            100_000e18,
+            maturity,
+            100_000e8,
+            0,
+            "",
+            {"from": vault.address},
+        )
 
 
 def test_enter_vault_past_maturity(environment, vault, accounts):
@@ -126,6 +136,37 @@ def test_enter_vault_past_maturity(environment, vault, accounts):
             "",
             {"from": accounts[1]},
         )
+
+
+def test_cannot_enter_vault_with_less_than_required(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2,
+            flags=set_flags(0, ENABLED=True),
+            maxBorrowMarketIndex=2,
+            maxDeleverageCollateralRatioBPS=2500,
+            maxRequiredAccountCollateralRatio=3000,
+        ),
+        500_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(2)[0][1]
+
+    with brownie.reverts("Above Max Collateral"):
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            1_000_000e18,
+            maturity,
+            100_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
 
 
 def test_cannot_enter_vault_with_zero_fcash(environment, vault, accounts):

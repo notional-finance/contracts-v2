@@ -115,6 +115,27 @@ def test_roll_vault_past_max_market(environment, vault, roll_account, accounts):
         )
 
 
+def test_roll_vault_below_max_collateral_ratio(environment, vault, roll_account, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=1),
+            currencyId=2,
+            feeRate5BPS=0,
+            maxDeleverageCollateralRatioBPS=2500,
+            maxRequiredAccountCollateralRatio=3000,
+            minAccountBorrowSize=10_000,
+        ),
+        100_000_000e8,
+    )
+    maturity2 = environment.notional.getActiveMarkets(2)[1][1]
+
+    with brownie.reverts("Above Max Collateral"):
+        environment.notional.rollVaultPosition(
+            roll_account, vault, 50_000e8, maturity2, 60_000e18, 0, 0, "", {"from": roll_account}
+        )
+
+
 def test_roll_vault_success(environment, vault, roll_account, accounts):
     environment.notional.updateVault(
         vault.address,

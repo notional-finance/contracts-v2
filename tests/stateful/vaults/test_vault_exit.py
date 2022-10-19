@@ -41,6 +41,38 @@ def test_cannot_exit_within_min_blocks(environment, vault, accounts):
         )
 
 
+def test_cannot_exit_vault_with_less_than_required(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2,
+            flags=set_flags(0, ENABLED=True),
+            maxBorrowMarketIndex=2,
+            maxDeleverageCollateralRatioBPS=2500,
+            maxRequiredAccountCollateralRatio=3000,
+        ),
+        500_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(2)[0][1]
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 50_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    chain.mine(5)
+    with brownie.reverts("Above Max Collateral"):
+        # Approx 250_000 vault shares w/ 200_000 borrow, reducing borrow
+        # to 100_000 will revert (2.25x leverage < 3.3x required)
+        environment.notional.exitVault(
+            accounts[1], vault.address, accounts[1], 0, 100_000e8, 0, "", {"from": accounts[1]}
+        )
+
+    # Can reduce a smaller size
+    environment.notional.exitVault(
+        accounts[1], vault.address, accounts[1], 0, 10_000e8, 0, "", {"from": accounts[1]}
+    )
+
+
 def test_only_vault_exit(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,

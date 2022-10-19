@@ -167,12 +167,7 @@ library VaultAccountLib {
         vaultAccount.lastEntryBlockHeight = block.number;
         setVaultAccount(vaultAccount, vaultConfig);
 
-        // If the account is not using any leverage (fCashToBorrow == 0) we don't check the collateral ratio, no matter
-        // what the amount is the collateral ratio will increase. This is useful for accounts that want to quickly and cheaply
-        // increase their collateral ratio without paying down debts.
-        if (fCashToBorrow > 0) {
-            vaultConfig.checkCollateralRatio(vaultState, vaultAccount);
-        }
+        vaultConfig.checkCollateralRatio(vaultState, vaultAccount);
     }
 
     ///  @notice Borrows fCash to enter a vault and pays fees

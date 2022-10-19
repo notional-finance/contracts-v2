@@ -480,7 +480,10 @@ struct VaultConfigStorage {
     uint16 maxDeleverageCollateralRatioBPS;
     // An optional list of secondary borrow currencies
     uint16[2] secondaryBorrowCurrencies;
-    // 96 bytes left
+    // Required collateral ratio for accounts to stay inside a vault, prevents accounts
+    // from "free riding" on vaults. Enforced on entry and exit, not on deleverage.
+    uint16 maxRequiredAccountCollateralRatioBPS;
+    // 80 bytes left
 }
 
 struct VaultBorrowCapacityStorage {
@@ -517,6 +520,7 @@ struct VaultConfig {
     int256 maxDeleverageCollateralRatio;
     uint16[2] secondaryBorrowCurrencies;
     AssetRateParameters assetRate;
+    int256 maxRequiredAccountCollateralRatio;
 }
 
 /// @notice Represents a Vault's current borrow and collateral state

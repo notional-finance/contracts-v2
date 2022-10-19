@@ -242,11 +242,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
                 vaultAccount, receiver, strategyTokens, vaultState.maturity, exitVaultData
             );
 
-            if (vaultAccount.fCash < 0) {
-                // It's possible that the user redeems more vault shares than they lend (it is not always the case
-                // that they will be increasing their collateral ratio here, so we check that this is the case).
-                vaultConfig.checkCollateralRatio(vaultState, vaultAccount);
-            }
+            // It's possible that the user redeems more vault shares than they lend (it is not always the case
+            // that they will be increasing their collateral ratio here, so we check that this is the case).
+            vaultConfig.checkCollateralRatio(vaultState, vaultAccount);
 
             // Set the vault state after redemption completes
             vaultState.setVaultState(vaultConfig.vault);
