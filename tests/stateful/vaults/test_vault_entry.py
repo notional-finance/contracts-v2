@@ -128,6 +128,39 @@ def test_enter_vault_past_maturity(environment, vault, accounts):
         )
 
 
+def test_cannot_enter_vault_with_zero_fcash(environment, vault, accounts):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True), maxBorrowMarketIndex=2),
+        500_000e8,
+    )
+
+    maturity = environment.notional.getActiveMarkets(2)[0][1]
+    with brownie.reverts("Must Borrow"):
+        environment.notional.enterVault(
+            accounts[1], vault.address, 100_000e18, maturity, 0, 0, "", {"from": accounts[1]}
+        )
+
+    # Now initiate a position with some borrowing
+    txn = environment.notional.enterVault(
+        accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
+    assert vaultAccount["lastEntryBlockHeight"] == txn.block_number
+
+    # Can now make a deposit without borrowing
+    txn = environment.notional.enterVault(
+        accounts[1], vault.address, 10_000e18, maturity, 0, 0, "", {"from": accounts[1]}
+    )
+
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
+    assert vaultAccount["maturity"] == maturity
+    assert vaultAccount["fCash"] == -100_000e8
+    assert vaultAccount["lastEntryBlockHeight"] == txn.block_number
+
+    check_system_invariants(environment, accounts, [vault])
+
+
 def test_enter_vault_past_max_markets(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
@@ -148,7 +181,9 @@ def test_enter_vault_past_max_markets(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
-    with brownie.reverts("Invalid Maturity"):
+    # This reverts due to the requirement that you have to hold fCash when initiating a position,
+    # therefore you cannot enter an invalid maturity with only a deposit
+    with brownie.reverts("Must Borrow"):
         environment.notional.enterVault(
             accounts[1], vault.address, 100_000e18, maturity, 0, 0, "", {"from": accounts[1]}
         )
@@ -172,7 +207,9 @@ def test_enter_vault_idiosyncratic(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
-    with brownie.reverts("Invalid Maturity"):
+    # This reverts due to the requirement that you have to hold fCash when initiating a position,
+    # therefore you cannot enter an invalid maturity with only a deposit
+    with brownie.reverts("Must Borrow"):
         environment.notional.enterVault(
             accounts[1],
             vault.address,
@@ -367,6 +404,12 @@ def test_enter_vault_with_matured_position(environment, accounts, vault):
     environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
     maturity = environment.notional.getActiveMarkets(1)[0][1]
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
+
+    # Cannot establish a new vault position without borrowing even after settlement
+    with brownie.reverts("Must Borrow"):
+        environment.notional.enterVault(
+            accounts[1], vault.address, 10_000e18, maturity, 0, 0, "", {"from": accounts[1]}
+        )
 
     environment.notional.enterVault(
         accounts[1], vault.address, 0, maturity, 105_000e8, 0, "", {"from": accounts[1]}

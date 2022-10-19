@@ -189,4 +189,5 @@ def get_vault_account(**kwargs):
         kwargs.get("vaultShares", 0),
         kwargs.get("account", accounts[0].address),
         kwargs.get("tempCashBalance", 0),
+        kwargs.get("lastEntryBlockHeight", 0),
     ]

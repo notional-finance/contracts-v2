@@ -63,6 +63,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
         }
 
+        // If establishing a new vault account, fCash must be borrowed. An account cannot simply deposit
+        // into a vault without establishing some borrow size.
+        if (vaultAccount.maturity == 0) require(fCash > 0, "Must Borrow");
+
         // Deposits some amount of underlying tokens into the vault directly to serve as additional collateral when
         // entering the vault.
         uint256 additionalUnderlyingExternal = vaultConfig.transferUnderlyingToVaultDirect(account, depositAmountExternal);
@@ -140,7 +144,9 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             vaultAccount.depositForRollPosition(vaultConfig, depositAmountExternal);
         }
 
-        // Enters the vault at the longer dated maturity
+        // Enters the vault at the longer dated maturity. The account is required to borrow at this
+        // point due  to the requirement earlier in this method, they cannot enter the maturity
+        // with below minAccountBorrowSize
         strategyTokensAdded = vaultAccount.borrowAndEnterVault(
             vaultConfig,
             maturity, // This is the new maturity to enter

@@ -141,7 +141,7 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
         roll_account, vault, 102_000e8, maturity2, 0, 0, 0, "", {"from": roll_account}
     )
 
-    environment.notional.rollVaultPosition(
+    txn = environment.notional.rollVaultPosition(
         roll_account, vault, 102_000e8, maturity2, 0, 0, 0, "", {"from": roll_account}
     )
 
@@ -149,6 +149,8 @@ def test_roll_vault_success(environment, vault, roll_account, accounts):
     vaultState1After = environment.notional.getVaultState(vault, maturity1)
     vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
 
+    assert vaultAccountAfter["lastEntryBlockHeight"] == txn.block_number
+    assert vaultAccountAfter["lastEntryBlockHeight"] > vaultAccountBefore["lastEntryBlockHeight"]
     assert vaultState1After["totalfCash"] == 0
     assert vaultState1After["totalVaultShares"] == 0
     assert vaultState1After["totalAssetCash"] == 0

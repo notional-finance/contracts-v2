@@ -570,6 +570,10 @@ struct VaultAccountStorage {
     uint80 vaultShares;
     // Maturity when the vault shares and fCash will mature
     uint32 maturity;
+    // Last block when a vault entered, used to ensure that vault accounts do not flash enter/exit.
+    // While there is no specified attack vector here, we can use it to prevent an entire class
+    // of attacks from happening without reducing UX.
+    uint32 lastEntryBlockHeight;
 }
 
 struct VaultAccountSecondaryDebtShareStorage {
@@ -592,4 +596,5 @@ struct VaultAccount {
     // This cash balance is used just within a transaction to track deposits
     // and withdraws for an account. Must be zeroed by the time we store the account
     int256 tempCashBalance;
+    uint256 lastEntryBlockHeight;
 }

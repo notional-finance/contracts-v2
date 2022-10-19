@@ -48,6 +48,7 @@ library VaultAccountLib {
         vaultAccount.vaultShares = s.vaultShares;
         vaultAccount.account = account;
         vaultAccount.tempCashBalance = 0;
+        vaultAccount.lastEntryBlockHeight = s.lastEntryBlockHeight;
     }
 
     /// @notice Sets a single account's vault position in storage
@@ -77,6 +78,7 @@ library VaultAccountLib {
         s.fCash = vaultAccount.fCash.neg().toUint().toUint80();
         s.vaultShares = vaultAccount.vaultShares.toUint80();
         s.maturity = vaultAccount.maturity.toUint32();
+        s.lastEntryBlockHeight = vaultAccount.lastEntryBlockHeight.toUint32();
     }
 
     /// @notice Updates an account's fCash position and the current vault state at the same time. Also updates
@@ -162,6 +164,7 @@ library VaultAccountLib {
         strategyTokensAdded = vaultState.enterMaturity(
             vaultAccount, vaultConfig, strategyTokenDeposit, additionalUnderlyingExternal, vaultData
         );
+        vaultAccount.lastEntryBlockHeight = block.number;
         setVaultAccount(vaultAccount, vaultConfig);
 
         // If the account is not using any leverage (fCashToBorrow == 0) we don't check the collateral ratio, no matter
