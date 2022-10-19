@@ -153,7 +153,7 @@ class TestSettleAssets:
 
         # Set state (store assets prevents storing matured assets)
         if nextSettleTime < blockTime:
-            chain.mine(1, timestamp=nextSettleTime - 1000)
+            chain.mine(1, timestamp=max(nextSettleTime - 1000, 0))
         mockSettleAssets.setAssetArray(accounts[1], assetArray)
         chain.mine(1, timestamp=blockTime)
 

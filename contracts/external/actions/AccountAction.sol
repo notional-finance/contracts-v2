@@ -192,14 +192,17 @@ contract AccountAction is ActionGuards {
         require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
         balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
-        (int256 totalAssetCash, bool hasResidual, PortfolioAsset[] memory assets) =
+        (int256 totalAssetCash, /* bool hasResidual */, PortfolioAsset[] memory assets) =
             nTokenRedeemAction.redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets);
 
         // Set balances before transferring assets
         balance.netCashChange = totalAssetCash;
         balance.finalize(redeemer, context, false);
 
-        if (hasResidual) {
+        // The hasResidual flag is only set to true if selling residuals has failed, checking
+        // if the length of assets is greater than zero will detect the presence of ifCash
+        // assets that have not been sold.
+        if (assets.length > 0) {
             // This method will store assets and update the account context in memory
             context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
         }
@@ -209,8 +212,7 @@ contract AccountAction is ActionGuards {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
 
-        emit nTokenSupplyChange(redeemer, currencyId, balance.netNTokenSupplyChange);
-        return (totalAssetCash, hasResidual);
+        return (totalAssetCash, assets.length > 0);
     }
 
     /// @notice Settle the account if required, returning a reference to the account context. Also

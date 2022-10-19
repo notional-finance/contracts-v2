@@ -511,7 +511,9 @@ def test_delayed_second_initialize_markets(environment, accounts):
 def test_delayed_second_initialize_markets_negative_residual(environment, accounts):
     currencyId = 2
     environment = initialize_environment(accounts)
-    setup_residual_environment(environment, accounts, residualType="Negative")
+    setup_residual_environment(
+        environment, accounts, residualType=1, canSellResiduals=True, marketResiduals=False
+    )
     environment.token["DAI"].transfer(accounts[1], 1_000_000e18, {"from": accounts[0]})
 
     # Trade some more to leave yet another residual in the 6 month and 1 year market
@@ -539,7 +541,9 @@ def test_delayed_second_initialize_markets_negative_residual(environment, accoun
 def test_delayed_second_initialize_markets_positive_residual(accounts):
     currencyId = 2
     environment = initialize_environment(accounts)
-    setup_residual_environment(environment, accounts, residualType="Positive")
+    setup_residual_environment(
+        environment, accounts, residualType=1, canSellResiduals=True, marketResiduals=False
+    )
 
     # Trade some more to leave yet another residual in the 1 year market
     action = get_balance_trade_action(
