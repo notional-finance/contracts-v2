@@ -191,10 +191,8 @@ library VaultConfiguration {
 
         // This must be true or else when deleveraging we could put an account further towards insolvency
         require(vaultConfig.minCollateralRatioBPS < vaultConfig.maxDeleverageCollateralRatioBPS);
-        if (vaultConfig.maxRequiredAccountCollateralRatioBPS > 0) {
-            // This must be true or accounts cannot enter the vault
-            require(vaultConfig.maxDeleverageCollateralRatioBPS < vaultConfig.maxRequiredAccountCollateralRatioBPS);
-        }
+        // This must be true or accounts cannot enter the vault
+        require(vaultConfig.maxDeleverageCollateralRatioBPS < vaultConfig.maxRequiredAccountCollateralRatioBPS);
 
         // Reserve fee share must be less than or equal to 100
         require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
@@ -436,9 +434,11 @@ library VaultConfiguration {
             vaultConfig, vaultState, vaultAccount.account, vaultAccount.vaultShares, vaultAccount.fCash
         );
 
-        // If this value is set then we will enforce a maximum account collateral ratio that must be
-        // satisfied for vault entry and vault exit.
-        if (vaultConfig.maxRequiredAccountCollateralRatio > 0) {
+        // Enforce a maximum account collateral ratio that must be satisfied for vault entry and vault exit,
+        // to ensure that accounts are not "free riding" on vaults by entering without incurring borrowing
+        // costs. We only enforce this if the account has any assets remaining in the vault (so that they
+        // may exit in full at any time.)
+        if (vaultAccount.vaultShares > 0) {
             require(collateralRatio <= vaultConfig.maxRequiredAccountCollateralRatio, "Above Max Collateral");
         }
 

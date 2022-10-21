@@ -167,7 +167,7 @@ def get_vault_config(**kwargs):
         kwargs.get("maxBorrowMarketIndex", 2),  # 7: 20% reserve fee share
         kwargs.get("maxDeleverageCollateralRatioBPS", 4000),  # 8: 40% max collateral ratio
         kwargs.get("secondaryBorrowCurrencies", [0, 0]),  # 9: none set
-        kwargs.get("maxRequiredAccountCollateralRatio", 0),  # 10: none set
+        kwargs.get("maxRequiredAccountCollateralRatio", 20000),  # 10: none set
     ]
 
 

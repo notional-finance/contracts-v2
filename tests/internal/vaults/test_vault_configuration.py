@@ -49,6 +49,12 @@ def test_set_vault_config(vaultConfigAccount, accounts):
         conf[10] = 1000
         vaultConfigAccount.setVaultConfig(accounts[0], conf)
 
+    with brownie.reverts():
+        # Fails on required account collateral ratio uniset
+        conf = get_vault_config()
+        conf[10] = 0
+        vaultConfigAccount.setVaultConfig(accounts[0], conf)
+
     conf = get_vault_config()
     vaultConfigAccount.setVaultConfig(accounts[0], conf)
 

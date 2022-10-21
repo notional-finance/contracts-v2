@@ -129,7 +129,7 @@ def test_set_max_capacity(environment, vault, accounts):
         )
 
     environment.notional.enterVault(
-        accounts[1], vault.address, 100_000e18, maturity, 50e8, 0, "", {"from": accounts[1]}
+        accounts[1], vault.address, 100e18, maturity, 50e8, 0, "", {"from": accounts[1]}
     )
 
 

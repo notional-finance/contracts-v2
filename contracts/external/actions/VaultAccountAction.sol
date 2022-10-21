@@ -63,10 +63,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             strategyTokens = vaultAccount.settleVaultAccount(vaultConfig, block.timestamp);
         }
 
-        // If establishing a new vault account, fCash must be borrowed. An account cannot simply deposit
-        // into a vault without establishing some borrow size.
-        if (vaultAccount.maturity == 0) require(fCash > 0, "Must Borrow");
-
         // Deposits some amount of underlying tokens into the vault directly to serve as additional collateral when
         // entering the vault.
         uint256 additionalUnderlyingExternal = vaultConfig.transferUnderlyingToVaultDirect(account, depositAmountExternal);
@@ -279,6 +275,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     ) external nonReentrant override returns (uint256 profitFromLiquidation) {
         // Do not allow invalid accounts to liquidate
         requireValidAccount(liquidator);
+        require(liquidator != vault);
 
         VaultConfig memory vaultConfig = _authenticateDeleverage(account, vault, liquidator);
         VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vault);
