@@ -1,6 +1,5 @@
 from brownie import Contract, cTokenV2Aggregator
 from scripts.common import loadContractFromABI, loadContractFromArtifact
-from tests.helpers import get_balance_trade_action
 
 
 class EnvironmentV2:
@@ -38,35 +37,3 @@ class EnvironmentV2:
 
         if "note" in self.config:
             self.note = loadContractFromABI("NoteProxy", self.config["note"], "abi/NoteERC20.json")
-
-    def depositAndLend(
-        self, account, currencyId, underlying, depositAmount, market, lendAmount, slippage=0
-    ):
-        lendAction = [
-            {
-                "tradeActionType": "Lend",
-                "marketIndex": market,
-                "notional": lendAmount,
-                "minSlippage": slippage,
-            }
-        ]
-        value = depositAmount if currencyId == 1 else 0
-        self.notional.batchBalanceAndTradeAction(
-            account,
-            [
-                get_balance_trade_action(
-                    currencyId,
-                    "DepositUnderlying" if underlying else "DepositAsset",
-                    lendAction,
-                    depositActionAmount=depositAmount,
-                    withdrawEntireCashBalance=True,
-                )
-            ],
-            {"from": account, "value": value},
-        )
-
-
-# def main():
-#     with open("v2.{}.json".format(network.show_active()), "r") as f:
-#         config = json.load(f)
-#     env = EnvironmentV2(config)

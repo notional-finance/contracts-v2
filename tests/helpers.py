@@ -445,7 +445,13 @@ def initialize_environment(accounts):
     return env
 
 
-def setup_residual_environment(environment, accounts, residualType="Negative"):
+# Sets up a residual environment given the parameters:
+# - residualType: 0 = no residuals, 1 = positive, or 2=negative ifCash residuals
+# - marketResiduals: true if there are residuals in the fCash markets
+# - canSellResiduals: true if the residuals can be sold
+def setup_residual_environment(
+    environment, accounts, residualType, marketResiduals, canSellResiduals
+):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
@@ -466,8 +472,11 @@ def setup_residual_environment(environment, accounts, residualType="Negative"):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    # Do some trading to leave some ntoken residual, this will be a negative residual
-    if residualType == "Negative":
+    if residualType == 0:
+        # No Residuals
+        pass
+    elif residualType == 1:
+        # Do some trading to leave some ntoken residual, this will be a negative residual
         action = get_balance_trade_action(
             2,
             "DepositUnderlying",
@@ -475,17 +484,60 @@ def setup_residual_environment(environment, accounts, residualType="Negative"):
             depositActionAmount=100e18,
             withdrawEntireCashBalance=True,
         )
-    else:
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [action], {"from": accounts[1]}
+        )
+    elif residualType == 2:
+        # Do some trading to leave some ntoken residual, this will be a positive residual
         action = get_balance_trade_action(
             2,
             "DepositUnderlying",
             [{"tradeActionType": "Borrow", "marketIndex": 3, "notional": 100e8, "maxSlippage": 0}],
             depositActionAmount=200e18,
         )
-
-    environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [action], {"from": accounts[1]}
+        )
 
     # Now settle the markets, should be some residual
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
+
+    # Creates fCash residuals that require selling fCash
+    if marketResiduals:
+        action = get_balance_trade_action(
+            2,
+            "DepositUnderlying",
+            [
+                {
+                    "tradeActionType": "Lend",
+                    "marketIndex": 1,
+                    "notional": 10_000e8,
+                    "minSlippage": 0,
+                },
+                {
+                    "tradeActionType": "Lend",
+                    "marketIndex": 2,
+                    "notional": 10_000e8,
+                    "minSlippage": 0,
+                },
+                {
+                    "tradeActionType": "Lend",
+                    "marketIndex": 3,
+                    "notional": 10_000e8,
+                    "minSlippage": 0,
+                },
+            ],
+            depositActionAmount=50_000e18,
+            withdrawEntireCashBalance=True,
+        )
+        environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [action], {"from": accounts[1]}
+        )
+
+    if not canSellResiduals:
+        # Redeem the vast majority of the nTokens
+        environment.notional.nTokenRedeem(
+            accounts[0].address, currencyId, 44_100_000e8, True, False, {"from": accounts[0]}
+        )
