@@ -9,8 +9,8 @@
         "LiquidateCurrencyAction": "0x3109F5C0Fd6A34AEBC57fd2E9bd037aDDe18cF78",
         "LiquidatefCashAction": "0x6C7A4303707A86958f59aB9DFFaCE32573780156",
         "TreasuryAction": "0xeB0112019DB7B647d94eb1a010e62bD8aBAF158d",
-        "VaultAccountAction": "0x718c42b609cD6827D7a80403d34541B673faD481",
-        "VaultAction": "0x0b0DfB6f126DFcD0397e07D0dE559021b98B9842",
+        "VaultAccountAction": "0xB5d67E3E641f5f4f67e7cec9D6cf023E080e724F",
+        "VaultAction": "0x1f5EE45B051d121888546f75a6D8A9cEB3AeDB07",
         "Views": "0x5a133dD3AF33b2E9EeEB40ED2AD52a10B154bf90",
         "nTokenAction": "0x03CeAC91e716864E40b04d8ae9bCa343Be0179A0"
     },
@@ -75,7 +75,7 @@
     "notional": "0xD8229B55bD73c61D840d339491219ec6Fa667B0a",
     "routers": {
         "PauseRouter": "0x613f379A4D65A62B7843379a5E7071e52528631f",
-        "Router": "0x95E9e4F7e85448D67976F13eBAc999c67e0a00d5"
+        "Router": "0xee0aa419a86ba586C85058AE0fBC3Bfb4D25Fad4"
     },
     "tokens": {
         "COMP": {
