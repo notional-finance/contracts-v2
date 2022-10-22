@@ -9,11 +9,11 @@
         "LiquidateCurrencyAction": "0xa3707CD595F6AB810a84d04C92D8adE5f7593Db5",
         "LiquidatefCashAction": "0xfB56271c976A8b446B6D33D1Ec76C84F6AA53F1B",
         "TreasuryAction": "0x5fd75e91Cc34DF9831Aa75903027FC34FeB9b931",
+        "VaultAccountAction": "0x1A751Cd714910929017CE1417EaD6d0732dB1a78",
         "Views": "0xBf91ec7A64FCF0844e54d3198E50AD8fb4D68E93",
         "nTokenAction": "0xeA82Cfc621D5FA00E30c10531380846BB5aAfE79"
     },
     "airdrop": "0xa40aedAac28F9574124D7c8EFf59732cC77f1DD4",
-    "incentivesAirdrop": "0x3728081Cc9668B206665cAE9Dc2B43Aff35aCc0c",
     "chainId": 1,
     "compound": {
         "comptroller": "0x3d9819210A31b4961b30EF54bE2aeD79B9c9Cd3B",
@@ -43,11 +43,12 @@
     "deployer": "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3",
     "governor": "0x086b4ecD75c494dD36641195E89c25373E06d7cB",
     "guardian": "0xD9D5a9dc6a952b7aD6B05a983b399537B7c0Ee88",
+    "incentivesAirdrop": "0x3728081Cc9668B206665cAE9Dc2B43Aff35aCc0c",
     "libs": {
         "FreeCollateralExternal": "0x4763672dEa3bF087929d5537B6BAfeB8e6938F46",
         "MigrateIncentives": "0x244321a0C5eE55DF1F4D31c71570Cbe0236c1864",
         "SettleAssetsExternal": "0x01713633a1b85a4a3d2f9430C68Bd4392c4a90eA",
-        "TradingAction": "0x4b167f50F4EDe5d4CC6cAAACac19263f9f9F5F16",
+        "TradingAction": "0x5c36a0DeaB3531d29d848E684E8bDf5F81cDB643",
         "nTokenMintAction": "0x5d0Df02534ab3c805c59f9cC98E282DC929821e1",
         "nTokenRedeemAction": "0xEaeEe76b4c060d90062610bF7F8b4b465F1b01e0"
     },
@@ -55,8 +56,7 @@
     "note": "0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5",
     "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
     "routers": {
-        "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8",
-        "Router": "0x2C67B0C0493e358cF368073bc0B5fA6F01E981e0"
+        "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8"
     },
     "startBlock": 13094883,
     "tokens": {
