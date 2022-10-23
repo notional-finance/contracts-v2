@@ -10,6 +10,7 @@
         "LiquidatefCashAction": "0xfB56271c976A8b446B6D33D1Ec76C84F6AA53F1B",
         "TreasuryAction": "0x5fd75e91Cc34DF9831Aa75903027FC34FeB9b931",
         "VaultAccountAction": "0x1A751Cd714910929017CE1417EaD6d0732dB1a78",
+        "VaultAction": "0xae04e4887cbf5f25c05ac1384bcd0b7e885a1f4a",
         "Views": "0xBf91ec7A64FCF0844e54d3198E50AD8fb4D68E93",
         "nTokenAction": "0xeA82Cfc621D5FA00E30c10531380846BB5aAfE79"
     },
