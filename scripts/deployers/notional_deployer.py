@@ -138,28 +138,28 @@ class NotionalDeployer:
             return
 
         if self.dryRun:
-            print("Will deploy router")
+            print("Will deploy {} with args:".format(contract._name))
+            print(args)
         else:
             deployed = deployer.deploy(contract, args, "", True)
+            print("Deployed {} with args:".format(contract._name))
+            print(args)
+
             self.routers[contract._name] = deployed.address
             self._save()
 
     def deployPauseRouter(self):
         deployer = ContractDeployer(self.deployer, self.routers)
-
-        if self.dryRun:
-            print("Will deploy pause router")
-        else:
-            self._deployRouter(
-                deployer,
-                PauseRouter,
-                [
-                    self.actions["Views"],
-                    self.actions["LiquidateCurrencyAction"],
-                    self.actions["LiquidatefCashAction"],
-                    self.actions["CalculationViews"],
-                ],
-            )
+        self._deployRouter(
+            deployer,
+            PauseRouter,
+            [
+                self.actions["Views"],
+                self.actions["LiquidateCurrencyAction"],
+                self.actions["LiquidatefCashAction"],
+                self.actions["CalculationViews"],
+            ],
+        )
 
     def deployRouter(self):
         deployer = ContractDeployer(self.deployer, self.routers)
