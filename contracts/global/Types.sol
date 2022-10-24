@@ -573,7 +573,7 @@ struct VaultAccountStorage {
     // Vault shares that the account holds
     uint80 vaultShares;
     // Maturity when the vault shares and fCash will mature
-    uint32 maturity;
+    uint40 maturity;
     // Last block when a vault entered, used to ensure that vault accounts do not flash enter/exit.
     // While there is no specified attack vector here, we can use it to prevent an entire class
     // of attacks from happening without reducing UX.
@@ -585,7 +585,7 @@ struct VaultAccountSecondaryDebtShareStorage {
     // the vault account maturity to ensure that we have access to the proper state
     // during a roll borrow position. It should never be allowed to deviate from the
     // vaultAccount.maturity value (unless it is cleared to zero).
-    uint32 maturity;
+    uint40 maturity;
     // Account debt shares for the first secondary currency
     uint80 accountDebtSharesOne;
     // Account debt shares for the second secondary currency

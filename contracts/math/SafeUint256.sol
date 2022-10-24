@@ -90,6 +90,11 @@ library SafeUint256 {
         return uint32(x);
     }
 
+    function toUint40(uint256 x) internal pure returns (uint40) {
+        require(x <= type(uint40).max);
+        return uint40(x);
+    }
+
     function toUint56(uint256 x) internal pure returns (uint56) {
         require(x <= type(uint56).max);
         return uint56(x);

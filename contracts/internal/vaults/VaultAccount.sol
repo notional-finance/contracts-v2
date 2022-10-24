@@ -77,7 +77,7 @@ library VaultAccountLib {
 
         s.fCash = vaultAccount.fCash.neg().toUint().toUint80();
         s.vaultShares = vaultAccount.vaultShares.toUint80();
-        s.maturity = vaultAccount.maturity.toUint32();
+        s.maturity = vaultAccount.maturity.toUint40();
         s.lastEntryBlockHeight = vaultAccount.lastEntryBlockHeight.toUint32();
     }
 

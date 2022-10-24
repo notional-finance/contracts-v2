@@ -890,7 +890,7 @@ library VaultConfiguration {
             s.maturity = 0;
         } else if (accountMaturity == 0) {
             // Set the maturity if it is cleared
-            s.maturity = maturity.toUint32();
+            s.maturity = maturity.toUint40();
         }
     }
 
