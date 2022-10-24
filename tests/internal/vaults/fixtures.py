@@ -152,6 +152,8 @@ def set_flags(flags, **kwargs):
         binList[6] = "1"
     if "ALLOW_REENTRANCY" in kwargs:
         binList[7] = "1"
+    if "DISABLE_DELEVERAGE" in kwargs:
+        binList[8] = "1"
     return int("".join(reversed(binList)), 2)
 
 

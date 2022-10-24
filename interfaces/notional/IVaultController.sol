@@ -14,6 +14,8 @@ interface IVaultAction {
     event VaultUpdated(address indexed vault, bool enabled, uint80 maxPrimaryBorrowCapacity);
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address indexed vault, bool enabled);
+    /// @notice Emitted when a vault's deleverage status is updated
+    event VaultDeleverageStatus(address indexed vaultAddress, bool disableDeleverage);
     /// @notice Emitted when a secondary currency borrow capacity is updated
     event VaultUpdateSecondaryBorrowCapacity(address indexed vault, uint16 indexed currencyId, uint80 maxSecondaryBorrowCapacity);
     /// @notice Emitted when a vault has a shortfall upon settlement
@@ -109,6 +111,11 @@ interface IVaultAction {
     function setVaultPauseStatus(
         address vaultAddress,
         bool enable
+    ) external;
+
+    function setVaultDeleverageStatus(
+        address vaultAddress,
+        bool disableDeleverage
     ) external;
 
     /// @notice Governance only method to set the borrow capacity

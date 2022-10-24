@@ -104,6 +104,9 @@ def test_pause_and_enable_vault(vaultConfigAccount, accounts):
     vaultConfigAccount.setVaultEnabledStatus(accounts[0], True)
     vaultConfigAccount.setVaultEnabledStatus(accounts[0], False)
 
+    vaultConfigAccount.setVaultDeleverageStatus(accounts[0], True)
+    vaultConfigAccount.setVaultDeleverageStatus(accounts[0], False)
+
 
 def test_vault_fee_increases_with_debt(vaultConfigAccount, vault, accounts):
     vaultConfigAccount.setVaultConfig(

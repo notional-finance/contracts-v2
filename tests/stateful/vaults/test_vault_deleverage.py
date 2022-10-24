@@ -66,6 +66,47 @@ def test_deleverage_authentication(environment, accounts, vault):
             accounts[1], vault.address, accounts[2], 25_000e18, False, "", {"from": accounts[3]}
         )
 
+    with brownie.reverts("Unauthorized"):
+        # Vault cannot liquidate
+        environment.notional.deleverageAccount(
+            accounts[1], vault.address, accounts[2], 25_000e18, False, "", {"from": vault.address}
+        )
+
+
+def test_disable_deleverage(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+    vault.setExchangeRate(0.85e18)
+    (cr, _, _, _) = environment.notional.getVaultAccountCollateralRatio(accounts[1], vault)
+    assert cr < 0.2e9
+
+    # Only owner can set deleverage status
+    with brownie.reverts("Ownable: caller is not the owner"):
+        environment.notional.setVaultDeleverageStatus(vault.address, True, {"from": accounts[1]})
+
+    environment.notional.setVaultDeleverageStatus(vault.address, True, {"from": accounts[0]})
+
+    # Cannot deleverage
+    with brownie.reverts():
+        environment.notional.deleverageAccount(
+            accounts[1], vault.address, accounts[2], 25_000e18, False, "", {"from": accounts[2]}
+        )
+
+    environment.notional.setVaultDeleverageStatus(vault.address, False, {"from": accounts[0]})
+
+    # Can deleverage
+    environment.notional.deleverageAccount(
+        accounts[1], vault.address, accounts[2], 25_000e18, False, "", {"from": accounts[2]}
+    )
+
 
 def test_deleverage_account_sufficient_collateral(environment, accounts, vault):
     environment.notional.updateVault(

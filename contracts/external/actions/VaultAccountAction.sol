@@ -346,6 +346,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         address liquidator
     ) private returns (VaultConfig memory vaultConfig) {
         vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
+        require(vaultConfig.getFlag(VaultConfiguration.DISABLE_DELEVERAGE) == false);
+
         // If the vault allows further re-entrancy then set the status back to the default
         if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
             reentrancyStatus = _NOT_ENTERED;

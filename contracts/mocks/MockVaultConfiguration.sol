@@ -31,6 +31,14 @@ contract MockVaultConfiguration {
         assert (getVaultConfigView(vault).getFlag(VaultConfiguration.ENABLED) == enable);
     }
 
+    function setVaultDeleverageStatus(
+        address vault,
+        bool enable
+    ) external {
+        VaultConfiguration.setVaultDeleverageStatus(vault, enable);
+        assert (getVaultConfigView(vault).getFlag(VaultConfiguration.DISABLE_DELEVERAGE) == enable);
+    }
+
     function getFlag(address vault, uint16 flagID) external view returns (bool) {
         return VaultConfiguration.getVaultConfigView(vault).getFlag(flagID);
     }

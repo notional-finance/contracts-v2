@@ -107,6 +107,7 @@ library VaultConfiguration {
     // External vault methods will have re-entrancy protection on by default, however, some
     // vaults may need to call back into Notional so we can whitelist them for re-entrancy.
     uint16 internal constant ALLOW_REENTRANCY                = 1 << 7;
+    uint16 internal constant DISABLE_DELEVERAGE              = 1 << 8;
 
     function _getVaultConfig(
         address vaultAddress
@@ -158,6 +159,18 @@ library VaultConfiguration {
             s.flags = flags | VaultConfiguration.ENABLED;
         } else {
             s.flags = flags & ~VaultConfiguration.ENABLED;
+        }
+    }
+
+    function setVaultDeleverageStatus(address vaultAddress, bool disableDeleverage) internal {
+        mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
+        VaultConfigStorage storage s = store[vaultAddress];
+        uint16 flags = s.flags;
+
+        if (disableDeleverage) {
+            s.flags = flags | VaultConfiguration.DISABLE_DELEVERAGE;
+        } else {
+            s.flags = flags & ~VaultConfiguration.DISABLE_DELEVERAGE;
         }
     }
 

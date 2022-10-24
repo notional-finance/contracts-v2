@@ -47,6 +47,17 @@ contract VaultAction is ActionGuards, IVaultAction {
         emit VaultPauseStatus(vaultAddress, enable);
     }
 
+    /// @notice Enables or disables deleverage on a vault.
+    /// @param vaultAddress address of deployed vault
+    /// @param disableDeleverage true if the vault deleverage should be disabled
+    function setVaultDeleverageStatus(
+        address vaultAddress,
+        bool disableDeleverage
+    ) external override onlyOwner {
+        VaultConfiguration.setVaultDeleverageStatus(vaultAddress, disableDeleverage);
+        emit VaultDeleverageStatus(vaultAddress, disableDeleverage);
+    }
+
     /// @notice Whitelists a secondary borrow currency for a vault, vaults can borrow up to the capacity
     /// using the `borrowSecondaryCurrencyToVault` and `repaySecondaryCurrencyToVault` methods. Vaults that
     /// use a secondary currency must ALWAYS repay the secondary debt during redemption and handle accounting
