@@ -996,6 +996,25 @@
             {
                 "indexed": true,
                 "internalType": "address",
+                "name": "vaultAddress",
+                "type": "address"
+            },
+            {
+                "indexed": false,
+                "internalType": "bool",
+                "name": "disableDeleverage",
+                "type": "bool"
+            }
+        ],
+        "name": "VaultDeleverageStatus",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
+                "indexed": true,
+                "internalType": "address",
                 "name": "vault",
                 "type": "address"
             },
@@ -5881,6 +5900,24 @@
             }
         ],
         "name": "setTreasuryManager",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "vaultAddress",
+                "type": "address"
+            },
+            {
+                "internalType": "bool",
+                "name": "disableDeleverage",
+                "type": "bool"
+            }
+        ],
+        "name": "setVaultDeleverageStatus",
         "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
