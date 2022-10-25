@@ -9,8 +9,8 @@
         "LiquidateCurrencyAction": "0xa3707CD595F6AB810a84d04C92D8adE5f7593Db5",
         "LiquidatefCashAction": "0xfB56271c976A8b446B6D33D1Ec76C84F6AA53F1B",
         "TreasuryAction": "0x5fd75e91Cc34DF9831Aa75903027FC34FeB9b931",
-        "VaultAccountAction": "0x1A751Cd714910929017CE1417EaD6d0732dB1a78",
-        "VaultAction": "0xae04e4887cbf5f25c05ac1384bcd0b7e885a1f4a",
+        "VaultAccountAction": "0x9414609789C179e1295E9a0559d629bF832b3c04",
+        "VaultAction": "0xd162738705CDCDBA11eaE86794606A7FB24655F4",
         "Views": "0xBf91ec7A64FCF0844e54d3198E50AD8fb4D68E93",
         "nTokenAction": "0xeA82Cfc621D5FA00E30c10531380846BB5aAfE79"
     },
@@ -58,7 +58,7 @@
     "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
     "routers": {
         "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8",
-        "Router": "0x58784379C844a00d4f572917D43f991c971F96ca"
+        "Router": "0xD7c3Dc1C36d19cF4e8cea4eA143a2f4458Dd1937"
     },
     "startBlock": 13094883,
     "tokens": {

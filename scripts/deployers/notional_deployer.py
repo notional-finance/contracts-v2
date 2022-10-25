@@ -139,11 +139,22 @@ class NotionalDeployer:
 
         if self.dryRun:
             print("Will deploy {} with args:".format(contract._name))
-            print(args)
+            # Print this for hardhat verification
+            print(
+                {
+                    n["name"]: args[0][i]
+                    for (i, n) in enumerate(contract.deploy.abi["inputs"][0]["components"])
+                }
+            )
         else:
             deployed = deployer.deploy(contract, args, "", True)
             print("Deployed {} with args:".format(contract._name))
-            print(args)
+            print(
+                {
+                    n["name"]: args[0][i]
+                    for (i, n) in enumerate(contract.deploy.abi["inputs"][0]["components"])
+                }
+            )
 
             self.routers[contract._name] = deployed.address
             self._save()
