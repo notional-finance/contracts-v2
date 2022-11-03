@@ -84,16 +84,16 @@ contract ChainlinkAdapter is AggregatorV2V3Interface {
         (roundId, /* */, /* */, /* */, /* */) = _calculateBaseToQuote();
     }
 
-    function getRoundData(uint80 _roundId) external view override returns (
-        uint80 roundId,
-        int256 answer,
-        uint256 startedAt,
-        uint256 updatedAt,
-        uint80 answeredInRound
+    function getRoundData(uint80 /* _roundId */) external view override returns (
+        uint80 /* roundId */,
+        int256 /* answer */,
+        uint256 /* startedAt */,
+        uint256 /* updatedAt */,
+        uint80 /* answeredInRound */
     ) {
         revert();
     }
 
-    function getAnswer(uint256 roundId) external view override returns (int256) { revert(); }
-    function getTimestamp(uint256 roundId) external view override returns (uint256) { revert(); }
+    function getAnswer(uint256 /* roundId */) external view override returns (int256) { revert(); }
+    function getTimestamp(uint256 /* roundId */) external view override returns (uint256) { revert(); }
 }

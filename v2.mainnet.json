@@ -9,6 +9,8 @@
         "LiquidateCurrencyAction": "0xa3707CD595F6AB810a84d04C92D8adE5f7593Db5",
         "LiquidatefCashAction": "0xfB56271c976A8b446B6D33D1Ec76C84F6AA53F1B",
         "TreasuryAction": "0x5fd75e91Cc34DF9831Aa75903027FC34FeB9b931",
+        "VaultAccountAction": "0x9414609789C179e1295E9a0559d629bF832b3c04",
+        "VaultAction": "0xd162738705CDCDBA11eaE86794606A7FB24655F4",
         "Views": "0xBf91ec7A64FCF0844e54d3198E50AD8fb4D68E93",
         "nTokenAction": "0xeA82Cfc621D5FA00E30c10531380846BB5aAfE79"
     },
@@ -47,7 +49,7 @@
         "FreeCollateralExternal": "0x4763672dEa3bF087929d5537B6BAfeB8e6938F46",
         "MigrateIncentives": "0x244321a0C5eE55DF1F4D31c71570Cbe0236c1864",
         "SettleAssetsExternal": "0x01713633a1b85a4a3d2f9430C68Bd4392c4a90eA",
-        "TradingAction": "0x4b167f50F4EDe5d4CC6cAAACac19263f9f9F5F16",
+        "TradingAction": "0x5c36a0DeaB3531d29d848E684E8bDf5F81cDB643",
         "nTokenMintAction": "0x5d0Df02534ab3c805c59f9cC98E282DC929821e1",
         "nTokenRedeemAction": "0x2f77CDd140D0ec7Db9306B91959003872A7Ceb92"
     },
@@ -56,7 +58,7 @@
     "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
     "routers": {
         "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8",
-        "Router": "0xfeA323486456f26b6a0A9074FD4DF508A6E9Fa0A"
+        "Router": "0xD7c3Dc1C36d19cF4e8cea4eA143a2f4458Dd1937"
     },
     "startBlock": 13094883,
     "tokens": {

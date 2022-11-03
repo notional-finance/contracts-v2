@@ -47,6 +47,16 @@ library GenericToken {
         checkReturnCode();
     }
 
+    function safeTransferFrom(
+        address token,
+        address from,
+        address to,
+        uint256 amount
+    ) internal {
+        IEIP20NonStandard(token).transferFrom(from, to, amount);
+        checkReturnCode();
+    }
+
     function checkReturnCode() internal pure {
         bool success;
         uint256[1] memory result;

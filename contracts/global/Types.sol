@@ -457,3 +457,148 @@ struct AccountBalance {
     uint256 lastClaimTime;
     uint256 accountIncentiveDebt;
 }
+
+struct VaultConfigStorage {
+    // Vault Flags (documented in VaultConfiguration.sol)
+    uint16 flags;
+    // Primary currency the vault borrows in
+    uint16 borrowCurrencyId;
+    // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
+    uint32 minAccountBorrowSize;
+    // Minimum collateral ratio for a vault specified in basis points, valid values are greater than 10_000
+    // where the largest minimum collateral ratio is 65_536 which is much higher than anything reasonable.
+    uint16 minCollateralRatioBPS;
+    // Allows up to a 12.75% annualized fee
+    uint8 feeRate5BPS;
+    // A percentage that represents the share of the cash raised that will go to the liquidator
+    uint8 liquidationRate;
+    // A percentage of the fee given to the protocol
+    uint8 reserveFeeShare;
+    // Maximum market index where a vault can borrow from
+    uint8 maxBorrowMarketIndex;
+    // Maximum collateral ratio that a liquidator can push a an account to during deleveraging
+    uint16 maxDeleverageCollateralRatioBPS;
+    // An optional list of secondary borrow currencies
+    uint16[2] secondaryBorrowCurrencies;
+    // Required collateral ratio for accounts to stay inside a vault, prevents accounts
+    // from "free riding" on vaults. Enforced on entry and exit, not on deleverage.
+    uint16 maxRequiredAccountCollateralRatioBPS;
+    // 80 bytes left
+}
+
+struct VaultBorrowCapacityStorage {
+    // Total fCash across all maturities that caps the borrow capacity
+    uint80 maxBorrowCapacity;
+    // Current usage of that total borrow capacity
+    uint80 totalUsedBorrowCapacity;
+}
+
+struct VaultSecondaryBorrowStorage {
+    // fCash borrowed for a specific maturity on a secondary currency
+    uint80 totalfCashBorrowed;
+    // Used for accounting how much secondary borrow a single account owes as the fCashBorrowed
+    // increases or decreases
+    uint80 totalAccountDebtShares;
+    // The total secondary fCash borrowed converted to the primary borrow currency (underlying)
+    // snapshot prior to settlement. This is used to offset account value on settlement. Once this
+    // value is set, accounts can no longer borrow or repay on the secondary borrow currency
+    uint80 totalfCashBorrowedInPrimarySnapshot;
+    // Set to true once when the snapshot is set
+    bool hasSnapshotBeenSet;
+}
+
+struct VaultConfig {
+    address vault;
+    uint16 flags;
+    uint16 borrowCurrencyId;
+    int256 minAccountBorrowSize;
+    int256 feeRate;
+    int256 minCollateralRatio;
+    int256 liquidationRate;
+    int256 reserveFeeShare;
+    uint256 maxBorrowMarketIndex;
+    int256 maxDeleverageCollateralRatio;
+    uint16[2] secondaryBorrowCurrencies;
+    AssetRateParameters assetRate;
+    int256 maxRequiredAccountCollateralRatio;
+}
+
+/// @notice Represents a Vault's current borrow and collateral state
+struct VaultStateStorage {
+    // This represents the total amount of borrowing in the vault for the current
+    // vault term. This value must equal the total fCash borrowed by all accounts
+    // in the vault.
+    uint80 totalfCash;
+    // The total amount of asset cash in the pool held as prepayment for fCash
+    uint80 totalAssetCash;
+    // Total vault shares in this maturity
+    uint80 totalVaultShares;
+    // Set to true if a vault has been fully settled and the cash can be pulled. Matured
+    // accounts must wait for this flag to be set before they can proceed to exit after
+    // maturity
+    bool isSettled;
+    // NOTE: 8 bits left
+    // ----- This breaks into a new storage slot -------    
+    // TODO: potentially make total strategy tokens bigger...
+    // The total amount of strategy tokens held in the pool
+    uint80 totalStrategyTokens;
+    // Valuation of a strategy token at settlement
+    int80 settlementStrategyTokenValue;
+    // NOTE: 96 bits left
+}
+
+/// @notice Represents the remaining assets in a vault post settlement
+struct VaultSettledAssetsStorage {
+    // Remaining strategy tokens that have not been withdrawn
+    uint80 remainingStrategyTokens;
+    // Remaining asset cash that has not been withdrawn
+    int80 remainingAssetCash;
+}
+
+struct VaultState {
+    uint256 maturity;
+    int256 totalfCash;
+    bool isSettled;
+    uint256 totalVaultShares;
+    uint256 totalAssetCash;
+    uint256 totalStrategyTokens;
+    int256 settlementStrategyTokenValue;
+}
+
+/// @notice Represents an account's position within an individual vault
+struct VaultAccountStorage {
+    // The amount of fCash the account has borrowed from Notional. Stored as a uint but on the stack it
+    // is represented as a negative number.
+    uint80 fCash;
+    // Vault shares that the account holds
+    uint80 vaultShares;
+    // Maturity when the vault shares and fCash will mature
+    uint40 maturity;
+    // Last block when a vault entered, used to ensure that vault accounts do not flash enter/exit.
+    // While there is no specified attack vector here, we can use it to prevent an entire class
+    // of attacks from happening without reducing UX.
+    uint32 lastEntryBlockHeight;
+}
+
+struct VaultAccountSecondaryDebtShareStorage {
+    // Maturity for the account's secondary borrows. This is stored separately from
+    // the vault account maturity to ensure that we have access to the proper state
+    // during a roll borrow position. It should never be allowed to deviate from the
+    // vaultAccount.maturity value (unless it is cleared to zero).
+    uint40 maturity;
+    // Account debt shares for the first secondary currency
+    uint80 accountDebtSharesOne;
+    // Account debt shares for the second secondary currency
+    uint80 accountDebtSharesTwo;
+}
+
+struct VaultAccount {
+    int256 fCash;
+    uint256 maturity;
+    uint256 vaultShares;
+    address account;
+    // This cash balance is used just within a transaction to track deposits
+    // and withdraws for an account. Must be zeroed by the time we store the account
+    int256 tempCashBalance;
+    uint256 lastEntryBlockHeight;
+}

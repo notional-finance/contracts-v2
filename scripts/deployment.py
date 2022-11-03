@@ -5,6 +5,7 @@ from brownie import (
     AccountAction,
     BatchAction,
     CalculationViews,
+    EmptyProxy,
     ERC1155Action,
     FreeCollateralExternal,
     GovernanceAction,
@@ -22,6 +23,9 @@ from brownie import (
     SettleAssetsExternal,
     TradingAction,
     TreasuryAction,
+    UpgradeableBeacon,
+    VaultAccountAction,
+    VaultAction,
     Views,
     accounts,
     cTokenV2Aggregator,
@@ -100,6 +104,7 @@ def deployNotionalContracts(deployer, **kwargs):
 
     # Deploy logic contracts
     contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
+
     if network.show_active() in ["kovan", "mainnet"]:
         raise Exception("update governance deployment!")
     # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
@@ -118,6 +123,8 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["CalculationViews"] = CalculationViews.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
     contracts["TreasuryAction"] = TreasuryAction.deploy(kwargs["Comptroller"], {"from": deployer})
+    contracts["VaultAction"] = VaultAction.deploy({"from": deployer})
+    contracts["VaultAccountAction"] = VaultAccountAction.deploy({"from": deployer})
 
     # Deploy Pause Router
     pauseRouter = PauseRouter.deploy(
@@ -130,18 +137,22 @@ def deployNotionalContracts(deployer, **kwargs):
 
     # Deploy router
     router = Router.deploy(
-        contracts["Governance"].address,
-        contracts["Views"].address,
-        contracts["InitializeMarketsAction"].address,
-        contracts["nTokenAction"].address,
-        contracts["BatchAction"].address,
-        contracts["AccountAction"].address,
-        contracts["ERC1155Action"].address,
-        contracts["LiquidateCurrencyAction"].address,
-        contracts["LiquidatefCashAction"].address,
-        kwargs["cETH"],
-        contracts["TreasuryAction"].address,
-        contracts["CalculationViews"].address,
+        (
+            contracts["Governance"].address,
+            contracts["Views"].address,
+            contracts["InitializeMarketsAction"].address,
+            contracts["nTokenAction"].address,
+            contracts["BatchAction"].address,
+            contracts["AccountAction"].address,
+            contracts["ERC1155Action"].address,
+            contracts["LiquidateCurrencyAction"].address,
+            contracts["LiquidatefCashAction"].address,
+            kwargs["cETH"],
+            contracts["TreasuryAction"].address,
+            contracts["CalculationViews"].address,
+            contracts["VaultAccountAction"].address,
+            contracts["VaultAction"].address,
+        ),
         {"from": deployer},
     )
 

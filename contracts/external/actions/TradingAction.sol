@@ -65,6 +65,19 @@ library TradingAction {
         uint256 blockTime;
     }
 
+    /// @notice Executes a trade for leveraged vaults (they can only lend or borrow).
+    /// @param currencyId the currency id to lend or borrow
+    /// @param trade the bytes32 encoded trade data
+    function executeVaultTrade(uint16 currencyId, bytes32 trade)
+        external
+        returns (int256 netAssetCash) {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
+        MarketParameters memory market;
+        TradeActionType tradeType = TradeActionType(uint256(uint8(bytes1(trade))));
+
+        (netAssetCash, /* */) = _executeLendBorrowTrade(cashGroup, market, tradeType, block.timestamp, trade);
+    }
+
     /// @notice Executes trades for a bitmapped portfolio, cannot be called directly
     /// @param account account to put fCash assets in
     /// @param bitmapCurrencyId currency id of the bitmap
@@ -214,6 +227,7 @@ library TradingAction {
                 blockTime,
                 trade
             );
+            require(cashAmount != 0, "Trade failed, liquidity");
 
             // This is a little ugly but required to deal with stack issues. We know the market is loaded
             // with the proper maturity inside _executeLendBorrowTrade
@@ -346,7 +360,6 @@ library TradingAction {
             market.maturity.sub(blockTime),
             marketIndex
         );
-        require(cashAmount != 0, "Trade failed, liquidity");
 
         uint256 rateLimit = uint256(uint32(bytes4(trade << 104)));
         if (rateLimit != 0) {

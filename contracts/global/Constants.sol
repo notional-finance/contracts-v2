@@ -133,4 +133,9 @@ library Constants {
     bytes1 internal constant COLLATERAL_CURRENCY_ENABLED = 0x02;
     bytes1 internal constant LOCAL_FCASH_ENABLED = 0x04;
     bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
+
+    // Requires vault accounts to enter a position for a minimum of 5 blocks (approx 1 min)
+    // to mitigate strange behavior where accounts may enter and exit using flash loans or other
+    // MEV type behavior.
+    uint256 internal constant VAULT_ACCOUNT_MIN_BLOCKS = 5;
 }

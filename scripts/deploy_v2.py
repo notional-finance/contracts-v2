@@ -42,14 +42,14 @@ def deployGovernance(deployer):
     initializer.initNOTE([deployer.address], [initializer.note.totalSupply()])
 
 
-def deployNotional(deployer, networkName):
-    notional = NotionalDeployer(networkName, deployer, dryRun=True)
+def deployNotional(deployer, networkName, dryRun):
+    notional = NotionalDeployer(networkName, deployer, dryRun)
     notional.deployLibs()
     notional.deployActions()
     notional.deployPauseRouter()
     notional.deployRouter()
     notional.deployProxy()
-    initializer = NotionalInitializer(networkName, deployer, dryRun=True)
+    initializer = NotionalInitializer(networkName, deployer, dryRun)
     initializer.enableCurrency(1, CurrencyConfig)
     initializer.enableCurrency(2, CurrencyConfig)
     initializer.enableCurrency(3, CurrencyConfig)
@@ -75,15 +75,24 @@ def deployLiquidator(deployer, networkName):
     liq.deployManualLiquidator(4)
 
 
-def main():
+def main(dryRun=True):
     networkName = network.show_active()
     if networkName == "mainnet-fork":
         networkName = "mainnet"
+    if networkName == "goerli-fork":
+        networkName = "goerli"
     deployer = accounts.load(networkName.upper() + "_DEPLOYER")
     if networkName not in ["kovan", "mainnet", "goerli"]:
         deployTokens(deployer)
         deployCompound(deployer)
         deployGovernance(deployer)
 
-    deployNotional(deployer, networkName)
-    deployLiquidator(deployer, networkName)
+    if dryRun == "LFG":
+        txt = input("Will execute REAL transactions, are you sure (type 'I am sure'): ")
+        if txt != "I am sure":
+            return
+        else:
+            dryRun = False
+
+    deployNotional(deployer, networkName, dryRun)
+    deployLiquidator(deployer, networkName, dryRun)

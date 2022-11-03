@@ -139,7 +139,9 @@ library TokenHandler {
         } else if (assetToken.tokenType == TokenType.cToken) {
             CompoundHandler.mint(assetToken, underlyingAmountExternal);
         } else if (assetToken.tokenType == TokenType.cETH) {
-            CompoundHandler.mintCETH(assetToken);
+            // NOTE: current deployed contracts rely on msg.value but this has been updated for
+            // strategy vaults.
+            CompoundHandler.mintCETH(assetToken, underlyingAmountExternal);
         } else {
             revert(); // dev: non mintable token
         }
@@ -303,6 +305,33 @@ library TokenHandler {
             // an off by 1 error at 1e8 precision is 1e10 units of the underlying token. In this case we
             // add 1 at the internal precision which has the effect of rounding up by 1e10
             underlyingExternalAmount = convertToExternal(token, underlyingInternalAmount.add(1));
+        }
+    }
+
+    /// @notice Converts and asset token value to it's native external precision. Used to handle aToken internal to
+    /// rebasing native external precision.
+    function convertAssetInternalToNativeExternal(
+        Token memory assetToken,
+        uint16 currencyId,
+        int256 assetInternalAmount
+    ) internal view returns (int256 assetNativeExternal) {
+        assetNativeExternal = convertToExternal(assetToken, assetInternalAmount);
+
+        if (assetToken.tokenType == TokenType.aToken) {
+            // Special handling for aTokens, we use scaled balance internally
+            Token memory underlying = getUnderlyingToken(currencyId);
+            assetNativeExternal = AaveHandler.convertFromScaledBalanceExternal(
+                underlying.tokenAddress, assetNativeExternal
+            );
+        }
+    }
+
+    /// @notice Convenience method for getting the balance using a token object
+    function balanceOf(Token memory token, address account) internal view returns (uint256) {
+        if (token.tokenType == TokenType.Ether) {
+            return account.balance;
+        } else {
+            return IERC20(token.tokenAddress).balanceOf(account);
         }
     }
 

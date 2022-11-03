@@ -2,14 +2,15 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./actions/nTokenAction.sol";
 import "./actions/nTokenMintAction.sol";
 import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
+import {nTokenERC20} from "../../interfaces/notional/nTokenERC20.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
-import "../../interfaces/notional/nERC1155Interface.sol";
-import "../../interfaces/notional/NotionalGovernance.sol";
-import "../../interfaces/notional/NotionalCalculations.sol";
+import {IVaultAction, IVaultAccountAction} from "../../interfaces/notional/IVaultController.sol";
+import {nERC1155Interface} from "../../interfaces/notional/nERC1155Interface.sol";
+import {NotionalGovernance} from "../../interfaces/notional/NotionalGovernance.sol";
+import {NotionalCalculations} from "../../interfaces/notional/NotionalCalculations.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage
@@ -34,36 +35,46 @@ contract Router is StorageLayoutV1 {
     address public immutable cETH;
     address public immutable TREASURY;
     address public immutable CALCULATION_VIEWS;
+    address public immutable VAULT_ACCOUNT_ACTION;
+    address public immutable VAULT_ACTION;
     address private immutable DEPLOYER;
 
-    constructor(
-        address governance_,
-        address views_,
-        address initializeMarket_,
-        address nTokenActions_,
-        address batchAction_,
-        address accountAction_,
-        address erc1155_,
-        address liquidateCurrency_,
-        address liquidatefCash_,
-        address cETH_,
-        address treasury_,
-        address calculationViews_
-    ) {
-        GOVERNANCE = governance_;
-        VIEWS = views_;
-        INITIALIZE_MARKET = initializeMarket_;
-        NTOKEN_ACTIONS = nTokenActions_;
-        BATCH_ACTION = batchAction_;
-        ACCOUNT_ACTION = accountAction_;
-        ERC1155 = erc1155_;
-        LIQUIDATE_CURRENCY = liquidateCurrency_;
-        LIQUIDATE_FCASH = liquidatefCash_;
-        cETH = cETH_;
-        DEPLOYER = msg.sender;
-        TREASURY = treasury_;
-        CALCULATION_VIEWS = calculationViews_;
+    struct DeployedContracts {
+        address governance;
+        address views;
+        address initializeMarket;
+        address nTokenActions;
+        address batchAction;
+        address accountAction;
+        address erc1155;
+        address liquidateCurrency;
+        address liquidatefCash;
+        address cETH;
+        address treasury;
+        address calculationViews;
+        address vaultAccountAction;
+        address vaultAction;
+    }
 
+    constructor(
+        DeployedContracts memory contracts
+    ) {
+        GOVERNANCE = contracts.governance;
+        VIEWS = contracts.views;
+        INITIALIZE_MARKET = contracts.initializeMarket;
+        NTOKEN_ACTIONS = contracts.nTokenActions;
+        BATCH_ACTION = contracts.batchAction;
+        ACCOUNT_ACTION = contracts.accountAction;
+        ERC1155 = contracts.erc1155;
+        LIQUIDATE_CURRENCY = contracts.liquidateCurrency;
+        LIQUIDATE_FCASH = contracts.liquidatefCash;
+        cETH = contracts.cETH;
+        TREASURY = contracts.treasury;
+        CALCULATION_VIEWS = contracts.calculationViews;
+        VAULT_ACCOUNT_ACTION = contracts.vaultAccountAction;
+        VAULT_ACTION = contracts.vaultAction;
+
+        DEPLOYER = msg.sender;
         // This will lock everyone from calling initialize on the implementation contract
         hasInitialized = true;
     }
@@ -114,18 +125,15 @@ contract Router is StorageLayoutV1 {
         ) {
             return BATCH_ACTION;
         } else if (
-            sig == nTokenAction.nTokenTotalSupply.selector ||
-            sig == nTokenAction.nTokenBalanceOf.selector ||
-            sig == nTokenAction.nTokenTransferAllowance.selector ||
-            sig == nTokenAction.nTokenTransferApprove.selector ||
-            sig == nTokenAction.nTokenTransfer.selector ||
-            sig == nTokenAction.nTokenTransferFrom.selector ||
-            sig == nTokenAction.nTokenClaimIncentives.selector ||
-            sig == nTokenAction.nTokenTransferApproveAll.selector ||
-            sig == nTokenAction.nTokenPresentValueAssetDenominated.selector ||
-            sig == nTokenAction.nTokenPresentValueUnderlyingDenominated.selector
+            sig == IVaultAccountAction.enterVault.selector ||
+            sig == IVaultAccountAction.rollVaultPosition.selector ||
+            sig == IVaultAccountAction.exitVault.selector ||
+            sig == IVaultAccountAction.deleverageAccount.selector ||
+            sig == IVaultAccountAction.getVaultAccount.selector ||
+            sig == IVaultAccountAction.getVaultAccountDebtShares.selector ||
+            sig == IVaultAccountAction.getVaultAccountCollateralRatio.selector
         ) {
-            return NTOKEN_ACTIONS;
+            return VAULT_ACCOUNT_ACTION;
         } else if (
             sig == NotionalProxy.depositUnderlyingToken.selector ||
             sig == NotionalProxy.depositAssetToken.selector ||
@@ -150,6 +158,19 @@ contract Router is StorageLayoutV1 {
         ) {
             return ERC1155;
         } else if (
+            sig == nTokenERC20.nTokenTotalSupply.selector ||
+            sig == nTokenERC20.nTokenTransferAllowance.selector ||
+            sig == nTokenERC20.nTokenBalanceOf.selector ||
+            sig == nTokenERC20.nTokenTransferApprove.selector ||
+            sig == nTokenERC20.nTokenTransfer.selector ||
+            sig == nTokenERC20.nTokenTransferFrom.selector ||
+            sig == nTokenERC20.nTokenTransferApproveAll.selector ||
+            sig == nTokenERC20.nTokenClaimIncentives.selector ||
+            sig == nTokenERC20.nTokenPresentValueAssetDenominated.selector ||
+            sig == nTokenERC20.nTokenPresentValueUnderlyingDenominated.selector
+        ) {
+            return NTOKEN_ACTIONS;
+        } else if (
             sig == NotionalProxy.liquidateLocalCurrency.selector ||
             sig == NotionalProxy.liquidateCollateralCurrency.selector ||
             sig == NotionalProxy.calculateLocalCurrencyLiquidation.selector ||
@@ -163,6 +184,26 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.calculatefCashCrossCurrencyLiquidation.selector
         ) {
             return LIQUIDATE_FCASH;
+        } else if (
+            sig == IVaultAction.updateVault.selector ||
+            sig == IVaultAction.setVaultPauseStatus.selector ||
+            sig == IVaultAction.setVaultDeleverageStatus.selector ||
+            sig == IVaultAction.setMaxBorrowCapacity.selector ||
+            sig == IVaultAction.reduceMaxBorrowCapacity.selector ||
+            sig == IVaultAction.updateSecondaryBorrowCapacity.selector ||
+            sig == IVaultAction.depositVaultCashToStrategyTokens.selector ||
+            sig == IVaultAction.redeemStrategyTokensToCash.selector ||
+            sig == IVaultAction.borrowSecondaryCurrencyToVault.selector ||
+            sig == IVaultAction.repaySecondaryCurrencyFromVault.selector ||
+            sig == IVaultAction.initiateSecondaryBorrowSettlement.selector ||
+            sig == IVaultAction.settleVault.selector ||
+            sig == IVaultAction.getVaultConfig.selector ||
+            sig == IVaultAction.getBorrowCapacity.selector ||
+            sig == IVaultAction.getSecondaryBorrow.selector ||
+            sig == IVaultAction.getVaultState.selector ||
+            sig == IVaultAction.getCashRequiredToSettle.selector
+        ) {
+            return VAULT_ACTION;
         } else if (
             sig == NotionalProxy.initializeMarkets.selector ||
             sig == NotionalProxy.sweepCashIntoMarkets.selector

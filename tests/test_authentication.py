@@ -53,6 +53,9 @@ def test_non_callable_methods(environment, accounts):
 
     with brownie.reverts("Ownable: caller is not the owner"):
         environment.notional.transferOwnership(accounts[1], True, {"from": accounts[1]})
+
+        environment.notional.upgradeNTokenBeacon(accounts[1], {"from": accounts[1]})
+
         environment.notional.listCurrency(
             (environment.token["DAI"].address, False, 0, 18, 0),
             (zeroAddress, False, 0, 0, 0),
@@ -117,6 +120,7 @@ def test_non_callable_methods(environment, accounts):
         environment.notional.batchBalanceAction(accounts[2], [], {"from": accounts[1]})
         environment.notional.batchBalanceAndTradeAction(accounts[2], [], {"from": accounts[1]})
 
+    # Test nToken Proxy Authorization
     with brownie.reverts("Unauthorized caller"):
         environment.notional.nTokenTransferApprove(
             1, accounts[2], accounts[1], 2 ** 255, {"from": accounts[1]}
@@ -127,6 +131,10 @@ def test_non_callable_methods(environment, accounts):
         environment.notional.nTokenTransferFrom(
             1, accounts[2], accounts[1], accounts[0], 100e8, {"from": accounts[1]}
         )
+        environment.notional.nTokenRedeemViaProxy(
+            1, 100e8, accounts[1], accounts[1], {"from": accounts[1]}
+        )
+        environment.notional.nTokenMintViaProxy(1, 100e8, accounts[1], {"from": accounts[1]})
 
 
 def test_prevent_duplicate_token_listing(environment, accounts):

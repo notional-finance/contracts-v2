@@ -1,0 +1,177 @@
+[
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "strategyTokens",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            }
+        ],
+        "name": "convertStrategyToUnderlying",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "underlyingValue",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [
+            {
+                "internalType": "uint8",
+                "name": "",
+                "type": "uint8"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "depositAmount",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+            }
+        ],
+        "name": "depositFromNotional",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "strategyTokensMinted",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "name",
+        "outputs": [
+            {
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "receiver",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "strategyTokens",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "underlyingToRepayDebt",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+            }
+        ],
+        "name": "redeemFromNotional",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "transferToReceiver",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "token",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "underlyingRequired",
+                "type": "uint256"
+            },
+            {
+                "internalType": "bytes",
+                "name": "data",
+                "type": "bytes"
+            }
+        ],
+        "name": "repaySecondaryBorrowCallback",
+        "outputs": [
+            {
+                "internalType": "bytes",
+                "name": "returnData",
+                "type": "bytes"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "strategy",
+        "outputs": [
+            {
+                "internalType": "bytes4",
+                "name": "strategyId",
+                "type": "bytes4"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]

@@ -13,23 +13,23 @@ from brownie import (
     LiquidateCurrencyAction,
     LiquidatefCashAction,
     Router,
+    VaultAccountAction,
+    VaultAction,
     Views,
     nTokenAction,
 )
 
 ETHERSCAN_TOKEN = os.environ["ETHERSCAN_TOKEN"]
-V2_ROUTER = "0x774d65f16Fc367a4e62d1986799c394d7036843c"
-FINAL_ROUTER = "0x4c7B456ec8Fcb19fB4e6a11A04Bc3Ec1D71dc1a8"
-PATCHFIX_ROUTER = "0x99eB7cBCF119dC2A93038F98153909F80eC3fCA8"
+ROUTER = "0xD7c3Dc1C36d19cF4e8cea4eA143a2f4458Dd1937"
 
 ETHERSCAN_API = (
     "https://api.etherscan.io/api?module=contract&action=getsourcecode&address={}&apikey={}"
 )
 
 
-def get_contracts():
+def get_contracts(router):
     contracts = {}
-    finalRouter = Contract.from_abi("FinalRouter", FINAL_ROUTER, Router.abi)
+    finalRouter = Contract.from_abi("FinalRouter", router, Router.abi)
 
     contracts["Governance"] = finalRouter.GOVERNANCE()
     contracts["Views"] = finalRouter.VIEWS()
@@ -42,6 +42,8 @@ def get_contracts():
     contracts["LiquidatefCash"] = finalRouter.LIQUIDATE_FCASH()
     contracts["Treasury"] = finalRouter.TREASURY()
     contracts["CalculationViews"] = finalRouter.CALCULATION_VIEWS()
+    contracts["VaultAction"] = finalRouter.VAULT_ACTION()
+    contracts["VaultAccountAction"] = finalRouter.VAULT_ACCOUNT_ACTION()
 
     batchAction = Contract.from_abi("BatchAction", contracts["BatchAction"], BatchAction.abi)
     (
@@ -50,11 +52,14 @@ def get_contracts():
         contracts["SettleAssets"],
         contracts["TradingAction"],
         contracts["nTokenMint"],
-        contracts["nTokenRedeeem"],
+        contracts["nTokenRedeem"],
     ) = batchAction.getLibInfo()
 
-    with open("contracts.json", "w") as f:
-        json.dump(contracts, f, indent=4, sort_keys=True)
+    accountAction = Contract.from_abi("", contracts["AccountAction"], AccountAction.abi)
+    (_, _, _, contracts["nTokenRedeem2"]) = accountAction.getLibInfo()
+
+    vaultAction = Contract.from_abi("", contracts["VaultAction"], VaultAction.abi)
+    (contracts["TradingActionVault"]) = vaultAction.getLibInfo()
 
     return contracts
 
@@ -110,9 +115,6 @@ def build_existing_hashes():
                         data["source"].encode("utf8")
                     ).hexdigest()
 
-    with open("existing_hashes.json", "w") as f:
-        json.dump(hashes, f, indent=4, sort_keys=True)
-
     return hashes
 
 
@@ -139,7 +141,7 @@ def validate_libs(contracts):
         contracts["SettleAssets"],
         contracts["TradingAction"],
         contracts["nTokenMint"],
-        contracts["nTokenRedeeem"],
+        contracts["nTokenRedeem"],
     ) == c.getLibInfo()
 
     c = Contract.from_abi("", contracts["AccountAction"], AccountAction.abi)
@@ -147,7 +149,7 @@ def validate_libs(contracts):
         contracts["FreeCollateral"],
         contracts["MigrateIncentives"],
         contracts["SettleAssets"],
-        contracts["nTokenRedeeem"],
+        contracts["nTokenRedeem2"],
     ) == c.getLibInfo()
 
     c = Contract.from_abi("", contracts["ERC1155"], ERC1155Action.abi)
@@ -162,18 +164,28 @@ def validate_libs(contracts):
     c = Contract.from_abi("", contracts["CalculationViews"], CalculationViews.abi)
     assert (contracts["MigrateIncentives"]) == c.getLibInfo()
 
+    c = Contract.from_abi("", contracts["VaultAccountAction"], VaultAccountAction.abi)
+    assert (contracts["TradingActionVault"]) == c.getLibInfo()
+
+    c = Contract.from_abi("", contracts["VaultAction"], VaultAction.abi)
+    assert (contracts["TradingActionVault"]) == c.getLibInfo()
+
 
 def main():
-    with open("existing_hashes.json", "r") as f:
-        existing_hashes = json.load(f)
+    # with open("existing_hashes.json", "r") as f:
+    #     existing_hashes = json.load(f)
 
-    with open("contracts.json", "r") as f:
-        contracts = json.load(f)
+    # with open("contracts.json", "r") as f:
+    #     contracts = json.load(f)
+    contracts = get_contracts(ROUTER)
+    existing_hashes = build_existing_hashes()
 
     validate_libs(contracts)
 
-    get_contract_hashes(PATCHFIX_ROUTER, "patchfix", existing_hashes)
-    get_contract_hashes(FINAL_ROUTER, "final_router", existing_hashes)
+    get_contract_hashes(ROUTER, "new_router", existing_hashes)
 
     for (name, address) in contracts.items():
-        get_contract_hashes(address, name, existing_hashes)
+        if name in ["VaultAction", "VaultAccountAction", "AccountAction"]:
+            get_contract_hashes(address, name, existing_hashes)
+        else:
+            pass

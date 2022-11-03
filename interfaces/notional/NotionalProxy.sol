@@ -9,6 +9,7 @@ import "./NotionalGovernance.sol";
 import "./NotionalCalculations.sol";
 import "./NotionalViews.sol";
 import "./NotionalTreasury.sol";
+import {IVaultController} from "./IVaultController.sol";
 
 interface NotionalProxy is
     nTokenERC20,
@@ -16,7 +17,8 @@ interface NotionalProxy is
     NotionalGovernance,
     NotionalTreasury,
     NotionalCalculations,
-    NotionalViews
+    NotionalViews,
+    IVaultController
 {
     /** User trading events */
     event CashBalanceChange(

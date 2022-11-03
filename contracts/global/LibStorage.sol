@@ -44,7 +44,14 @@ library LibStorage {
         ExchangeRate,
         nTokenTotalSupply,
         SecondaryIncentiveRewarder,
-        LendingPool
+        LendingPool,
+        VaultConfig,
+        VaultState,
+        VaultAccount,
+        VaultBorrowCapacity,
+        VaultSecondaryBorrow,
+        VaultSettledAssets,
+        VaultAccountSecondaryDebtShare
     }
 
     /// @dev Mapping from an account address to account context
@@ -199,6 +206,64 @@ library LibStorage {
     /// @dev Returns the address of the lending pool
     function getLendingPool() internal pure returns (LendingPoolStorage storage store) {
         uint256 slot = _getStorageSlot(StorageId.LendingPool);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultConfig, mapping is from vault address to VaultConfig object
+    function getVaultConfig() internal pure returns (
+        mapping(address => VaultConfigStorage) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultConfig);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultState, mapping is from vault address to maturity to VaultState object
+    function getVaultState() internal pure returns (
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultState);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to VaultAccount object
+    function getVaultAccount() internal pure returns (
+        mapping(address => mapping(address => VaultAccountStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultAccount);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for a VaultBorrowCapacity, mapping is from vault address to currency to BorrowCapacity object
+    function getVaultBorrowCapacity() internal pure returns (
+        mapping(address => mapping(uint256 => VaultBorrowCapacityStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultBorrowCapacity);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to maturity to
+    /// currencyId to VaultSecondaryBorrowStorage object
+    function getVaultSecondaryBorrow() internal pure returns (
+        mapping(address => mapping(uint256 => mapping(uint256 => VaultSecondaryBorrowStorage))) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultSecondaryBorrow);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to maturity to
+    /// VaultSettledAssetsStorage object
+    function getVaultSettledAssets() internal pure returns (
+        mapping(address => mapping(uint256 => VaultSettledAssetsStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultSettledAssets);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address
+    function getVaultAccountSecondaryDebtShare() internal pure returns (
+        mapping(address => mapping(address => VaultAccountSecondaryDebtShareStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.VaultAccountSecondaryDebtShare);
         assembly { store.slot := slot }
     }
 
