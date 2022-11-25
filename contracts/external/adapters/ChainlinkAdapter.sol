@@ -28,7 +28,7 @@ contract ChainlinkAdapter is AggregatorV2V3Interface {
         quoteToUSDDecimals = int256(10**quoteToUSDOracle_.decimals());
     }
 
-    function _calculateBaseToQuote() internal view returns (
+    function _calculateBaseToQuote() internal view virtual returns (
         uint80 roundId,
         int256 answer,
         uint256 startedAt,

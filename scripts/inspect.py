@@ -26,7 +26,7 @@ def get_router_args(router):
 
 def main():
     networkName = network.show_active()
-    if networkName == "mainnet-fork":
+    if networkName == "mainnet-fork" or networkName == "mainnet-current":
         networkName = "mainnet"
     if networkName == "goerli-fork":
         networkName = "goerli"
@@ -40,3 +40,22 @@ def main():
     governance = GovernorAlpha.at(addresses["governor"])
     note = NoteERC20.at(addresses["note"])
     router = Contract.from_abi("Router", addresses["notional"], abi=Router.abi)
+
+
+# newAdapter = ChainlinkWrappedAdapter.deploy(
+#     "0xF4030086522a5bEEa4988F8cA5B36dbC97BeE88c",
+#     "0xfdfd9c85ad200c506cf9e21f1fd8dd01932fbb23",
+#     "0x5f4eC3Df9cbd43714FE2740f5E3616155c5b8419",
+#     'Notional wBTC/ETH Chainlink Adapter',
+#     {'from': accounts[0]}
+# )
+
+# notional.updateETHRate(
+#     4,
+#     newAdapter.address,
+#     False,
+#     129,
+#     78,
+#     107,
+#     {'from': notional.owner()}
+# )
