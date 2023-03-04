@@ -114,7 +114,7 @@ library LiquidationHelpers {
     /// gained from local liquidations.
     /// @return the amount of underlying asset required
     function calculateLocalLiquidationUnderlyingRequired(
-        int256 localAssetAvailable,
+        int256 localPrimeAvailable,
         int256 netETHValue,
         ETHRate memory localETHRate
     ) internal pure returns (int256) {
@@ -124,7 +124,7 @@ library LiquidationHelpers {
             //
             // convertToLocal(netFCShortfallInETH) = localRequired * buffer
             // convertToLocal(netFCShortfallInETH) / buffer = localRequired
-            int256 multiple = localAssetAvailable > 0 ? localETHRate.haircut : localETHRate.buffer;
+            int256 multiple = localPrimeAvailable > 0 ? localETHRate.haircut : localETHRate.buffer;
 
             // Multiple will equal zero when the haircut is zero, in this case localAvailable > 0 but
             // liquidating a currency that is haircut to zero will have no effect on the netETHValue.
@@ -142,7 +142,7 @@ library LiquidationHelpers {
         pure
         returns (int256 collateralDenominatedFC, int256 liquidationDiscount)
     {
-        collateralDenominatedFC = factors.collateralCashGroup.assetRate.convertFromUnderlying(
+        collateralDenominatedFC = factors.collateralCashGroup.primeRate.convertFromUnderlying(
             factors
                 .collateralETHRate
                 // netETHValue must be negative to be in liquidation
@@ -178,14 +178,14 @@ library LiquidationHelpers {
                 .div(liquidationDiscount);
 
         int256 localAssetFromLiquidator =
-            factors.localAssetRate.convertFromUnderlying(localUnderlyingFromLiquidator);
-        // localAssetAvailable must be negative in cross currency liquidations
-        int256 maxLocalAsset = factors.localAssetAvailable.neg();
+            factors.localPrimeRate.convertFromUnderlying(localUnderlyingFromLiquidator);
+        // localPrimeAvailable must be negative in cross currency liquidations
+        int256 maxLocalAsset = factors.localPrimeAvailable.neg();
 
         if (localAssetFromLiquidator > maxLocalAsset) {
-            // If the local to purchase will flip the sign of localAssetAvailable then the calculations
-            // for the collateral purchase amounts will be thrown off. The positive portion of localAssetAvailable
-            // has to have a haircut applied. If this haircut reduces the localAssetAvailable value below
+            // If the local to purchase will flip the sign of localPrimeAvailable then the calculations
+            // for the collateral purchase amounts will be thrown off. The positive portion of localPrimeAvailable
+            // has to have a haircut applied. If this haircut reduces the localPrimeAvailable value below
             // the collateralAssetValue then this may actually decrease overall free collateral.
             collateralBalanceToSell = collateralBalanceToSell
                 .mul(maxLocalAsset)
@@ -247,7 +247,7 @@ library LiquidationHelpers {
 
         if (withdrawCollateral) {
             // This will net off the cash balance
-            balance.netAssetTransferInternalPrecision = netCollateralToLiquidator.neg();
+            balance.netPrimeTransfer = netCollateralToLiquidator.neg();
         }
 
         balance.netNTokenTransfer = netCollateralNTokens;

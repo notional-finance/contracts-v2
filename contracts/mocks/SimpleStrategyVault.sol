@@ -98,7 +98,7 @@ contract SimpleStrategyVault is BaseStrategyVault {
         NOTIONAL.redeemStrategyTokensToCash(maturity, strategyTokens, data);
     }
 
-    function depositVaultCashToStrategyTokens(uint256 maturity, uint256 assetCash, bytes calldata data) external {
-        NOTIONAL.depositVaultCashToStrategyTokens(maturity, assetCash, data);
+    function depositVaultCashToStrategyTokens(uint256 maturity, uint256 primeCash, bytes calldata data) external {
+        NOTIONAL.depositVaultCashToStrategyTokens(maturity, primeCash, data);
     }
 }

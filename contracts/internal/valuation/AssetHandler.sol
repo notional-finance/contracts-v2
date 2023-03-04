@@ -114,11 +114,11 @@ library AssetHandler {
     function getCashClaims(PortfolioAsset memory token, MarketParameters memory market)
         internal
         pure
-        returns (int256 assetCash, int256 fCash)
+        returns (int256 primeCash, int256 fCash)
     {
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset, get cash claims
 
-        assetCash = market.totalAssetCash.mul(token.notional).div(market.totalLiquidity);
+        primeCash = market.totalPrimeCash.mul(token.notional).div(market.totalLiquidity);
         fCash = market.totalfCash.mul(token.notional).div(market.totalLiquidity);
     }
 
@@ -127,20 +127,20 @@ library AssetHandler {
         PortfolioAsset memory token,
         MarketParameters memory market,
         CashGroupParameters memory cashGroup
-    ) internal pure returns (int256 assetCash, int256 fCash) {
+    ) internal pure returns (int256 primeCash, int256 fCash) {
         require(isLiquidityToken(token.assetType) && token.notional >= 0); // dev: invalid asset get haircut cash claims
 
         require(token.currencyId == cashGroup.currencyId); // dev: haircut cash claims, currency id mismatch
         // This won't overflow, the liquidity token haircut is stored as an uint8
         int256 haircut = int256(cashGroup.getLiquidityHaircut(token.assetType));
 
-        assetCash =
-            _calcToken(market.totalAssetCash, token.notional, haircut, market.totalLiquidity);
+        primeCash =
+            _calcToken(market.totalPrimeCash, token.notional, haircut, market.totalLiquidity);
 
         fCash =
             _calcToken(market.totalfCash, token.notional, haircut, market.totalLiquidity);
 
-        return (assetCash, fCash);
+        return (primeCash, fCash);
     }
 
     /// @dev This is here to clean up the stack in getHaircutCashClaims
@@ -179,12 +179,12 @@ library AssetHandler {
             cashGroup.loadMarket(market, marketIndex, true, blockTime);
         }
 
-        int256 assetCashClaim;
+        int256 primeCashClaim;
         int256 fCashClaim;
         if (riskAdjusted) {
-            (assetCashClaim, fCashClaim) = getHaircutCashClaims(liquidityToken, market, cashGroup);
+            (primeCashClaim, fCashClaim) = getHaircutCashClaims(liquidityToken, market, cashGroup);
         } else {
-            (assetCashClaim, fCashClaim) = getCashClaims(liquidityToken, market);
+            (primeCashClaim, fCashClaim) = getCashClaims(liquidityToken, market);
         }
 
         // Find the matching fCash asset and net off the value, assumes that the portfolio is sorted and
@@ -201,7 +201,7 @@ library AssetHandler {
                 maybefCash.notional = maybefCash.notional.add(fCashClaim);
                 // This state will prevent the fCash asset from being stored.
                 maybefCash.storageState = AssetStorageState.RevertIfStored;
-                return (assetCashClaim, 0);
+                return (primeCashClaim, 0);
             }
         }
 
@@ -216,16 +216,16 @@ library AssetHandler {
                     market.oracleRate
                 );
 
-            return (assetCashClaim, pv);
+            return (primeCashClaim, pv);
         } else {
             int256 pv =
                 getPresentfCashValue(fCashClaim, liquidityToken.maturity, blockTime, market.oracleRate);
 
-            return (assetCashClaim, pv);
+            return (primeCashClaim, pv);
         }
     }
 
-    /// @notice Returns present value of all assets in the cash group as asset cash and the updated
+    /// @notice Returns present value of all assets in the cash group as prime cash and the updated
     /// portfolio index where the function has ended.
     /// @return the value of the cash group in asset cash
     function getNetCashGroupValue(
@@ -235,7 +235,7 @@ library AssetHandler {
         uint256 blockTime,
         uint256 portfolioIndex
     ) internal view returns (int256, uint256) {
-        int256 presentValueAsset;
+        int256 presentValueInPrime;
         int256 presentValueUnderlying;
 
         // First calculate value of liquidity tokens because we need to net off fCash value
@@ -244,7 +244,7 @@ library AssetHandler {
             if (!isLiquidityToken(assets[i].assetType)) continue;
             if (assets[i].currencyId != cashGroup.currencyId) break;
 
-            (int256 assetCashClaim, int256 pv) =
+            (int256 primeCashClaim, int256 pv) =
                 getLiquidityTokenValue(
                     i,
                     cashGroup,
@@ -254,7 +254,7 @@ library AssetHandler {
                     true // risk adjusted
                 );
 
-            presentValueAsset = presentValueAsset.add(assetCashClaim);
+            presentValueInPrime = presentValueInPrime.add(primeCashClaim);
             presentValueUnderlying = presentValueUnderlying.add(pv);
         }
 
@@ -279,10 +279,10 @@ library AssetHandler {
             presentValueUnderlying = presentValueUnderlying.add(pv);
         }
 
-        presentValueAsset = presentValueAsset.add(
-            cashGroup.assetRate.convertFromUnderlying(presentValueUnderlying)
+        presentValueInPrime = presentValueInPrime.add(
+            cashGroup.primeRate.convertFromUnderlying(presentValueUnderlying)
         );
 
-        return (presentValueAsset, j);
+        return (presentValueInPrime, j);
     }
 }

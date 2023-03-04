@@ -70,8 +70,8 @@ library BalanceHandler {
             // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
             // and external account remain in sync.
             // Transfer will be deferred
-            balanceState.netAssetTransferInternalPrecision = balanceState
-                .netAssetTransferInternalPrecision
+            balanceState.netPrimeTransfer = balanceState
+                .netPrimeTransfer
                 .add(assetAmountInternal);
 
             // Returns the converted assetAmountExternal to the internal amount
@@ -133,11 +133,11 @@ library BalanceHandler {
             );
         }
 
-        if (balanceState.netAssetTransferInternalPrecision < 0) {
+        if (balanceState.netPrimeTransfer < 0) {
             require(
                 balanceState.storedCashBalance
                     .add(balanceState.netCashChange)
-                    .add(balanceState.netAssetTransferInternalPrecision) >= 0,
+                    .add(balanceState.netPrimeTransfer) >= 0,
                 "Neg Cash"
             );
         }
@@ -146,10 +146,10 @@ library BalanceHandler {
         // round down to zero. This returns the actual net transfer in internal precision as well.
         (
             transferAmountExternal,
-            balanceState.netAssetTransferInternalPrecision
+            balanceState.netPrimeTransfer
         ) = _finalizeTransfers(balanceState, account, redeemToUnderlying);
         // No changes to total cash after this point
-        int256 totalCashChange = balanceState.netCashChange.add(balanceState.netAssetTransferInternalPrecision);
+        int256 totalCashChange = balanceState.netCashChange.add(balanceState.netPrimeTransfer);
 
         if (totalCashChange != 0) {
             balanceState.storedCashBalance = balanceState.storedCashBalance.add(totalCashChange);
@@ -220,7 +220,7 @@ library BalanceHandler {
         // Dust accrual to the protocol is possible if the token decimals is less than internal token precision.
         // See the comments in TokenHandler.convertToExternal and TokenHandler.convertToInternal
         int256 assetTransferAmountExternal =
-            assetToken.convertToExternal(balanceState.netAssetTransferInternalPrecision);
+            assetToken.convertToExternal(balanceState.netPrimeTransfer);
 
         if (assetTransferAmountExternal == 0) {
             return (0, 0);
@@ -518,7 +518,7 @@ library BalanceHandler {
         }
 
         balanceState.netCashChange = 0;
-        balanceState.netAssetTransferInternalPrecision = 0;
+        balanceState.netPrimeTransfer = 0;
         balanceState.netNTokenTransfer = 0;
         balanceState.netNTokenSupplyChange = 0;
     }

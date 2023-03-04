@@ -399,12 +399,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     /// @notice Returns account context
-    function getAccountContext(address account)
-        external
-        view
-        override
-        returns (AccountContext memory)
-    {
+    function getAccountContext(address account) external view override returns (AccountContext memory) {
         return AccountContextHandler.getAccountContext(account);
     }
 
@@ -430,12 +425,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     /// @notice Returns account portfolio of assets
-    function getAccountPortfolio(address account)
-        external
-        view
-        override
-        returns (PortfolioAsset[] memory)
-    {
+    function getAccountPortfolio(address account) external view override returns (PortfolioAsset[] memory) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         if (accountContext.isBitmapEnabled()) {
             return
@@ -450,34 +440,20 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     /// @notice Returns the fCash amount at the specified maturity for a bitmapped portfolio
-    function getfCashNotional(
-        address account,
-        uint16 currencyId,
-        uint256 maturity
-    ) external view override returns (int256) {
+    function getfCashNotional(address account, uint16 currencyId, uint256 maturity) external view override returns (int256) {
         _checkValidCurrency(currencyId);
         return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
     }
 
     /// @notice Returns the assets bitmap for an account
-    function getAssetsBitmap(address account, uint16 currencyId)
-        external
-        view
-        override
-        returns (bytes32)
-    {
+    function getAssetsBitmap(address account, uint16 currencyId) external view override returns (bytes32) {
         _checkValidCurrency(currencyId);
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
     /// @notice Returns free collateral of an account along with an array of the individual net available
     /// asset cash amounts
-    function getFreeCollateral(address account)
-        external
-        view
-        override
-        returns (int256, int256[] memory)
-    {
+    function getFreeCollateral(address account) external view override returns (int256, int256[] memory) {
         return FreeCollateralExternal.getFreeCollateralView(account);
     }
 
@@ -495,11 +471,6 @@ contract Views is StorageLayoutV2, NotionalViews {
     /// @notice Get a list of deployed library addresses (sorted by library name)
     function getLibInfo() external pure returns (address, address) {
         return (address(FreeCollateralExternal), address(MigrateIncentives));
-    }
-
-    /// @notice Returns the lending pool address
-    function getLendingPool() external view override returns (address) {
-        return address(LibStorage.getLendingPool().lendingPool);
     }
 
     fallback() external {

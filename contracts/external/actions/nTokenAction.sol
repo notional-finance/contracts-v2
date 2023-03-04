@@ -224,11 +224,11 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     {
         // prettier-ignore
         (
-            int256 totalAssetPV,
+            int256 totalPrimePV,
             /* portfolio */
         ) = _getNTokenPV(currencyId);
 
-        return totalAssetPV;
+        return totalPrimePV;
     }
 
     /// @notice Returns the present value of the nToken's assets denominated in underlying
@@ -238,9 +238,9 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         override
         returns (int256)
     {
-        (int256 totalAssetPV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
+        (int256 totalPrimePV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
 
-        return nToken.cashGroup.assetRate.convertToUnderlying(totalAssetPV);
+        return nToken.cashGroup.assetRate.convertToUnderlying(totalPrimePV);
     }
 
     function _getNTokenPV(uint16 currencyId)
@@ -252,9 +252,9 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        int256 totalAssetPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
+        int256 totalPrimePV = nTokenCalculations.getNTokenPrimePV(nToken, blockTime);
 
-        return (totalAssetPV, nToken);
+        return (totalPrimePV, nToken);
     }
 
     /// @notice Transferring tokens will also claim incentives at the same time

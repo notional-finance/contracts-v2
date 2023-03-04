@@ -34,7 +34,7 @@ library VaultStateLib {
         address indexed vault,
         uint256 indexed maturity,
         int256 totalfCash,
-        uint256 totalAssetCash,
+        uint256 totalPrimeCash,
         uint256 totalStrategyTokens,
         uint256 totalVaultShares
     );
@@ -43,7 +43,7 @@ library VaultStateLib {
         address indexed vault,
         uint256 indexed maturity,
         int256 totalfCash,
-        uint256 totalAssetCash,
+        uint256 totalPrimeCash,
         uint256 totalStrategyTokens,
         uint256 totalVaultShares,
         int256 strategyTokenValue
@@ -67,7 +67,7 @@ library VaultStateLib {
         // fCash debts are represented as negative integers on the stack
         vaultState.totalfCash = -int256(uint256(s.totalfCash));
         vaultState.isSettled = s.isSettled;
-        vaultState.totalAssetCash = s.totalAssetCash;
+        vaultState.totalPrimeCash = s.totalPrimeCash;
         vaultState.totalStrategyTokens = s.totalStrategyTokens;
         vaultState.totalVaultShares = s.totalVaultShares;
         vaultState.settlementStrategyTokenValue = s.settlementStrategyTokenValue;
@@ -81,7 +81,7 @@ library VaultStateLib {
         require(vaultState.isSettled == false); // dev: cannot update vault state after settled
 
         s.totalfCash = vaultState.totalfCash.neg().toUint().toUint80();
-        s.totalAssetCash = vaultState.totalAssetCash.toUint80();
+        s.totalPrimeCash = vaultState.totalPrimeCash.toUint80();
         s.totalStrategyTokens = vaultState.totalStrategyTokens.toUint80();
         s.totalVaultShares = vaultState.totalVaultShares.toUint80();
 
@@ -89,7 +89,7 @@ library VaultStateLib {
             vault,
             vaultState.maturity,
             vaultState.totalfCash,
-            vaultState.totalAssetCash,
+            vaultState.totalPrimeCash,
             vaultState.totalStrategyTokens,
             vaultState.totalVaultShares
         );
@@ -134,14 +134,14 @@ library VaultStateLib {
 
         // This is the amount of residual asset cash left in the vault after repaying the fCash debt,
         // it can be negative if the entire vault is insolvent.
-        settledAssets.remainingAssetCash = vaultState.totalAssetCash.toInt()
+        settledAssets.remainingPrimeCash = vaultState.totalPrimeCash.toInt()
             .add(settlementRate.convertFromUnderlying(vaultState.totalfCash)).toInt80();
 
         emit VaultSettled(
             vaultConfig.vault,
             vaultState.maturity,
             vaultState.totalfCash,
-            vaultState.totalAssetCash,
+            vaultState.totalPrimeCash,
             vaultState.totalStrategyTokens,
             vaultState.totalVaultShares,
             singleTokenValueInternal
@@ -151,11 +151,11 @@ library VaultStateLib {
     function getRemainingSettledTokens(
         address vault,
         uint256 maturity
-    ) internal view returns (uint256 remainingStrategyTokens, int256 remainingAssetCash) {
+    ) internal view returns (uint256 remainingStrategyTokens, int256 remainingPrimeCash) {
         VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
             [vault][maturity];
         remainingStrategyTokens = settledAssets.remainingStrategyTokens;
-        remainingAssetCash = settledAssets.remainingAssetCash;
+        remainingPrimeCash = settledAssets.remainingPrimeCash;
     }
 
     /// @notice Exits a maturity for an account given the shares to redeem. Asset cash will be credited
@@ -171,10 +171,10 @@ library VaultStateLib {
     ) internal pure returns (uint256 strategyTokensWithdrawn) {
         require(vaultAccount.maturity == vaultState.maturity);
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToRedeem);
-        uint256 assetCashWithdrawn;
-        (assetCashWithdrawn, strategyTokensWithdrawn) = exitMaturityDirect(vaultState, vaultSharesToRedeem);
+        uint256 primeCashWithdrawn;
+        (primeCashWithdrawn, strategyTokensWithdrawn) = exitMaturityDirect(vaultState, vaultSharesToRedeem);
 
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(SafeInt256.toInt(assetCashWithdrawn));
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(SafeInt256.toInt(primeCashWithdrawn));
     }
 
     
@@ -182,17 +182,17 @@ library VaultStateLib {
     /// directly without touching the vault account.
     /// @param vaultState the current state of the pool
     /// @param vaultSharesToRedeem amount of shares to redeem
-    /// @return assetCashWithdrawn asset cash withdrawn from the pool
+    /// @return primeCashWithdrawn asset cash withdrawn from the pool
     /// @return strategyTokensWithdrawn amount of strategy tokens withdrawn from the pool
     function exitMaturityDirect(
         VaultState memory vaultState,
         uint256 vaultSharesToRedeem
-    ) internal pure returns (uint256 assetCashWithdrawn, uint256 strategyTokensWithdrawn) {
+    ) internal pure returns (uint256 primeCashWithdrawn, uint256 strategyTokensWithdrawn) {
         // Calculate the claim on cash tokens and strategy tokens
-        (assetCashWithdrawn, strategyTokensWithdrawn) = getPoolShare(vaultState, vaultSharesToRedeem);
+        (primeCashWithdrawn, strategyTokensWithdrawn) = getPoolShare(vaultState, vaultSharesToRedeem);
 
         // Remove tokens from the pool
-        vaultState.totalAssetCash = vaultState.totalAssetCash.sub(assetCashWithdrawn);
+        vaultState.totalPrimeCash = vaultState.totalPrimeCash.sub(primeCashWithdrawn);
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.sub(strategyTokensWithdrawn);
         vaultState.totalVaultShares = vaultState.totalVaultShares.sub(vaultSharesToRedeem);
     }
@@ -216,7 +216,7 @@ library VaultStateLib {
         // If the vault state is holding asset cash this would mean that there is some sort of emergency de-risking
         // event or the vault is in the process of settling debts. In both cases, we do not allow accounts to enter
         // the vault.
-        require(vaultState.totalAssetCash == 0);
+        require(vaultState.totalPrimeCash == 0);
         // An account cannot enter a vault with a negative temp cash balance.  This can happen during roll vault where
         // an insufficient amount is borrowed to repay its previous maturity debt.
         require(vaultAccount.tempCashBalance >= 0);
@@ -291,9 +291,9 @@ library VaultStateLib {
     function getPoolShare(
         VaultState memory vaultState,
         uint256 vaultShares
-    ) internal pure returns (uint256 assetCash, uint256 strategyTokens) {
+    ) internal pure returns (uint256 primeCash, uint256 strategyTokens) {
         if (vaultState.totalVaultShares > 0) {
-            assetCash = vaultShares.mul(vaultState.totalAssetCash).div(vaultState.totalVaultShares);
+            primeCash = vaultShares.mul(vaultState.totalPrimeCash).div(vaultState.totalVaultShares);
             strategyTokens = vaultShares.mul(vaultState.totalStrategyTokens).div(vaultState.totalVaultShares);
         }
     }
@@ -321,16 +321,16 @@ library VaultStateLib {
         VaultConfig memory vaultConfig,
         address account,
         uint256 vaultShares
-    ) internal view returns (int256 assetCashValue) {
+    ) internal view returns (int256 primeCashValue) {
         if (vaultShares == 0) return 0;
-        (uint256 assetCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
+        (uint256 primeCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
         int256 underlyingInternalStrategyTokenValue = _getStrategyTokenValueUnderlyingInternal(
             vaultConfig.borrowCurrencyId, vaultConfig.vault, account, strategyTokens, vaultState.maturity
         );
 
         // Converts underlying strategy token value to asset cash
-        assetCashValue = vaultConfig.assetRate
+        primeCashValue = vaultConfig.assetRate
             .convertFromUnderlying(underlyingInternalStrategyTokenValue)
-            .add(assetCash.toInt());
+            .add(primeCash.toInt());
     }
 }

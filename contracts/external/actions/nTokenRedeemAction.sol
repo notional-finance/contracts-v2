@@ -34,13 +34,13 @@ library nTokenRedeemAction {
         uint256 blockTime = block.timestamp;
         // prettier-ignore
         (
-            int256 totalAssetCash,
+            int256 totalPrimeCash,
             bool hasResidual,
             /* PortfolioAssets[] memory newfCashAssets */
         ) = _redeem(currencyId, tokensToRedeem, true, false, blockTime);
 
         require(!hasResidual, "Cannot redeem via batch, residual");
-        return totalAssetCash;
+        return totalPrimeCash;
     }
 
     /// @notice Redeems nTokens for asset cash and fCash
@@ -50,7 +50,7 @@ library nTokenRedeemAction {
     /// back into the account's portfolio
     /// @param acceptResidualAssets if true, then ifCash residuals will be placed into the account and there will
     /// be no penalty assessed
-    /// @return assetCash positive amount of asset cash to the account
+    /// @return primeCash positive amount of asset cash to the account
     /// @return hasResidual true if there are fCash residuals left
     /// @return assets an array of fCash asset residuals to place into the account
     function redeem(
@@ -117,9 +117,9 @@ library nTokenRedeemAction {
             ifCashBits
         );
 
-        // Returns the totalAssetCash as a result of withdrawing liquidity tokens and cash. netfCash will be updated
+        // Returns the totalPrimeCash as a result of withdrawing liquidity tokens and cash. netfCash will be updated
         // in memory if required and will contain the fCash to be sold or returned to the portfolio
-        int256 totalAssetCash = _reduceLiquidAssets(
+        int256 totalPrimeCash = _reduceLiquidAssets(
            nToken,
            tokensToRedeem,
            tokensToWithdraw,
@@ -130,10 +130,10 @@ library nTokenRedeemAction {
 
         bool netfCashRemaining = true;
         if (sellTokenAssets) {
-            int256 assetCash;
+            int256 primeCash;
             // NOTE: netfCash is modified in place and set to zero if the fCash is sold
-            (assetCash, netfCashRemaining) = _sellfCashAssets(nToken, netfCash, blockTime);
-            totalAssetCash = totalAssetCash.add(assetCash);
+            (primeCash, netfCashRemaining) = _sellfCashAssets(nToken, netfCash, blockTime);
+            totalPrimeCash = totalPrimeCash.add(primeCash);
         }
 
         if (netfCashRemaining) {
@@ -142,7 +142,7 @@ library nTokenRedeemAction {
             require(acceptResidualAssets || newifCashAssets.length == 0, "Residuals");
         }
 
-        return (totalAssetCash, netfCashRemaining, newifCashAssets);
+        return (totalPrimeCash, netfCashRemaining, newifCashAssets);
     }
 
     /// @notice Removes liquidity tokens and cash from the nToken
@@ -152,7 +152,7 @@ library nTokenRedeemAction {
     /// @param netfCash array of netfCash figures
     /// @param mustCalculatefCash true if netfCash must be calculated in the removeLiquidityTokens step
     /// @param blockTime current block time
-    /// @return assetCashShare amount of cash the redeemer will receive from withdrawing cash assets from the nToken
+    /// @return primeCashShare amount of cash the redeemer will receive from withdrawing cash assets from the nToken
     function _reduceLiquidAssets(
         nTokenPortfolio memory nToken,
         int256 nTokensToRedeem,
@@ -160,13 +160,13 @@ library nTokenRedeemAction {
         int256[] memory netfCash,
         bool mustCalculatefCash,
         uint256 blockTime
-    ) private returns (int256 assetCashShare) {
+    ) private returns (int256 primeCashShare) {
         // Get asset cash share for the nToken, if it exists. It is required in balance handler that the
         // nToken can never have a negative cash asset cash balance so what we get here is always positive
         // or zero.
-        assetCashShare = nToken.cashBalance.mul(nTokensToRedeem).div(nToken.totalSupply);
-        if (assetCashShare > 0) {
-            nToken.cashBalance = nToken.cashBalance.subNoNeg(assetCashShare);
+        primeCashShare = nToken.cashBalance.mul(nTokensToRedeem).div(nToken.totalSupply);
+        if (primeCashShare > 0) {
+            nToken.cashBalance = nToken.cashBalance.subNoNeg(primeCashShare);
             BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
@@ -176,14 +176,14 @@ library nTokenRedeemAction {
 
         // Get share of liquidity tokens to remove, netfCash is modified in memory during this method if mustCalculatefcash
         // is set to true
-        assetCashShare = assetCashShare.add(
+        primeCashShare = primeCashShare.add(
             _removeLiquidityTokens(nToken, nTokensToRedeem, tokensToWithdraw, netfCash, blockTime, mustCalculatefCash)
         );
 
         nToken.portfolioState.storeAssets(nToken.tokenAddress);
 
         // NOTE: Token supply change will happen when we finalize balances and after minting of incentives
-        return assetCashShare;
+        return primeCashShare;
     }
 
     /// @notice Removes nToken liquidity tokens and updates the netfCash figures.
@@ -193,7 +193,7 @@ library nTokenRedeemAction {
     /// @param netfCash array of netfCash figures
     /// @param blockTime current block time
     /// @param mustCalculatefCash true if netfCash must be calculated in the removeLiquidityTokens step
-    /// @return totalAssetCashClaims is the amount of asset cash raised from liquidity token cash claims
+    /// @return totalPrimeCashClaims is the amount of asset cash raised from liquidity token cash claims
     function _removeLiquidityTokens(
         nTokenPortfolio memory nToken,
         int256 nTokensToRedeem,
@@ -201,7 +201,7 @@ library nTokenRedeemAction {
         int256[] memory netfCash,
         uint256 blockTime,
         bool mustCalculatefCash
-    ) private returns (int256 totalAssetCashClaims) {
+    ) private returns (int256 totalPrimeCashClaims) {
         MarketParameters memory market;
 
         for (uint256 i = 0; i < nToken.portfolioState.storedAssets.length; i++) {
@@ -217,10 +217,10 @@ library nTokenRedeemAction {
             nToken.cashGroup.loadMarket(market, i + 1, true, blockTime);
             int256 fCashClaim;
             {
-                int256 assetCash;
+                int256 primeCash;
                 // Remove liquidity from the market
-                (assetCash, fCashClaim) = market.removeLiquidity(tokensToWithdraw[i]);
-                totalAssetCashClaims = totalAssetCashClaims.add(assetCash);
+                (primeCash, fCashClaim) = market.removeLiquidity(tokensToWithdraw[i]);
+                totalPrimeCashClaims = totalPrimeCashClaims.add(primeCash);
             }
 
             int256 fCashToNToken;
@@ -255,17 +255,17 @@ library nTokenRedeemAction {
             );
         }
 
-        return totalAssetCashClaims;
+        return totalPrimeCashClaims;
     }
 
-    /// @notice Sells fCash assets back into the market for cash. Negative fCash assets will decrease netAssetCash
+    /// @notice Sells fCash assets back into the market for cash. Negative fCash assets will decrease netPrimeCash
     /// as a result. The aim here is to ensure that accounts can redeem nTokens without having to take on
     /// fCash assets.
     function _sellfCashAssets(
         nTokenPortfolio memory nToken,
         int256[] memory netfCash,
         uint256 blockTime
-    ) private returns (int256 totalAssetCash, bool hasResidual) {
+    ) private returns (int256 totalPrimeCash, bool hasResidual) {
         MarketParameters memory market;
         hasResidual = false;
 
@@ -273,7 +273,7 @@ library nTokenRedeemAction {
             if (netfCash[i] == 0) continue;
 
             nToken.cashGroup.loadMarket(market, i + 1, false, blockTime);
-            int256 netAssetCash = market.executeTrade(
+            int256 netPrimeCash = market.executeTrade(
                 nToken.cashGroup,
                 // Use the negative of fCash notional here since we want to net it out
                 netfCash[i].neg(),
@@ -281,11 +281,11 @@ library nTokenRedeemAction {
                 i + 1
             );
 
-            if (netAssetCash == 0) {
+            if (netPrimeCash == 0) {
                 // This means that the trade failed
                 hasResidual = true;
             } else {
-                totalAssetCash = totalAssetCash.add(netAssetCash);
+                totalPrimeCash = totalPrimeCash.add(netPrimeCash);
                 netfCash[i] = 0;
             }
         }

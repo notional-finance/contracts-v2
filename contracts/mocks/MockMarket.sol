@@ -104,13 +104,13 @@ contract MockMarket is StorageLayoutV1 {
             int256
         )
     {
-        (int256 assetCash, int256 fee) =
-            marketState.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+        (int256 primeCash, int256 fee) =
+            InterestRateCurve.calculatefCashTrade(marketState, cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
-        return (marketState, assetCash, fee);
+        return (marketState, primeCash, fee);
     }
 
-    function addLiquidity(MarketParameters memory marketState, int256 assetCash)
+    function addLiquidity(MarketParameters memory marketState, int256 primeCash)
         public
         returns (
             MarketParameters memory,
@@ -118,7 +118,7 @@ contract MockMarket is StorageLayoutV1 {
             int256
         )
     {
-        (int256 liquidityTokens, int256 fCash) = marketState.addLiquidity(assetCash);
+        (int256 liquidityTokens, int256 fCash) = marketState.addLiquidity(primeCash);
         assert(liquidityTokens >= 0);
         assert(fCash <= 0);
         return (marketState, liquidityTokens, fCash);
@@ -132,11 +132,11 @@ contract MockMarket is StorageLayoutV1 {
             int256
         )
     {
-        (int256 assetCash, int256 fCash) = marketState.removeLiquidity(tokensToRemove);
+        (int256 primeCash, int256 fCash) = marketState.removeLiquidity(tokensToRemove);
 
-        assert(assetCash >= 0);
+        assert(primeCash >= 0);
         assert(fCash >= 0);
-        return (marketState, assetCash, fCash);
+        return (marketState, primeCash, fCash);
     }
 
     function setMarketStorage(

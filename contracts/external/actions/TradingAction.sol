@@ -26,7 +26,7 @@ library TradingAction {
         address indexed account,
         uint16 indexed currencyId,
         uint40 maturity,
-        int256 netAssetCash,
+        int256 netPrimeCash,
         int256 netfCash
     );
 
@@ -34,7 +34,7 @@ library TradingAction {
         address indexed account,
         uint16 indexed currencyId,
         uint40 maturity,
-        int256 netAssetCash,
+        int256 netPrimeCash,
         int256 netfCash,
         int256 netLiquidityTokens
     );
@@ -52,7 +52,7 @@ library TradingAction {
         uint40 indexed maturity,
         address indexed purchaser,
         int256 fCashAmountToPurchase,
-        int256 netAssetCashNToken
+        int256 netPrimeCashNToken
     );
 
     /// @dev Used internally to manage stack issues
@@ -70,12 +70,12 @@ library TradingAction {
     /// @param trade the bytes32 encoded trade data
     function executeVaultTrade(uint16 currencyId, bytes32 trade)
         external
-        returns (int256 netAssetCash) {
+        returns (int256 netPrimeCash) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
         MarketParameters memory market;
         TradeActionType tradeType = TradeActionType(uint256(uint8(bytes1(trade))));
 
-        (netAssetCash, /* */) = _executeLendBorrowTrade(cashGroup, market, tradeType, block.timestamp, trade);
+        (netPrimeCash, /* */) = _executeLendBorrowTrade(cashGroup, market, tradeType, block.timestamp, trade);
     }
 
     /// @notice Executes trades for a bitmapped portfolio, cannot be called directly
@@ -547,10 +547,10 @@ library TradingAction {
             revert("Invalid amount");
         }
 
-        // If fCashAmount > 0 then this will return netAssetCash > 0, if fCashAmount < 0 this will return
-        // netAssetCash < 0. fCashAmount will go to the purchaser and netAssetCash will go to the nToken.
-        int256 netAssetCashNToken =
-            _getResidualPriceAssetCash(
+        // If fCashAmount > 0 then this will return netPrimeCash > 0, if fCashAmount < 0 this will return
+        // netPrimeCash < 0. fCashAmount will go to the purchaser and netPrimeCash will go to the nToken.
+        int256 netPrimeCashNToken =
+            _getResidualPricePrimeCash(
                 cashGroup,
                 maturity,
                 blockTime,
@@ -564,7 +564,7 @@ library TradingAction {
             maturity,
             lastInitializedTime,
             fCashAmountToPurchase,
-            netAssetCashNToken
+            netPrimeCashNToken
         );
 
         emit nTokenResidualPurchase(
@@ -572,14 +572,14 @@ library TradingAction {
             uint40(maturity),
             purchaser,
             fCashAmountToPurchase,
-            netAssetCashNToken
+            netPrimeCashNToken
         );
 
-        return (maturity, netAssetCashNToken.neg(), fCashAmountToPurchase);
+        return (maturity, netPrimeCashNToken.neg(), fCashAmountToPurchase);
     }
 
     /// @notice Returns the amount of asset cash required to purchase the nToken residual
-    function _getResidualPriceAssetCash(
+    function _getResidualPricePrimeCash(
         CashGroupParameters memory cashGroup,
         uint256 maturity,
         uint256 blockTime,
@@ -610,16 +610,16 @@ library TradingAction {
 
         // Returns the net asset cash from the nToken perspective, which is the same sign as the fCash amount
         return
-            cashGroup.assetRate.convertFromUnderlying(fCashAmount.divInRatePrecision(exchangeRate));
+            cashGroup.primeRate.convertFromUnderlying(fCashAmount.divInRatePrecision(exchangeRate));
     }
 
     function _updateNTokenPortfolio(
         address nTokenAddress,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
         uint256 lastInitializedTime,
         int256 fCashAmountToPurchase,
-        int256 netAssetCashNToken
+        int256 netPrimeCashNToken
     ) private {
         int256 finalNotional = BitmapAssetsHandler.addifCashAsset(
             nTokenAddress,
@@ -635,14 +635,8 @@ library TradingAction {
             (fCashAmountToPurchase < 0 && finalNotional <= 0)
         );
 
-        // prettier-ignore
-        (
-            int256 nTokenCashBalance,
-            /* storedNTokenBalance */,
-            /* lastClaimTime */,
-            /* accountIncentiveDebt */
-        ) = BalanceHandler.getBalanceStorage(nTokenAddress, currencyId);
-        nTokenCashBalance = nTokenCashBalance.add(netAssetCashNToken);
+        int256 nTokenCashBalance = BalanceHandler.getPositiveCashBalance(nTokenAddress, currencyId);
+        nTokenCashBalance = nTokenCashBalance.add(netPrimeCashNToken);
 
         // This will ensure that the cash balance is not negative
         BalanceHandler.setBalanceStorageForNToken(nTokenAddress, currencyId, nTokenCashBalance);

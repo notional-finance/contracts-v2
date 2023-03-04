@@ -90,14 +90,14 @@ library InitializeMarketsAction {
             nToken.cashBalance = nToken.cashBalance.add(settleAmount[0].netCashChange);
         }
 
-        (int256 settledAssetCash, uint256 blockTimeUTC0) =
+        (int256 settledPrimeCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
                 nToken.lastInitializedTime,
                 blockTime
             );
-        nToken.cashBalance = nToken.cashBalance.add(settledAssetCash);
+        nToken.cashBalance = nToken.cashBalance.add(settledPrimeCash);
 
         // The ifCashBitmap has been updated to reference this new settlement time
         require(blockTimeUTC0 <= type(uint40).max);
@@ -236,22 +236,21 @@ library InitializeMarketsAction {
         return nToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
     }
 
-    function _calculateNetAssetCashAvailable(
+    function _calculateNetPrimeCashAvailable(
         nTokenPortfolio memory nToken,
         MarketParameters[] memory previousMarkets,
         uint256 blockTime,
         uint256 currencyId,
         bool isFirstInit
-    ) private returns (int256) {
-        int256 netAssetCashAvailable;
-        int256 assetCashWithholding;
+    ) private returns (int256 netPrimeCashAvailable) {
+        int256 primeCashWithholding;
 
         if (isFirstInit) {
             nToken.lastInitializedTime = uint40(DateTime.getTimeUTC0(blockTime));
         } else {
             _settleNTokenPortfolio(nToken, blockTime);
             _getPreviousMarkets(currencyId, blockTime, nToken, previousMarkets);
-            assetCashWithholding = _withholdAndSetfCashAssets(
+            primeCashWithholding = _withholdAndSetfCashAssets(
                 nToken,
                 previousMarkets,
                 currencyId,
@@ -260,19 +259,19 @@ library InitializeMarketsAction {
         }
 
         // Deduct the amount of withholding required from the cash balance (at this point includes all settled cash)
-        netAssetCashAvailable = nToken.cashBalance.subNoNeg(assetCashWithholding);
+        netPrimeCashAvailable = nToken.cashBalance.subNoNeg(primeCashWithholding);
 
         // This is the new balance to store
-        nToken.cashBalance = assetCashWithholding;
+        nToken.cashBalance = primeCashWithholding;
 
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
         require(
-            netAssetCashAvailable > int256(Constants.DEPOSIT_PERCENT_BASIS),
+            netPrimeCashAvailable > int256(Constants.DEPOSIT_PERCENT_BASIS),
             "IM: insufficient cash"
         );
 
-        return netAssetCashAvailable;
+        return netPrimeCashAvailable;
     }
 
     /// @notice The six month implied rate is zero if there have never been any markets initialized
@@ -400,28 +399,28 @@ library InitializeMarketsAction {
 
     /// @dev This is here to clear the stack
     function _setLiquidityAmount(
-        int256 netAssetCashAvailable,
+        int256 netPrimeCashAvailable,
         int256 depositShare,
         uint256 assetType,
         MarketParameters memory newMarket,
         nTokenPortfolio memory nToken
     ) private pure returns (int256) {
         // The portion of the cash available that will be deposited into the market
-        int256 assetCashToMarket =
-            netAssetCashAvailable.mul(depositShare).div(Constants.DEPOSIT_PERCENT_BASIS);
-        newMarket.totalAssetCash = assetCashToMarket;
-        newMarket.totalLiquidity = assetCashToMarket;
+        int256 primeCashToMarket =
+            netPrimeCashAvailable.mul(depositShare).div(Constants.DEPOSIT_PERCENT_BASIS);
+        newMarket.totalPrimeCash = primeCashToMarket;
+        newMarket.totalLiquidity = primeCashToMarket;
 
         // Add a new liquidity token, this will end up in the new asset array
         nToken.portfolioState.addAsset(
             nToken.cashGroup.currencyId,
             newMarket.maturity,
             assetType, // This is liquidity token asset type
-            assetCashToMarket
+            primeCashToMarket
         );
 
         // fCashAmount is calculated using the underlying amount
-        return nToken.cashGroup.assetRate.convertToUnderlying(assetCashToMarket);
+        return nToken.cashGroup.assetRate.convertToUnderlying(primeCashToMarket);
     }
 
     /// @notice Calculates the fCash amount given the cash and proportion:
@@ -461,18 +460,18 @@ library InitializeMarketsAction {
             );
         require(blockTime > minSweepCashTime, "Invalid sweep cash time");
 
-        int256 assetCashWithholding =
+        int256 primeCashWithholding =
             _getNTokenNegativefCashWithholding(
                 nToken,
                 new MarketParameters[](0), // Parameter is unused when referencing current markets
                 blockTime
             );
 
-        int256 cashIntoMarkets = nToken.cashBalance.subNoNeg(assetCashWithholding);
+        int256 cashIntoMarkets = nToken.cashBalance.subNoNeg(primeCashWithholding);
         BalanceHandler.setBalanceStorageForNToken(
             nToken.tokenAddress,
             nToken.cashGroup.currencyId,
-            assetCashWithholding
+            primeCashWithholding
         );
 
         // This will deposit the cash balance into markets, but will not record a token supply change.
@@ -499,7 +498,7 @@ library InitializeMarketsAction {
             require(nToken.portfolioState.storedAssets.length == 0, "IM: not first init");
         }
 
-        int256 netAssetCashAvailable = _calculateNetAssetCashAvailable(
+        int256 netPrimeCashAvailable = _calculateNetPrimeCashAvailable(
             nToken,
             previousMarkets,
             blockTime,
@@ -521,7 +520,7 @@ library InitializeMarketsAction {
 
             int256 underlyingCashToMarket =
                 _setLiquidityAmount(
-                    netAssetCashAvailable,
+                    netPrimeCashAvailable,
                     parameters.depositShares[i],
                     Constants.MIN_LIQUIDITY_TOKEN_INDEX + i, // liquidity token asset type
                     newMarket,

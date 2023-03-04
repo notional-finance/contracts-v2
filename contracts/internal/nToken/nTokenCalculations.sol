@@ -14,7 +14,7 @@ library nTokenCalculations {
     using CashGroup for CashGroupParameters;
 
     /// @notice Returns the nToken present value denominated in asset terms.
-    function getNTokenAssetPV(nTokenPortfolio memory nToken, uint256 blockTime)
+    function getNTokenPrimePV(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
         returns (int256)
@@ -63,7 +63,7 @@ library nTokenCalculations {
 
         // Return the total present value denominated in asset terms
         return totalAssetValueInMarkets
-            .add(nToken.cashGroup.assetRate.convertFromUnderlying(ifCashResidualUnderlyingPV))
+            .add(nToken.cashGroup.primeRate.convertFromUnderlying(ifCashResidualUnderlyingPV))
             .add(nToken.cashBalance);
     }
 
@@ -113,7 +113,7 @@ library nTokenCalculations {
         if (ifCashBits == 0) return _getProportionalLiquidityTokens(nToken, nTokensToRedeem);
 
         (
-            int256 totalAssetValueInMarkets,
+            int256 totalPrimeValueInMarkets,
             int256[] memory netfCash
         ) = getNTokenMarketValue(nToken, blockTime);
         int256[] memory tokensToWithdraw = new int256[](netfCash.length);
@@ -137,8 +137,8 @@ library nTokenCalculations {
 
             // NOTE: we do not include cash balance here because the account will always take their share
             // of the cash balance regardless of the residuals
-            totalPortfolioAssetValue = totalAssetValueInMarkets.add(
-                nToken.cashGroup.assetRate.convertFromUnderlying(underlyingPV)
+            totalPortfolioAssetValue = totalPrimeValueInMarkets.add(
+                nToken.cashGroup.primeRate.convertFromUnderlying(underlyingPV)
             );
         }
 
@@ -151,17 +151,17 @@ library nTokenCalculations {
             //      redeemerShare = totalTokens * nTokensToRedeem / totalSupply
             // Scalar factor to account for residual value (need to inflate the tokens to withdraw
             // proportional to the value locked up in ifCash residuals):
-            //      scaleFactor = totalPortfolioAssetValue / totalAssetValueInMarkets
+            //      scaleFactor = totalPortfolioAssetValue / totalPrimeValueInMarkets
             // Final math equals:
             //      tokensToWithdraw = redeemerShare * scalarFactor
             //      tokensToWithdraw = (totalTokens * nTokensToRedeem * totalPortfolioAssetValue)
-            //         / (totalAssetValueInMarkets * totalSupply)
+            //         / (totalPrimeValueInMarkets * totalSupply)
             tokensToWithdraw[i] = totalTokens
                 .mul(nTokensToRedeem)
                 .mul(totalPortfolioAssetValue);
 
             tokensToWithdraw[i] = tokensToWithdraw[i]
-                .div(totalAssetValueInMarkets)
+                .div(totalPrimeValueInMarkets)
                 .div(nToken.totalSupply);
 
             // This is the share of net fcash that will be credited back to the account
@@ -174,13 +174,13 @@ library nTokenCalculations {
     /// @notice Returns the value of all the liquid assets in an nToken portfolio which are defined by
     /// the liquidity tokens held in each market and their corresponding fCash positions. The formula
     /// can be described as:
-    /// totalAssetValue = sum_per_liquidity_token(cashClaim + presentValue(netfCash))
+    /// totalPrimeValue = sum_per_liquidity_token(cashClaim + presentValue(netfCash))
     ///     where netfCash = fCashClaim + fCash
     ///     and fCash refers the the fCash position at the corresponding maturity
     function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
         view
-        returns (int256 totalAssetValue, int256[] memory netfCash)
+        returns (int256 totalPrimeValue, int256[] memory netfCash)
     {
         uint256 numMarkets = nToken.portfolioState.storedAssets.length;
         netfCash = new int256[](numMarkets);
@@ -195,7 +195,7 @@ library nTokenCalculations {
             // Get the fCash claims and fCash assets. We do not use haircut versions here because
             // nTokenRedeem does not require it and getNTokenPV does not use it (a haircut is applied
             // at the end of the calculation to the entire PV instead).
-            (int256 assetCashClaim, int256 fCashClaim) = AssetHandler.getCashClaims(liquidityToken, market);
+            (int256 primeCashClaim, int256 fCashClaim) = AssetHandler.getCashClaims(liquidityToken, market);
 
             // fCash is denominated in underlying
             netfCash[i] = fCashClaim.add(
@@ -207,9 +207,9 @@ library nTokenCalculations {
             );
 
             // This calculates for a single liquidity token:
-            // assetCashClaim + convertToAssetCash(pv(netfCash))
-            int256 netAssetValueInMarket = assetCashClaim.add(
-                nToken.cashGroup.assetRate.convertFromUnderlying(
+            // primeCashClaim + convertToPrimeCash(pv(netfCash))
+            int256 netPrimeValueInMarket = primeCashClaim.add(
+                nToken.cashGroup.primeRate.convertFromUnderlying(
                     AssetHandler.getPresentfCashValue(
                         netfCash[i],
                         maturity,
@@ -222,7 +222,7 @@ library nTokenCalculations {
             );
 
             // Calculate the running total
-            totalAssetValue = totalAssetValue.add(netAssetValueInMarket);
+            totalPrimeValue = totalPrimeValue.add(netPrimeValueInMarket);
         }
     }
 

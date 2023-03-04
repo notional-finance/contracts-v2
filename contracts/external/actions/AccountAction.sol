@@ -147,7 +147,7 @@ contract AccountAction is ActionGuards {
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
         require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
         // Overflow is not possible due to uint88
-        balanceState.netAssetTransferInternalPrecision = int256(amountInternalPrecision).neg();
+        balanceState.netPrimeTransfer = int256(amountInternalPrecision).neg();
 
         int256 amountWithdrawnExternal = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
 
@@ -192,11 +192,11 @@ contract AccountAction is ActionGuards {
         require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
         balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
-        (int256 totalAssetCash, /* bool hasResidual */, PortfolioAsset[] memory assets) =
+        (int256 totalPrimeCash, /* bool hasResidual */, PortfolioAsset[] memory assets) =
             nTokenRedeemAction.redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets);
 
         // Set balances before transferring assets
-        balance.netCashChange = totalAssetCash;
+        balance.netCashChange = totalPrimeCash;
         balance.finalize(redeemer, context, false);
 
         // The hasResidual flag is only set to true if selling residuals has failed, checking
@@ -212,7 +212,7 @@ contract AccountAction is ActionGuards {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
 
-        return (totalAssetCash, assets.length > 0);
+        return (totalPrimeCash, assets.length > 0);
     }
 
     /// @notice Settle the account if required, returning a reference to the account context. Also

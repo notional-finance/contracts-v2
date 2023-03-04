@@ -26,9 +26,9 @@ library nTokenMintAction {
 
     /// @notice Converts the given amount of cash to nTokens in the same currency.
     /// @param currencyId the currency associated the nToken
-    /// @param amountToDepositInternal the amount of asset tokens to deposit denominated in internal decimals
+    /// @param primeCashToDeposit the amount of asset tokens to deposit denominated in internal decimals
     /// @return nTokens minted by this action
-    function nTokenMint(uint16 currencyId, int256 amountToDepositInternal)
+    function nTokenMint(uint16 currencyId, int256 primeCashToDeposit)
         external
         returns (int256)
     {
@@ -36,19 +36,19 @@ library nTokenMintAction {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioStateful(currencyId);
 
-        int256 tokensToMint = calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
+        int256 tokensToMint = calculateTokensToMint(nToken, primeCashToDeposit, blockTime);
         require(tokensToMint >= 0, "Invalid token amount");
 
         if (nToken.portfolioState.storedAssets.length == 0) {
             // If the token does not have any assets, then the markets must be initialized first.
-            nToken.cashBalance = nToken.cashBalance.add(amountToDepositInternal);
+            nToken.cashBalance = nToken.cashBalance.add(primeCashToDeposit);
             BalanceHandler.setBalanceStorageForNToken(
                 nToken.tokenAddress,
                 currencyId,
                 nToken.cashBalance
             );
         } else {
-            _depositIntoPortfolio(nToken, amountToDepositInternal, blockTime);
+            _depositIntoPortfolio(nToken, primeCashToDeposit, blockTime);
         }
 
         // NOTE: token supply does not change here, it will change after incentives have been claimed
@@ -61,11 +61,11 @@ library nTokenMintAction {
     /// @return the amount of tokens to mint, the ifCash bitmap
     function calculateTokensToMint(
         nTokenPortfolio memory nToken,
-        int256 amountToDepositInternal,
+        int256 primeCashToDeposit,
         uint256 blockTime
     ) internal view returns (int256) {
-        require(amountToDepositInternal >= 0); // dev: deposit amount negative
-        if (amountToDepositInternal == 0) return 0;
+        require(primeCashToDeposit >= 0); // dev: deposit amount negative
+        if (primeCashToDeposit == 0) return 0;
 
         if (nToken.lastInitializedTime != 0) {
             // For the sake of simplicity, nTokens cannot be minted if they have assets
@@ -75,29 +75,29 @@ library nTokenMintAction {
             require(nextSettleTime > blockTime, "Requires settlement");
         }
 
-        int256 assetCashPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
+        int256 primeCashPV = nTokenCalculations.getNTokenPrimePV(nToken, blockTime);
         // Defensive check to ensure PV remains positive
-        require(assetCashPV >= 0);
+        require(primeCashPV >= 0);
 
         // Allow for the first deposit
         if (nToken.totalSupply == 0) {
-            return amountToDepositInternal;
+            return primeCashToDeposit;
         } else {
-            // assetCashPVPost = assetCashPV + amountToDeposit
-            // (tokenSupply + tokensToMint) / tokenSupply == (assetCashPV + amountToDeposit) / assetCashPV
-            // (tokenSupply + tokensToMint) == (assetCashPV + amountToDeposit) * tokenSupply / assetCashPV
-            // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / assetCashPV
-            // tokensToMint == (amountToDeposit * tokenSupply) / assetCashPV
-            return amountToDepositInternal.mul(nToken.totalSupply).div(assetCashPV);
+            // primeCashPVPost = primeCashPV + amountToDeposit
+            // (tokenSupply + tokensToMint) / tokenSupply == (primeCashPV + amountToDeposit) / primeCashPV
+            // (tokenSupply + tokensToMint) == (primeCashPV + amountToDeposit) * tokenSupply / primeCashPV
+            // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / primeCashPV
+            // tokensToMint == (amountToDeposit * tokenSupply) / primeCashPV
+            return primeCashToDeposit.mul(nToken.totalSupply).div(primeCashPV);
         }
     }
 
-    /// @notice Portions out assetCashDeposit into amounts to deposit into individual markets. When
-    /// entering this method we know that assetCashDeposit is positive and the nToken has been
+    /// @notice Portions out primeCashDeposit into amounts to deposit into individual markets. When
+    /// entering this method we know that primeCashDeposit is positive and the nToken has been
     /// initialized to have liquidity tokens.
     function _depositIntoPortfolio(
         nTokenPortfolio memory nToken,
-        int256 assetCashDeposit,
+        int256 primeCashDeposit,
         uint256 blockTime
     ) private {
         (int256[] memory depositShares, int256[] memory leverageThresholds) =
@@ -127,9 +127,9 @@ library nTokenMintAction {
             // before initializing
             if (market.totalLiquidity == 0) continue;
 
-            // Checked that assetCashDeposit must be positive before entering
+            // Checked that primeCashDeposit must be positive before entering
             int256 perMarketDeposit =
-                assetCashDeposit
+                primeCashDeposit
                     .mul(depositShares[marketIndex - 1])
                     .div(Constants.DEPOSIT_PERCENT_BASIS)
                     .add(residualCash);
@@ -223,7 +223,7 @@ library nTokenMintAction {
         MarketParameters memory market,
         int256 leverageThreshold
     ) private pure returns (bool) {
-        int256 totalCashUnderlying = cashGroup.assetRate.convertToUnderlying(market.totalAssetCash);
+        int256 totalCashUnderlying = cashGroup.primeRate.convertToUnderlying(market.totalPrimeCash);
         // Comparison we want to do:
         // (totalfCash) / (totalfCash + totalCashUnderlying) > leverageThreshold
         // However, the division will introduce rounding errors so we change this to:
@@ -289,19 +289,19 @@ library nTokenMintAction {
         int256 fCashAmount;
         {
             int256 perMarketDepositUnderlying =
-                cashGroup.assetRate.convertToUnderlying(perMarketDeposit);
+                cashGroup.primeRate.convertToUnderlying(perMarketDeposit);
             // NOTE: cash * exchangeRate = fCash
             fCashAmount = perMarketDepositUnderlying.mulInRatePrecision(assumedExchangeRate);
         }
-        int256 netAssetCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+        int256 netPrimeCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         // This means that the trade failed
-        if (netAssetCash == 0) {
+        if (netPrimeCash == 0) {
             return (perMarketDeposit, 0);
         } else {
             // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
             // given how we've calculated the exchange rate but extra caution here
-            int256 residual = perMarketDeposit.add(netAssetCash);
+            int256 residual = perMarketDeposit.add(netPrimeCash);
             require(residual >= 0); // dev: insufficient cash
             return (residual, fCashAmount);
         }

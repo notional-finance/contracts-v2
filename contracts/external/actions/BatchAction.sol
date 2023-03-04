@@ -163,8 +163,8 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 } else {
                     // balanceState.finalize will handle conversions to external precision as well as aToken
                     // scaled balance conversions.
-                    balanceState.netAssetTransferInternalPrecision = balanceState
-                        .netAssetTransferInternalPrecision
+                    balanceState.netPrimeTransfer = balanceState
+                        .netPrimeTransfer
                         .add(requiredCash);
                 }
             }
@@ -374,12 +374,12 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 depositActionAmount
             );
 
-            int256 assetCash = nTokenRedeemAction.nTokenRedeemViaBatch(
+            int256 primeCash = nTokenRedeemAction.nTokenRedeemViaBatch(
                 balanceState.currencyId,
                 depositActionAmount
             );
 
-            balanceState.netCashChange = balanceState.netCashChange.add(assetCash);
+            balanceState.netCashChange = balanceState.netCashChange.add(primeCash);
         }
     }
 
@@ -401,15 +401,15 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // cannot calculate exact cash amounts from the liquidity curve.
             withdrawAmount = balanceState.storedCashBalance
                 .add(balanceState.netCashChange)
-                .add(balanceState.netAssetTransferInternalPrecision);
+                .add(balanceState.netPrimeTransfer);
 
             // If the account has a negative cash balance then cannot withdraw
             if (withdrawAmount < 0) withdrawAmount = 0;
         }
 
         // prettier-ignore
-        balanceState.netAssetTransferInternalPrecision = balanceState
-            .netAssetTransferInternalPrecision
+        balanceState.netPrimeTransfer = balanceState
+            .netPrimeTransfer
             .sub(withdrawAmount);
 
         balanceState.finalize(account, accountContext, redeemToUnderlying);
@@ -466,12 +466,12 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         private
         pure
     {
-        // The total cash position at this point is: storedCashBalance + netCashChange + netAssetTransferInternalPrecision
+        // The total cash position at this point is: storedCashBalance + netCashChange + netPrimeTransfer
         require(
             amountInternalPrecision >= 0 &&
                 balanceState.storedCashBalance
                 .add(balanceState.netCashChange)
-                .add(balanceState.netAssetTransferInternalPrecision) >= amountInternalPrecision,
+                .add(balanceState.netPrimeTransfer) >= amountInternalPrecision,
             "Insufficient cash"
         );
     }

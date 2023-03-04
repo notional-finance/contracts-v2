@@ -61,7 +61,7 @@ interface IVaultAction {
     event VaultSettledAssetsRemaining(
         address indexed vault,
         uint256 indexed maturity,
-        int256 remainingAssetCash,
+        int256 remainingPrimeCash,
         uint256 remainingStrategyTokens
     );
 
@@ -69,7 +69,7 @@ interface IVaultAction {
         address indexed vault,
         uint256 indexed maturity,
         int256 totalfCash,
-        uint256 totalAssetCash,
+        uint256 totalPrimeCash,
         uint256 totalStrategyTokens,
         uint256 totalVaultShares
     );
@@ -78,7 +78,7 @@ interface IVaultAction {
         address indexed vault,
         uint256 indexed maturity,
         int256 totalfCash,
-        uint256 totalAssetCash,
+        uint256 totalPrimeCash,
         uint256 totalStrategyTokens,
         uint256 totalVaultShares,
         int256 strategyTokenValue
@@ -87,14 +87,14 @@ interface IVaultAction {
     event VaultRedeemStrategyToken(
         address indexed vault,
         uint256 indexed maturity,
-        int256 assetCashReceived,
+        int256 primeCashReceived,
         uint256 strategyTokensRedeemed
     );
     
     event VaultMintStrategyToken(
         address indexed vault,
         uint256 indexed maturity,
-        uint256 assetCashDeposited,
+        uint256 primeCashDeposited,
         uint256 strategyTokensMinted
     );
 
@@ -143,7 +143,7 @@ interface IVaultAction {
     /// @notice Vault authenticated method that takes asset cash from the pool and mints strategy tokens
     function depositVaultCashToStrategyTokens(
         uint256 maturity,
-        uint256 assetCashToDepositExternal,
+        uint256 primeCashToDepositExternal,
         bytes calldata vaultData
     ) external;
 
@@ -153,7 +153,7 @@ interface IVaultAction {
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
     ) external returns (
-        int256 assetCashRequiredToSettle,
+        int256 primeCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     );
 
@@ -202,7 +202,7 @@ interface IVaultAction {
         address vault,
         uint256 maturity
     ) external view returns (
-        int256 assetCashRequiredToSettle,
+        int256 primeCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     );
 }
@@ -366,7 +366,7 @@ interface IVaultAccountAction {
     function getVaultAccountCollateralRatio(address account, address vault) external view returns (
         int256 collateralRatio,
         int256 minCollateralRatio,
-        int256 maxLiquidatorDepositAssetCash,
+        int256 maxLiquidatorDepositPrimeCash,
         uint256 vaultSharesToLiquidator
     );
 }

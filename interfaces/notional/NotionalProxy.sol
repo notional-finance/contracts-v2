@@ -45,20 +45,20 @@ interface NotionalProxy is
         uint40 indexed maturity,
         address indexed purchaser,
         int256 fCashAmountToPurchase,
-        int256 netAssetCashNToken
+        int256 netPrimeCashNToken
     );
     event LendBorrowTrade(
         address indexed account,
         uint16 indexed currencyId,
         uint40 maturity,
-        int256 netAssetCash,
+        int256 netPrimeCash,
         int256 netfCash
     );
     event AddRemoveLiquidity(
         address indexed account,
         uint16 indexed currencyId,
         uint40 maturity,
-        int256 netAssetCash,
+        int256 netPrimeCash,
         int256 netfCash,
         int256 netLiquidityTokens
     );

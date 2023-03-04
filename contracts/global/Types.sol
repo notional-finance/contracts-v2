@@ -29,7 +29,7 @@ enum TradeActionType {
     Lend,
     // (uint8 TradeActionType, uint8 MarketIndex, uint88 fCashAmount, uint32 maxImpliedRate, uint128 unused)
     Borrow,
-    // (uint8 TradeActionType, uint8 MarketIndex, uint88 assetCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
+    // (uint8 TradeActionType, uint8 MarketIndex, uint88 primeCashAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     AddLiquidity,
     // (uint8 TradeActionType, uint8 MarketIndex, uint88 tokenAmount, uint32 minImpliedRate, uint32 maxImpliedRate, uint88 unused)
     RemoveLiquidity,
@@ -141,12 +141,12 @@ struct LiquidationFactors {
     // Aggregate free collateral of the account denominated in ETH underlying, 8 decimal precision
     int256 netETHValue;
     // Amount of net local currency asset cash before haircuts and buffers available
-    int256 localAssetAvailable;
+    int256 localPrimeAvailable;
     // Amount of net collateral currency asset cash before haircuts and buffers available
     int256 collateralAssetAvailable;
     // Haircut value of nToken holdings denominated in asset cash, will be local or collateral nTokens based
     // on liquidation type
-    int256 nTokenHaircutAssetValue;
+    int256 nTokenHaircutPrimeValue;
     // nToken parameters for calculating liquidation amount
     bytes6 nTokenParameters;
     // ETH exchange rate from local currency to ETH
@@ -197,7 +197,7 @@ struct BalanceState {
     // The net cash change as a result of asset settlement or trading
     int256 netCashChange;
     // Net asset transfers into or out of the account
-    int256 netAssetTransferInternalPrecision;
+    int256 netPrimeTransfer;
     // Net token transfers into or out of the account
     int256 netNTokenTransfer;
     // Net token supply change from minting or redeeming
@@ -248,7 +248,7 @@ struct MarketParameters {
     // Total amount of fCash available for purchase in the market.
     int256 totalfCash;
     // Total amount of cash available for purchase in the market.
-    int256 totalAssetCash;
+    int256 totalPrimeCash;
     // Total amount of liquidity tokens (representing a claim on liquidity) in the market.
     int256 totalLiquidity;
     // This is the previous annualized interest rate in RATE_PRECISION that the market traded
@@ -398,7 +398,7 @@ struct MarketStorage {
     // Total fCash in the market
     uint80 totalfCash;
     // Total asset cash in the market
-    uint80 totalAssetCash;
+    uint80 totalPrimeCash;
     // Last annualized interest rate the market traded at
     uint32 lastImpliedRate;
     // Last recorded oracle rate for the market
@@ -530,7 +530,7 @@ struct VaultStateStorage {
     // in the vault.
     uint80 totalfCash;
     // The total amount of asset cash in the pool held as prepayment for fCash
-    uint80 totalAssetCash;
+    uint80 totalPrimeCash;
     // Total vault shares in this maturity
     uint80 totalVaultShares;
     // Set to true if a vault has been fully settled and the cash can be pulled. Matured
@@ -552,7 +552,7 @@ struct VaultSettledAssetsStorage {
     // Remaining strategy tokens that have not been withdrawn
     uint80 remainingStrategyTokens;
     // Remaining asset cash that has not been withdrawn
-    int80 remainingAssetCash;
+    int80 remainingPrimeCash;
 }
 
 struct VaultState {
@@ -560,7 +560,7 @@ struct VaultState {
     int256 totalfCash;
     bool isSettled;
     uint256 totalVaultShares;
-    uint256 totalAssetCash;
+    uint256 totalPrimeCash;
     uint256 totalStrategyTokens;
     int256 settlementStrategyTokenValue;
 }

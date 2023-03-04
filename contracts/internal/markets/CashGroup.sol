@@ -231,7 +231,7 @@ library CashGroup {
             if (marketIndex == 1) {
                 // In this case the short market is the annualized asset supply rate
                 shortMaturity = blockTime;
-                shortRate = cashGroup.assetRate.getSupplyRate();
+                shortRate = cashGroup.primeRate.oracleSupplyRate;
             } else {
                 // Minimum value for marketIndex here is 2
                 shortMaturity = referenceTime.add(DateTime.getTradedMarket(marketIndex - 1));
@@ -355,10 +355,8 @@ library CashGroup {
             });
     }
 
-    function _buildCashGroup(uint16 currencyId, AssetRateParameters memory assetRate)
-        private
-        view
-        returns (CashGroupParameters memory)
+    function buildCashGroup(uint16 currencyId, PrimeRate memory primeRate)
+        internal view returns (CashGroupParameters memory) 
     {
         bytes32 data = _getCashGroupStorageBytes(currencyId);
         uint256 maxMarketIndex = uint8(data[MARKET_INDEX_BIT]);
@@ -367,7 +365,7 @@ library CashGroup {
             CashGroupParameters({
                 currencyId: currencyId,
                 maxMarketIndex: maxMarketIndex,
-                assetRate: assetRate,
+                primeRate: primeRate,
                 data: data
             });
     }
@@ -378,8 +376,8 @@ library CashGroup {
         view
         returns (CashGroupParameters memory)
     {
-        AssetRateParameters memory assetRate = AssetRate.buildAssetRateView(currencyId);
-        return _buildCashGroup(currencyId, assetRate);
+        (PrimeRate memory primeRate, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, block.timestamp);
+        return buildCashGroup(currencyId, primeRate);
     }
 
     /// @notice Builds a cash group using a stateful version of the asset rate
@@ -387,7 +385,7 @@ library CashGroup {
         internal
         returns (CashGroupParameters memory)
     {
-        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(currencyId);
-        return _buildCashGroup(currencyId, assetRate);
+        PrimeRate memory primeRate = PrimeRateLib.buildPrimeRateStateful(currencyId);
+        return buildCashGroup(currencyId, primeRate);
     }
 }

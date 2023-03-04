@@ -154,7 +154,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     }
 
     bytes32 public newBitmapStorage;
-    int256 public totalAssetCash;
+    int256 public totalPrimeCash;
 
     function _settleBitmappedCashGroup(
         address account,
@@ -165,7 +165,7 @@ contract MockSettleAssets is StorageLayoutV1 {
     ) public {
         BitmapAssetsHandler.setAssetsBitmap(account, currencyId, bitmap);
 
-        (int256 newAssetCash, /* uint256 blockTimeUTC0 */) =
+        (int256 newPrimeCash, /* uint256 blockTimeUTC0 */) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 account,
                 currencyId,
@@ -174,22 +174,28 @@ contract MockSettleAssets is StorageLayoutV1 {
             );
 
         newBitmapStorage = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
-        totalAssetCash = newAssetCash;
+        totalPrimeCash = newPrimeCash;
     }
 
     function getAssetsBitmap(address account, uint256 currencyId) public view returns (bytes32) {
         return BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
     }
 
-    function settleAccount(address account, uint256 currencyId, uint256 nextSettleTime, uint256 blockTime) external returns (int256, uint256) {
-        (int256 newAssetCash, uint256 blockTimeUTC0) = SettleBitmapAssets.settleBitmappedCashGroup(
+    function settleAccount(
+        address account,
+        uint16 currencyId,
+        uint256 nextSettleTime,
+        uint256 blockTime,
+        PrimeRate memory presentPrimeRate
+    ) external returns (int256, uint256) {
+        (int256 newPrimeCash, uint256 blockTimeUTC0) = SettleBitmapAssets.settleBitmappedCashGroup(
             account,
             currencyId,
             nextSettleTime,
             blockTime
         );
 
-        return (newAssetCash, blockTimeUTC0);
+        return (newPrimeCash, blockTimeUTC0);
     }
 
     function getifCashArray(

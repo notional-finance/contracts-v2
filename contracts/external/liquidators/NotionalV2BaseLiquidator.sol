@@ -131,7 +131,7 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
 
         // prettier-ignore
         (
-            /* int256 localAssetCashFromLiquidator */,
+            /* int256 localPrimeCashFromLiquidator */,
             int256 netNTokens
         ) = NotionalV2.liquidateLocalCurrency(liquidateAccount, localCurrency, maxNTokenLiquidation);
 
@@ -167,8 +167,8 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
 
         // prettier-ignore
         (
-            /* int256 localAssetCashFromLiquidator */,
-            /* int256 collateralAssetCash */,
+            /* int256 localPrimeCashFromLiquidator */,
+            /* int256 collateralPrimeCash */,
             int256 collateralNTokens
         ) = NotionalV2.liquidateCollateralCurrency(
             liquidateAccount,
@@ -219,7 +219,7 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
         // prettier-ignore
         (
             int256[] memory fCashNotionalTransfers,
-            int256 localAssetCashFromLiquidator
+            int256 localPrimeCashFromLiquidator
         ) = NotionalV2.liquidatefCashLocal(
             liquidateAccount,
             localCurrency,
@@ -227,14 +227,14 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
             maxfCashLiquidateAmounts
         );
 
-        // If localAssetCashFromLiquidator is negative (meaning the liquidator has received cash)
+        // If localPrimeCashFromLiquidator is negative (meaning the liquidator has received cash)
         // then when we will need to lend in order to net off the negative fCash. In this case we
         // will deposit the local asset cash back into notional.
         _sellfCashAssets(
             localCurrency,
             fCashMaturities,
             fCashNotionalTransfers,
-            localAssetCashFromLiquidator < 0 ? uint256(localAssetCashFromLiquidator.abs()) : 0,
+            localPrimeCashFromLiquidator < 0 ? uint256(localPrimeCashFromLiquidator.abs()) : 0,
             false // No need to redeem to underlying here
         );
 
@@ -271,7 +271,7 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
         // prettier-ignore
         (
             int256[] memory fCashNotionalTransfers,
-            /* int256 localAssetCashFromLiquidator */
+            /* int256 localPrimeCashFromLiquidator */
         ) = NotionalV2.liquidatefCashCrossCurrency(
             liquidateAccount,
             localCurrency,

@@ -297,8 +297,8 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         );
 
         // The liquidator will purchase vault shares from the vault account at discount. The calculation is:
-        // (cashDeposited / assetCashValueOfShares) * liquidationRate * vaultShares
-        //      where cashDeposited / assetCashValueOfShares represents the share of the total vault share
+        // (cashDeposited / primeCashValueOfShares) * liquidationRate * vaultShares
+        //      where cashDeposited / primeCashValueOfShares represents the share of the total vault share
         //      value the liquidator has deposited
         //      and liquidationRate is a percentage greater than 100% that represents their bonus
         uint256 vaultSharesToLiquidator;
@@ -385,13 +385,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         // Calculates the maximum deleverage amount
         (
-            int256 maxLiquidatorDepositAssetCash,
+            int256 maxLiquidatorDepositPrimeCash,
             int256 debtOutstandingAboveMinBorrow
         ) = vaultAccount.calculateDeleverageAmount(vaultConfig, vaultShareValue);
         // Catch potential edge cases where this is negative due to insolvency inside the vault itself
-        require(maxLiquidatorDepositAssetCash > 0);
+        require(maxLiquidatorDepositPrimeCash > 0);
         // For aTokens this amount is in scaled balance external precision (the same as depositAmountExternal)
-        int256 maxLiquidatorDepositExternal = assetToken.convertToExternal(maxLiquidatorDepositAssetCash);
+        int256 maxLiquidatorDepositExternal = assetToken.convertToExternal(maxLiquidatorDepositPrimeCash);
 
         // NOTE: deposit amount external is always positive in this method
         if (depositAmountExternal < maxLiquidatorDepositExternal) {
@@ -443,7 +443,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         bytes calldata redeemData,
         Token memory assetToken
     ) private returns (uint256 underlyingToReceiver) {
-        (uint256 assetCash, uint256 strategyTokens) = vaultState.exitMaturityDirect(vaultShares);
+        (uint256 primeCash, uint256 strategyTokens) = vaultState.exitMaturityDirect(vaultShares);
         (/* */, underlyingToReceiver) = vaultConfig.redeemWithoutDebtRepayment(
             liquidator, strategyTokens, vaultState.maturity, redeemData
         );
@@ -451,10 +451,10 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         // Set the vault state after redemption completes
         vaultState.setVaultState(vaultConfig.vault);
 
-        if (assetCash > 0) {
+        if (primeCash > 0) {
             // Represents the amount of asset cash returned to the liquidator in underlying terms
             uint256 underlyingRedeemed = assetToken.redeem(
-                vaultConfig.borrowCurrencyId, liquidator, assetToken.convertToExternal(assetCash.toInt()).toUint()
+                vaultConfig.borrowCurrencyId, liquidator, assetToken.convertToExternal(primeCash.toInt()).toUint()
             ).neg().toUint();
             underlyingToReceiver = underlyingToReceiver.add(underlyingRedeemed);
         }
@@ -487,7 +487,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
     function getVaultAccountCollateralRatio(address account, address vault) external override view returns (
         int256 collateralRatio,
         int256 minCollateralRatio,
-        int256 maxLiquidatorDepositAssetCash,
+        int256 maxLiquidatorDepositPrimeCash,
         uint256 vaultSharesToLiquidator
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
@@ -507,11 +507,11 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
             // Calculates liquidation factors if the account is eligible
             if (collateralRatio < minCollateralRatio && vaultShareValue > 0) {
-                (maxLiquidatorDepositAssetCash, /* */) = vaultAccount.calculateDeleverageAmount(
+                (maxLiquidatorDepositPrimeCash, /* */) = vaultAccount.calculateDeleverageAmount(
                     vaultConfig, vaultShareValue
                 );
 
-                vaultSharesToLiquidator = maxLiquidatorDepositAssetCash.toUint()
+                vaultSharesToLiquidator = maxLiquidatorDepositPrimeCash.toUint()
                     .mul(vaultConfig.liquidationRate.toUint())
                     .mul(vaultAccount.vaultShares)
                     .div(vaultShareValue.toUint())

@@ -49,7 +49,7 @@ contract LiquidatefCashAction is ActionGuards {
                 blockTime
             );
 
-        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+        return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);
     }
 
     /// @notice Liquidates fCash using local currency
@@ -91,12 +91,12 @@ contract LiquidatefCashAction is ActionGuards {
             msg.sender,
             localCurrency,
             localCurrency,
-            c.localAssetCashFromLiquidator,
+            c.localPrimeCashFromLiquidator,
             fCashMaturities,
             c.fCashNotionalTransfers
         );
 
-        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+        return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);
     }
 
     /// @notice Calculates fCash cross currency liquidation, can be called via staticcall off chain
@@ -127,7 +127,7 @@ contract LiquidatefCashAction is ActionGuards {
                 blockTime
             );
 
-        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+        return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);
     }
 
     /// @notice Liquidates fCash across local to collateral currency
@@ -173,12 +173,12 @@ contract LiquidatefCashAction is ActionGuards {
             msg.sender,
             localCurrency,
             fCashCurrency,
-            c.localAssetCashFromLiquidator,
+            c.localPrimeCashFromLiquidator,
             fCashMaturities,
             c.fCashNotionalTransfers
         );
 
-        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+        return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);
     }
 
     function _liquidateLocal(
@@ -204,7 +204,7 @@ contract LiquidatefCashAction is ActionGuards {
             /* uint256 accountIncentiveDebt */
         ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
         // Cash balance is used if liquidating negative fCash
-        c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
+        c.localCashBalanceUnderlying = c.factors.localPrimeRate.convertToUnderlying(cashBalance);
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
         LiquidatefCash.liquidatefCashLocal(

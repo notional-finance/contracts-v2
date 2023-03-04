@@ -103,7 +103,7 @@ contract MockVaultConfiguration {
     }
 
     function getRemainingSettledTokens(address vault, uint256 maturity) external view returns (
-        uint256 remainingStrategyTokens, int256 remainingAssetCash
+        uint256 remainingStrategyTokens, int256 remainingPrimeCash
     ) {
         return VaultStateLib.getRemainingSettledTokens(vault, maturity);
     }
@@ -222,14 +222,14 @@ contract MockVaultConfigurationState is MockVaultConfiguration {
         address account,
         VaultState memory vaultState,
         uint256 vaultShares
-    ) external view returns (int256 assetCashValue) {
-        assetCashValue = vaultState.getCashValueOfShare(getVaultConfigView(vault), account, vaultShares);
+    ) external view returns (int256 primeCashValue) {
+        primeCashValue = vaultState.getCashValueOfShare(getVaultConfigView(vault), account, vaultShares);
     }
 
     function getPoolShare(
         VaultState memory vaultState,
         uint256 vaultShares
-    ) external pure returns (uint256 assetCash, uint256 strategyTokens) {
+    ) external pure returns (uint256 primeCash, uint256 strategyTokens) {
         return vaultState.getPoolShare(vaultShares);
     }
 }
@@ -263,9 +263,9 @@ contract MockVaultConfigurationAccount is MockVaultConfiguration {
         int256 assetInternalToRepayDebt,
         address account,
         bytes calldata data
-    ) external payable returns (int256 assetCashInternalRaised) {
+    ) external payable returns (int256 primeCashInternalRaised) {
         // maturity and data are just forwarded to the vault, not relevant for this unit test
-        (assetCashInternalRaised, /* */) = getVaultConfigView(vault)._redeem(
+        (primeCashInternalRaised, /* */) = getVaultConfigView(vault)._redeem(
             VaultConfiguration.RedeemParams(account, account, strategyTokens, 0, assetInternalToRepayDebt), data
         );
     }
@@ -283,8 +283,8 @@ contract MockVaultConfigurationAccount is MockVaultConfiguration {
         VaultAccount memory vaultAccount,
         address vault,
         int256 vaultShareValue
-    ) external view returns (int256 maxLiquidatorDepositAssetCash) {
-        (maxLiquidatorDepositAssetCash, /* */) = vaultAccount.calculateDeleverageAmount(
+    ) external view returns (int256 maxLiquidatorDepositPrimeCash) {
+        (maxLiquidatorDepositPrimeCash, /* */) = vaultAccount.calculateDeleverageAmount(
             getVaultConfigView(vault), vaultShareValue
         );
     }

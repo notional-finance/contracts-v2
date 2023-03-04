@@ -139,13 +139,13 @@ contract VaultAction is ActionGuards, IVaultAction {
     /// @param maturity the maturity of the vault where the redemption will take place
     /// @param strategyTokensToRedeem the number of strategy tokens redeemed
     /// @param vaultData arbitrary data to pass back to the vault
-    /// @return assetCashRequiredToSettle amount of asset cash still remaining to settle the debt
+    /// @return primeCashRequiredToSettle amount of asset cash still remaining to settle the debt
     /// @return underlyingCashRequiredToSettle amount of underlying cash still remaining to settle the debt
     function redeemStrategyTokensToCash(
         uint256 maturity,
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
-    ) external override returns (int256 assetCashRequiredToSettle, int256 underlyingCashRequiredToSettle) {
+    ) external override returns (int256 primeCashRequiredToSettle, int256 underlyingCashRequiredToSettle) {
         // NOTE: this call must come from the vault itself
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         // NOTE: if the msg.sender is not the vault itself this will revert
@@ -159,35 +159,35 @@ contract VaultAction is ActionGuards, IVaultAction {
         uint256 maturity,
         uint256 strategyTokensToRedeem,
         bytes calldata vaultData
-    ) private nonReentrant returns (int256 assetCashRequiredToSettle, int256 underlyingCashRequiredToSettle) {
+    ) private nonReentrant returns (int256 primeCashRequiredToSettle, int256 underlyingCashRequiredToSettle) {
         // If the vault allows further re-entrancy then set the status back to the default
         if (vaultConfig.getFlag(VaultConfiguration.ALLOW_REENTRANCY)) {
             reentrancyStatus = _NOT_ENTERED;
         }
 
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
-        (int256 assetCashReceived, uint256 underlyingToReceiver) = vaultConfig.redeemWithoutDebtRepayment(
+        (int256 primeCashReceived, uint256 underlyingToReceiver) = vaultConfig.redeemWithoutDebtRepayment(
             vaultConfig.vault, strategyTokensToRedeem, maturity, vaultData
         );
-        require(assetCashReceived > 0);
+        require(primeCashReceived > 0);
         // Safety check to ensure that the vault does not somehow receive tokens in this scenario
         require(underlyingToReceiver == 0);
 
-        vaultState.totalAssetCash = vaultState.totalAssetCash.add(uint256(assetCashReceived));
+        vaultState.totalPrimeCash = vaultState.totalPrimeCash.add(uint256(primeCashReceived));
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.sub(strategyTokensToRedeem);
         vaultState.setVaultState(vaultConfig.vault);
 
-        emit VaultRedeemStrategyToken(vaultConfig.vault, maturity, assetCashReceived, strategyTokensToRedeem);
+        emit VaultRedeemStrategyToken(vaultConfig.vault, maturity, primeCashReceived, strategyTokensToRedeem);
         return _getCashRequiredToSettle(vaultConfig, vaultState, maturity);
     }
 
     /// @notice Strategy vaults can call this method to deposit asset cash into strategy tokens.
     /// @param maturity the maturity of the vault where the redemption will take place
-    /// @param assetCashInternal the number of asset cash tokens to deposit (external)
+    /// @param primeCash the number of asset cash tokens to deposit (external)
     /// @param vaultData arbitrary data to pass back to the vault for deposit
     function depositVaultCashToStrategyTokens(
         uint256 maturity,
-        uint256 assetCashInternal,
+        uint256 primeCash,
         bytes calldata vaultData
     ) external override nonReentrant {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
@@ -201,10 +201,10 @@ contract VaultAction is ActionGuards, IVaultAction {
 
         VaultState memory vaultState = VaultStateLib.getVaultState(msg.sender, maturity);
         uint256 strategyTokensMinted = vaultConfig.deposit(
-            vaultConfig.vault, assetCashInternal.toInt(), maturity, 0, vaultData
+            vaultConfig.vault, primeCash.toInt(), maturity, 0, vaultData
         );
 
-        vaultState.totalAssetCash = vaultState.totalAssetCash.sub(assetCashInternal);
+        vaultState.totalPrimeCash = vaultState.totalPrimeCash.sub(primeCash);
         vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokensMinted);
         vaultState.setVaultState(msg.sender);
 
@@ -214,7 +214,7 @@ contract VaultAction is ActionGuards, IVaultAction {
             vaultState, msg.sender, vaultState.totalVaultShares, vaultState.totalfCash
         );
         require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
-        emit VaultMintStrategyToken(msg.sender, maturity, assetCashInternal, strategyTokensMinted);
+        emit VaultMintStrategyToken(msg.sender, maturity, primeCash, strategyTokensMinted);
     }
 
     /// @notice Allows a vault to borrow a secondary currency if it is whitelisted to do so
@@ -333,13 +333,13 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED), "Paused");
 
-        (int256 netAssetCash, /* */) = vaultConfig.repaySecondaryBorrow(
+        (int256 netPrimeCash, /* */) = vaultConfig.repaySecondaryBorrow(
             account, currencyId, maturity, debtSharesToRepay, minLendRate
         );
 
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
         // The vault MUST return exactly this amount of underlying tokens to the vault in the callback. We use
-        // a callback here because it is more precise and gas efficient than calculating netAssetCash twice
+        // a callback here because it is more precise and gas efficient than calculating netPrimeCash twice
         uint256 balanceTransferred;
         {
             // If the asset token is NonMintable then the underlying is the same object.
@@ -348,7 +348,7 @@ contract VaultAction is ActionGuards, IVaultAction {
                 TokenHandler.getUnderlyingToken(currencyId);
 
             uint256 underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(
-                vaultConfig.assetRate.convertToUnderlying(netAssetCash).neg()
+                vaultConfig.assetRate.convertToUnderlying(netPrimeCash).neg()
             ).toUint();
 
             uint256 balanceBefore = underlyingToken.balanceOf(address(this));
@@ -414,7 +414,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         );
 
         // This is how much it costs in asset cash to settle the pooled portion of the vault
-        uint256 assetCashRequiredToSettle = settlementRate.convertFromUnderlying(
+        uint256 primeCashRequiredToSettle = settlementRate.convertFromUnderlying(
             vaultState.totalfCash.neg()
         ).toUint();
 
@@ -428,19 +428,19 @@ contract VaultAction is ActionGuards, IVaultAction {
             require(perCurrencyBalance[vaultConfig.secondaryBorrowCurrencies[1]].totalfCashBorrowed == 0, "Unpaid Borrow");
         }
 
-        if (vaultState.totalAssetCash < assetCashRequiredToSettle) {
+        if (vaultState.totalPrimeCash < primeCashRequiredToSettle) {
             // Don't allow the pooled portion of the vault to have a cash shortfall unless all
             // strategy tokens have been redeemed to asset cash.
             require(vaultState.totalStrategyTokens == 0, "Redeem all tokens");
 
             // After this point, we have a cash shortfall and will need to resolve it.
             // Underflow checked above
-            int256 assetCashShortfall = (assetCashRequiredToSettle - vaultState.totalAssetCash).toInt();
-            uint256 assetCashRaised = VaultConfiguration.resolveShortfallWithReserve(
-                vaultConfig.vault, vaultConfig.borrowCurrencyId, assetCashShortfall, maturity
+            int256 primeCashShortfall = (primeCashRequiredToSettle - vaultState.totalPrimeCash).toInt();
+            uint256 primeCashRaised = VaultConfiguration.resolveShortfallWithReserve(
+                vaultConfig.vault, vaultConfig.borrowCurrencyId, primeCashShortfall, maturity
             ).toUint();
 
-            vaultState.totalAssetCash = vaultState.totalAssetCash.add(assetCashRaised);
+            vaultState.totalPrimeCash = vaultState.totalPrimeCash.add(primeCashRaised);
             vaultState.setVaultState(vault);
         }
 
@@ -497,7 +497,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         address vault,
         uint256 maturity
     ) external view override returns (
-        int256 assetCashRequiredToSettle,
+        int256 primeCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     ) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
@@ -510,7 +510,7 @@ contract VaultAction is ActionGuards, IVaultAction {
         VaultState memory vaultState,
         uint256 maturity
     ) private view returns (
-        int256 assetCashRequiredToSettle,
+        int256 primeCashRequiredToSettle,
         int256 underlyingCashRequiredToSettle
     ) {
         // If this is prior to maturity, it will return the current asset rate. After maturity it will
@@ -519,21 +519,21 @@ contract VaultAction is ActionGuards, IVaultAction {
         
         // If this is a positive number, there is more cash remaining to be settled.
         // If this is a negative number, there is more cash than required to repay the debt
-        int256 assetCashInternal = ar.convertFromUnderlying(vaultState.totalfCash)
-            .add(vaultState.totalAssetCash.toInt())
+        int256 primeCash = ar.convertFromUnderlying(vaultState.totalfCash)
+            .add(vaultState.totalPrimeCash.toInt())
             .neg();
 
         Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
         // If the asset token is NonMintable then the underlying is the same object.
-        assetCashRequiredToSettle = assetToken.convertToExternal(assetCashInternal);
+        primeCashRequiredToSettle = assetToken.convertToExternal(primeCash);
 
         if (assetToken.tokenType == TokenType.NonMintable) {
             // In this case both values are the same, there is no underlying token
-            underlyingCashRequiredToSettle = assetCashRequiredToSettle;
+            underlyingCashRequiredToSettle = primeCashRequiredToSettle;
         } else {
             Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
             underlyingCashRequiredToSettle = underlyingToken.convertToUnderlyingExternalWithAdjustment(
-                ar.convertToUnderlying(assetCashInternal)
+                ar.convertToUnderlying(primeCash)
             );
         }
     }

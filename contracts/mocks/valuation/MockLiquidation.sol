@@ -64,7 +64,7 @@ contract MockLocalLiquidation is MockValuationBase {
     using BalanceHandler for BalanceState;
 
     event LocalLiquidationTokens(
-        int256 localAssetCashFromLiquidator,
+        int256 localPrimeCashFromLiquidator,
         int256 nTokensPurchased,
         int256 netCashChange,
         PortfolioState portfolioState
@@ -78,14 +78,14 @@ contract MockLocalLiquidation is MockValuationBase {
     ) external returns (int256, int256) {
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            int256 localPrimeCashFromLiquidator,
             BalanceState memory localBalanceState,
             /* PortfolioState memory portfolio*/,
             /* AccountContext memory accountContext */
         ) = _localCurrencyLiquidation(liquidateAccount, localCurrency, maxNTokenLiquidation, true);
 
         return (
-            localAssetCashFromLiquidator,
+            localPrimeCashFromLiquidator,
             localBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -97,7 +97,7 @@ contract MockLocalLiquidation is MockValuationBase {
     ) external {
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            int256 localPrimeCashFromLiquidator,
             BalanceState memory localBalanceState,
             PortfolioState memory portfolio,
             /* AccountContext memory accountContext */
@@ -109,7 +109,7 @@ contract MockLocalLiquidation is MockValuationBase {
         );
 
         emit LocalLiquidationTokens(
-            localAssetCashFromLiquidator,
+            localPrimeCashFromLiquidator,
             localBalanceState.netNTokenTransfer.neg(),
             localBalanceState.netCashChange,
             portfolio
@@ -139,7 +139,7 @@ contract MockLocalLiquidation is MockValuationBase {
         localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
         factors.isCalculation = isCalculation;
 
-        int256 localAssetCashFromLiquidator =
+        int256 localPrimeCashFromLiquidator =
             LiquidateCurrency.liquidateLocalCurrency(
                 localCurrency,
                 maxNTokenLiquidation,
@@ -150,7 +150,7 @@ contract MockLocalLiquidation is MockValuationBase {
             );
 
         return (
-            localAssetCashFromLiquidator,
+            localPrimeCashFromLiquidator,
             localBalanceState,
             portfolio,
             accountContext
@@ -172,7 +172,7 @@ contract MockCollateralLiquidation is MockValuationBase {
     using BalanceHandler for BalanceState;
 
     event CollateralLiquidationTokens(
-        int256 localAssetCashFromLiquidator,
+        int256 localPrimeCashFromLiquidator,
         int256 collateralCashToLiquidator,
         int256 collateralNTokensToLiquidator,
         int256 cashClaimToLiquidator,
@@ -195,7 +195,7 @@ contract MockCollateralLiquidation is MockValuationBase {
     {
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            int256 localPrimeCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */
@@ -209,8 +209,8 @@ contract MockCollateralLiquidation is MockValuationBase {
             );
 
         return (
-            localAssetCashFromLiquidator,
-            _collateralAssetCashToLiquidator(collateralBalanceState),
+            localPrimeCashFromLiquidator,
+            _collateralPrimeCashToLiquidator(collateralBalanceState),
             collateralBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -224,7 +224,7 @@ contract MockCollateralLiquidation is MockValuationBase {
     ) external {
         // prettier-ignore
         (
-            int256 localAssetCashFromLiquidator,
+            int256 localPrimeCashFromLiquidator,
             BalanceState memory collateralBalanceState,
             PortfolioState memory portfolio,
             /* AccountContext memory accountContext */
@@ -238,10 +238,10 @@ contract MockCollateralLiquidation is MockValuationBase {
             );
 
         emit CollateralLiquidationTokens(
-            localAssetCashFromLiquidator,
-            _collateralAssetCashToLiquidator(collateralBalanceState),
+            localPrimeCashFromLiquidator,
+            _collateralPrimeCashToLiquidator(collateralBalanceState),
             collateralBalanceState.netNTokenTransfer.neg(),
-            collateralBalanceState.netAssetTransferInternalPrecision,
+            collateralBalanceState.netPrimeTransfer,
             portfolio
         );
     }
@@ -282,7 +282,7 @@ contract MockCollateralLiquidation is MockValuationBase {
         );
         factors.isCalculation = isCalculation;
 
-        int256 localAssetCashFromLiquidator =
+        int256 localPrimeCashFromLiquidator =
             LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
@@ -293,23 +293,23 @@ contract MockCollateralLiquidation is MockValuationBase {
             );
 
         return (
-            localAssetCashFromLiquidator,
+            localPrimeCashFromLiquidator,
             collateralBalanceState,
             portfolio,
             accountContext
         );
     }
 
-    function _collateralAssetCashToLiquidator(BalanceState memory collateralBalanceState)
+    function _collateralPrimeCashToLiquidator(BalanceState memory collateralBalanceState)
         private
         pure
         returns (int256)
     {
-        // netAssetTransferInternalPrecision is the cash claim withdrawn from collateral
+        // netPrimeTransfer is the cash claim withdrawn from collateral
         // liquidity tokens.
         return
             collateralBalanceState.netCashChange.neg().add(
-                collateralBalanceState.netAssetTransferInternalPrecision
+                collateralBalanceState.netPrimeTransfer
             );
     }
 
@@ -354,7 +354,7 @@ contract MockLocalfCashLiquidation is MockValuationBase {
             blockTime
         );
 
-        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+        return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);
     }
 
     function _liquidateLocal(
@@ -422,7 +422,7 @@ contract MockCrossCurrencyfCashLiquidation is MockValuationBase {
             blockTime
         );
 
-        return (c.fCashNotionalTransfers, c.localAssetCashFromLiquidator);
+        return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);
     }
 
     function _liquidateCrossCurrency(

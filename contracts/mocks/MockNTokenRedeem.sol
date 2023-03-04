@@ -86,6 +86,21 @@ contract MockNTokenRedeemBase {
         assetStore[id] = rs;
     }
 
+    function getInterestRate(
+        uint16 currencyId,
+        uint8 marketIndex,
+        MarketParameters memory market
+    ) external view returns (uint256) {
+        InterestRateParameters memory irParams = InterestRateCurve.getActiveInterestRateParameters(
+            currencyId, marketIndex
+        );
+
+        return InterestRateCurve.getInterestRate(
+            irParams,
+            InterestRateCurve.getfCashUtilization(market.totalfCash, market.totalPrimeCash / 50)
+        );
+    }
+
     function setMarketStorage(
         uint256 currencyId,
         uint256 settlementDate,
@@ -169,7 +184,7 @@ contract MockNTokenRedeem1 is MockNTokenRedeemBase {
 }
 
 contract MockNTokenRedeem2 is MockNTokenRedeemBase {
-    event Redeem(int256 assetCash, bool hasResidual, PortfolioAsset[] assets);
+    event Redeem(int256 primeCash, bool hasResidual, PortfolioAsset[] assets);
 
     function redeem(
         uint16 currencyId,
@@ -179,14 +194,14 @@ contract MockNTokenRedeem2 is MockNTokenRedeemBase {
         uint256 blockTime
     ) public returns (int256, bool, PortfolioAsset[] memory) {
         (
-            int256 assetCash,
+            int256 primeCash,
             bool hasResidual,
             PortfolioAsset[] memory assets
         )  = nTokenRedeemAction._redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets, blockTime);
 
-        emit Redeem(assetCash, hasResidual, assets);
+        emit Redeem(primeCash, hasResidual, assets);
 
-        return (assetCash, hasResidual, assets);
+        return (primeCash, hasResidual, assets);
     }
 
     function getfCashNotional(

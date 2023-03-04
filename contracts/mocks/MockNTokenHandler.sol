@@ -124,7 +124,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
         nTokenHandler.setInitializationParameters(currencyId, annualizedAnchorRates, proportions);
     }
 
-    function getNTokenAssetPV(uint16 currencyId, uint256 blockTime)
+    function getNTokenPrimePV(uint16 currencyId, uint256 blockTime)
         external
         view
         returns (int256)
@@ -132,7 +132,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        return nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
+        return nTokenCalculations.getNTokenPrimePV(nToken, blockTime);
     }
 
     function updateNTokenCollateralParameters(

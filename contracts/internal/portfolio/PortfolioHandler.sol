@@ -79,7 +79,7 @@ library PortfolioHandler {
     /// to exist in a single portfolio). Also ensures that liquidity tokens do not have a negative notional.
     function addAsset(
         PortfolioState memory portfolioState,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
         uint256 assetType,
         int256 notional

@@ -51,7 +51,7 @@ library BitmapAssetsHandler {
         PortfolioAsset[] memory assets
     ) internal {
         require(accountContext.isBitmapEnabled()); // dev: bitmap currency not set
-        uint256 currencyId = accountContext.bitmapCurrencyId;
+        uint16 currencyId = accountContext.bitmapCurrencyId;
 
         for (uint256 i; i < assets.length; i++) {
             PortfolioAsset memory asset = assets[i];
@@ -79,7 +79,7 @@ library BitmapAssetsHandler {
     /// @return the updated assets bitmap and the final notional amount
     function addifCashAsset(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
         uint256 nextSettleTime,
         int256 notional
@@ -208,7 +208,7 @@ library BitmapAssetsHandler {
     /// @notice Returns the ifCash assets as an array
     function getifCashArray(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 nextSettleTime
     ) internal view returns (PortfolioAsset[] memory) {
         bytes32 assetsBitmap = getAssetsBitmap(account, currencyId);

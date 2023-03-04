@@ -228,7 +228,7 @@ library MockValuationLib {
     function getNTokenPV(uint16 currencyId) external view returns (int256) {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
-        return nTokenCalculations.getNTokenAssetPV(nToken, block.timestamp);
+        return nTokenCalculations.getNTokenPrimePV(nToken, block.timestamp);
     }
 
     function getActiveMarkets(uint16 currencyId) external view returns (MarketParameters[] memory) {

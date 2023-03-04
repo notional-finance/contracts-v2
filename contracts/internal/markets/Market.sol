@@ -25,41 +25,41 @@ library Market {
     /// @notice Add liquidity to a market, assuming that it is initialized. If not then
     /// this method will revert and the market must be initialized first.
     /// Return liquidityTokens and negative fCash to the portfolio
-    function addLiquidity(MarketParameters memory market, int256 assetCash)
+    function addLiquidity(MarketParameters memory market, int256 primeCash)
         internal
         returns (int256 liquidityTokens, int256 fCash)
     {
         require(market.totalLiquidity > 0, "M: zero liquidity");
-        if (assetCash == 0) return (0, 0);
-        require(assetCash > 0); // dev: negative asset cash
+        if (primeCash == 0) return (0, 0);
+        require(primeCash > 0); // dev: negative asset cash
 
-        liquidityTokens = market.totalLiquidity.mul(assetCash).div(market.totalAssetCash);
-        // No need to convert this to underlying, assetCash / totalAssetCash is a unitless proportion.
-        fCash = market.totalfCash.mul(assetCash).div(market.totalAssetCash);
+        liquidityTokens = market.totalLiquidity.mul(primeCash).div(market.totalPrimeCash);
+        // No need to convert this to underlying, primeCash / totalPrimeCash is a unitless proportion.
+        fCash = market.totalfCash.mul(primeCash).div(market.totalPrimeCash);
 
         market.totalLiquidity = market.totalLiquidity.add(liquidityTokens);
         market.totalfCash = market.totalfCash.add(fCash);
-        market.totalAssetCash = market.totalAssetCash.add(assetCash);
+        market.totalPrimeCash = market.totalPrimeCash.add(primeCash);
         _setMarketStorageForLiquidity(market);
         // Flip the sign to represent the LP's net position
         fCash = fCash.neg();
     }
 
     /// @notice Remove liquidity from a market, assuming that it is initialized.
-    /// Return assetCash and positive fCash to the portfolio
+    /// Return primeCash and positive fCash to the portfolio
     function removeLiquidity(MarketParameters memory market, int256 tokensToRemove)
         internal
-        returns (int256 assetCash, int256 fCash)
+        returns (int256 primeCash, int256 fCash)
     {
         if (tokensToRemove == 0) return (0, 0);
         require(tokensToRemove > 0); // dev: negative tokens to remove
 
-        assetCash = market.totalAssetCash.mul(tokensToRemove).div(market.totalLiquidity);
+        primeCash = market.totalPrimeCash.mul(tokensToRemove).div(market.totalLiquidity);
         fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
 
         market.totalLiquidity = market.totalLiquidity.subNoNeg(tokensToRemove);
         market.totalfCash = market.totalfCash.subNoNeg(fCash);
-        market.totalAssetCash = market.totalAssetCash.subNoNeg(assetCash);
+        market.totalPrimeCash = market.totalPrimeCash.subNoNeg(primeCash);
 
         _setMarketStorageForLiquidity(market);
     }
@@ -70,9 +70,9 @@ library Market {
         int256 fCashToAccount,
         uint256 timeToMaturity,
         uint256 marketIndex
-    ) internal returns (int256 netAssetCash) {
-        int256 netAssetCashToReserve;
-        (netAssetCash, netAssetCashToReserve) = calculateTrade(
+    ) internal returns (int256 netPrimeCash) {
+        int256 netPrimeCashToReserve;
+        (netPrimeCash, netPrimeCashToReserve) = InterestRateCurve.calculatefCashTrade(
             market,
             cashGroup,
             fCashToAccount,
@@ -84,13 +84,12 @@ library Market {
         _setMarketStorage(
             marketStorage,
             market.totalfCash,
-            market.totalAssetCash,
+            market.totalPrimeCash,
             market.lastImpliedRate,
             market.oracleRate,
             market.previousTradeTime
         );
-        BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, netAssetCashToReserve);
-    }
+        BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, netPrimeCashToReserve);
 
     /// @notice Calculates the asset cash amount the results from trading fCashToAccount with the market. A positive
     /// fCashToAccount is equivalent of lending, a negative is borrowing. Updates the market state in memory.
@@ -606,7 +605,7 @@ library Market {
         _setMarketStorage(
             marketStorage,
             market.totalfCash,
-            market.totalAssetCash,
+            market.totalPrimeCash,
             market.lastImpliedRate,
             storedOracleRate,
             market.previousTradeTime
@@ -628,7 +627,7 @@ library Market {
         _setMarketStorage(
             marketStorage,
             market.totalfCash,
-            market.totalAssetCash,
+            market.totalPrimeCash,
             market.lastImpliedRate,
             market.oracleRate,
             market.previousTradeTime
@@ -648,19 +647,19 @@ library Market {
     function _setMarketStorage(
         MarketStorage storage marketStorage,
         int256 totalfCash,
-        int256 totalAssetCash,
+        int256 totalPrimeCash,
         uint256 lastImpliedRate,
         uint256 oracleRate,
         uint256 previousTradeTime
     ) private {
         require(totalfCash >= 0 && totalfCash <= type(uint80).max); // dev: storage totalfCash overflow
-        require(totalAssetCash >= 0 && totalAssetCash <= type(uint80).max); // dev: storage totalAssetCash overflow
+        require(totalPrimeCash >= 0 && totalPrimeCash <= type(uint80).max); // dev: storage totalPrimeCash overflow
         require(0 < lastImpliedRate && lastImpliedRate <= type(uint32).max); // dev: storage lastImpliedRate overflow
         require(0 < oracleRate && oracleRate <= type(uint32).max); // dev: storage oracleRate overflow
         require(0 <= previousTradeTime && previousTradeTime <= type(uint32).max); // dev: storage previous trade time overflow
 
         marketStorage.totalfCash = uint80(totalfCash);
-        marketStorage.totalAssetCash = uint80(totalAssetCash);
+        marketStorage.totalPrimeCash = uint80(totalPrimeCash);
         marketStorage.lastImpliedRate = uint32(lastImpliedRate);
         marketStorage.oracleRate = uint32(oracleRate);
         marketStorage.previousTradeTime = uint32(previousTradeTime);
