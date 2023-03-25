@@ -232,111 +232,11 @@ library InitializeMarketsAction {
         }
     }
 
-    /// @notice Check the net fCash assets set by the portfolio and withhold cash to account for
-    /// the PV of negative ifCash. Also sets the ifCash assets into the nToken mapping.
-    function _withholdAndSetfCashAssets(
-        nTokenPortfolio memory nToken,
-        MarketParameters[] memory previousMarkets,
-        uint256 currencyId,
-        uint256 blockTime
-    ) private returns (int256) {
-        // Residual fcash must be put into the ifCash bitmap from the portfolio, skip the 3 month
-        // liquidity token since there is no residual fCash for that maturity, it always settles to cash.
-        for (uint256 i = 1; i < nToken.portfolioState.storedAssets.length; i++) {
-            PortfolioAsset memory asset = nToken.portfolioState.storedAssets[i];
-            // Defensive check to ensure that everything is an fcash asset, all liquidity tokens after
-            // the three month should have been settled to fCash at this point.
-            require(asset.assetType == Constants.FCASH_ASSET_TYPE);
-
-            BitmapAssetsHandler.addifCashAsset(
-                nToken.tokenAddress,
-                currencyId,
-                asset.maturity,
-                nToken.lastInitializedTime,
-                asset.notional
-            );
-
-            // Do not have fCash assets stored in the portfolio
-            nToken.portfolioState.deleteAsset(i);
-        }
-
-        // Recalculate what the withholdings are if there are any ifCash assets remaining
-        return _getNTokenNegativefCashWithholding(nToken, previousMarkets, blockTime);
-    }
-
-    /// @notice If a nToken incurs a negative fCash residual as a result of lending, this means
-    /// that we are going to need to withhold some amount of cash so that market makers can purchase and
-    /// clear the debts off the balance sheet.
-    function _getNTokenNegativefCashWithholding(
-        nTokenPortfolio memory nToken,
-        MarketParameters[] memory previousMarkets,
-        uint256 blockTime
-    ) internal view returns (int256 totalCashWithholding) {
-        bytes32 assetsBitmap = BitmapAssetsHandler.getAssetsBitmap(nToken.tokenAddress, nToken.cashGroup.currencyId);
-        // This buffer is denominated in rate precision with 10 basis point increments. It is used to shift the
-        // withholding rate to ensure that sufficient cash is withheld for negative fCash balances.
-        uint256 oracleRateBuffer =
-            uint256(uint8(nToken.parameters[Constants.CASH_WITHHOLDING_BUFFER])) * Constants.TEN_BASIS_POINTS;
-        // If previousMarkets are supplied, then we are in initialize markets and we want to get the oracleRate
-        // from the perspective of the previous tRef (represented by blockTime - QUARTER). The reason is that the
-        // oracleRates for the current markets have not been set yet (we are in the process of calculating them
-        // in this contract). In the other case, we are in sweepCashIntoMarkets and we can use the current block time.
-        uint256 oracleRateBlockTime = previousMarkets.length == 0 ? blockTime : blockTime.sub(Constants.QUARTER);
-
-        uint256 bitNum = assetsBitmap.getNextBitNum();
-        while (bitNum != 0) {
-            // lastInitializedTime is now the reference point for all ifCash bitmap
-            uint256 maturity = DateTime.getMaturityFromBitNum(nToken.lastInitializedTime, bitNum);
-            bool isValidMarket = DateTime.isValidMarketMaturity(
-                nToken.cashGroup.maxMarketIndex,
-                maturity,
-                blockTime
-            );
-
-            // Only apply withholding for idiosyncratic fCash
-            if (!isValidMarket) {
-                int256 notional =
-                    BitmapAssetsHandler.getifCashNotional(
-                        nToken.tokenAddress,
-                        nToken.cashGroup.currencyId,
-                        maturity
-                    );
-
-                // Withholding only applies for negative cash balances
-                if (notional < 0) {
-                    // Oracle rates are calculated from the perspective of the previousMarkets during initialize
-                    // markets here. It is possible that these oracle rates do not equal the oracle rates when we
-                    // exit this method, this can happen if the nToken is above its leverage threshold. In that case
-                    // this oracleRate will be higher than what we have when we exit, causing the nToken to withhold
-                    // less cash than required. The NTOKEN_CASH_WITHHOLDING_BUFFER must be sufficient to cover this
-                    // potential shortfall.
-                    uint256 oracleRate = nToken.cashGroup.calculateOracleRate(maturity, oracleRateBlockTime);
-
-                    if (oracleRateBuffer > oracleRate) {
-                        oracleRate = 0;
-                    } else {
-                        oracleRate = oracleRate.sub(oracleRateBuffer);
-                    }
-
-                    totalCashWithholding = totalCashWithholding.sub(
-                        AssetHandler.getPresentfCashValue(notional, maturity, blockTime, oracleRate)
-                    );
-                }
-            }
-
-            // Turn off the bit and look for the next one
-            assetsBitmap = assetsBitmap.setBit(bitNum, false);
-            bitNum = assetsBitmap.getNextBitNum();
-        }
-
-        return nToken.cashGroup.assetRate.convertFromUnderlying(totalCashWithholding);
-    }
-
     function _calculateNetPrimeCashAvailable(
         nTokenPortfolio memory nToken,
         MarketParameters[] memory previousMarkets,
         uint256 blockTime,
-        uint256 currencyId,
+        uint16 currencyId,
         bool isFirstInit
     ) private returns (int256 netPrimeCashAvailable) {
         int256 primeCashWithholding;
@@ -346,12 +246,8 @@ library InitializeMarketsAction {
         } else {
             _settleNTokenPortfolio(nToken, blockTime);
             _getPreviousMarkets(currencyId, blockTime, nToken, previousMarkets);
-            primeCashWithholding = _withholdAndSetfCashAssets(
-                nToken,
-                previousMarkets,
-                currencyId,
-                blockTime
-            );
+            // NOTE: getNTokenNegativefCashWithholding is compiled as an internal method
+            primeCashWithholding = nTokenMintAction.getNTokenNegativefCashWithholding(nToken, previousMarkets, blockTime);
         }
 
         // Deduct the amount of withholding required from the cash balance (at this point includes all settled cash)
@@ -362,10 +258,7 @@ library InitializeMarketsAction {
 
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
-        require(
-            netPrimeCashAvailable > int256(Constants.DEPOSIT_PERCENT_BASIS),
-            "IM: insufficient cash"
-        );
+        require(netPrimeCashAvailable > int256(Constants.DEPOSIT_PERCENT_BASIS)); // dev: insufficient cash
 
         return netPrimeCashAvailable;
     }
@@ -478,39 +371,7 @@ library InitializeMarketsAction {
     /// @dev emit:CashSweepIntoMarkets
     /// @dev auth:none
     function sweepCashIntoMarkets(uint16 currencyId) external {
-        uint256 blockTime = block.timestamp;
-        nTokenPortfolio memory nToken;
-        nToken.loadNTokenPortfolioStateful(currencyId);
-        require(nToken.portfolioState.storedAssets.length > 0, "No nToken assets");
-
-        // Can only sweep cash after markets have been initialized
-        uint256 referenceTime = DateTime.getReferenceTime(blockTime);
-        require(nToken.lastInitializedTime >= referenceTime, "Must initialize markets");
-
-        // Can only sweep cash after the residual purchase time has passed
-        uint256 minSweepCashTime =
-            nToken.lastInitializedTime.add(
-                uint256(uint8(nToken.parameters[Constants.RESIDUAL_PURCHASE_TIME_BUFFER])) * 1 hours
-            );
-        require(blockTime > minSweepCashTime, "Invalid sweep cash time");
-
-        int256 primeCashWithholding =
-            _getNTokenNegativefCashWithholding(
-                nToken,
-                new MarketParameters[](0), // Parameter is unused when referencing current markets
-                blockTime
-            );
-
-        int256 cashIntoMarkets = nToken.cashBalance.subNoNeg(primeCashWithholding);
-        BalanceHandler.setBalanceStorageForNToken(
-            nToken.tokenAddress,
-            nToken.cashGroup.currencyId,
-            primeCashWithholding
-        );
-
-        // This will deposit the cash balance into markets, but will not record a token supply change.
-        nTokenMintAction.nTokenMint(currencyId, cashIntoMarkets);
-        emit SweepCashIntoMarkets(currencyId, cashIntoMarkets);
+        nTokenMintAction.sweepCashIntoMarkets(currencyId);
     }
 
     /// @notice Initialize the market for a given currency id, done once a quarter
