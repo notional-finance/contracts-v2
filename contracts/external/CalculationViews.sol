@@ -57,7 +57,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
     /// @notice Returns the nTokens that will be minted when some amount of asset tokens are deposited
     /// @param currencyId id number of the currency
-    /// @param amountToDepositExternalPrecision amount of asset tokens in native precision
+    /// @param amountToDepositExternalPrecision amount of underlying tokens in native precision
     /// @return the amount of nTokens that will be minted
     function calculateNTokensToMint(uint16 currencyId, uint88 amountToDepositExternalPrecision)
         external
@@ -66,18 +66,18 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         returns (uint256)
     {
         _checkValidCurrency(currencyId);
-        Token memory token = TokenHandler.getAssetToken(currencyId);
+        Token memory token = TokenHandler.getUnderlyingToken(currencyId);
         int256 amountToDepositInternal = token.convertToInternal(int256(amountToDepositExternalPrecision));
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
         int256 tokensToMint = nTokenMintAction.calculateTokensToMint(
             nToken,
-            amountToDepositInternal,
+            nToken.cashGroup.primeRate.convertFromUnderlying(amountToDepositInternal),
             block.timestamp
         );
 
-        return SafeCast.toUint256(tokensToMint);
+        return tokensToMint.toUint();
     }
 
 
@@ -117,11 +117,11 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
         return InterestRateCurve.getfCashGivenCashAmount(
             irParams,
-                market.totalfCash,
+            market.totalfCash,
             netUnderlyingToAccount,
             cashGroup.primeRate.convertToUnderlying(market.totalPrimeCash),
             timeToMaturity
-            );
+        );
     }
 
     /// @notice Returns the cash amount that will be traded given an fCash amount, be sure to buffer these amounts
@@ -460,7 +460,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         int256 underlyingBalance = pr.convertToUnderlying(primeCashBalance);
         int256 externalAmount = _convertToAmountExternal(currencyId, underlyingBalance.abs()).toInt();
         return underlyingBalance < 0 ? externalAmount.neg() : externalAmount;
-        }
+    }
 
     /// @notice Converts an underlying balance to prime cash
     /// @param currencyId the currency id of the cash balance
@@ -499,7 +499,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     ) external override returns (PrimeRate memory pr, PrimeCashFactors memory factors) {
         pr = PrimeRateLib.buildPrimeRateStateful(currencyId);
         factors = PrimeCashExchangeRate.getPrimeCashFactors(currencyId);
-        }
+    }
 
     function _convertToAmountExternal(uint16 currencyId, int256 depositAmountInternal) private view returns (uint256) {
         Token memory token = TokenHandler.getUnderlyingToken(currencyId);
@@ -522,7 +522,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
         if (useUnderlying) {
             Token memory token = TokenHandler.getUnderlyingToken(currencyId);
-        underlyingInternal = token.convertToInternal(depositAmount);
+            underlyingInternal = token.convertToInternal(depositAmount);
         } else {
             // In this case, depositAmount is prime cash denominated
             underlyingInternal = cashGroup.primeRate.convertToUnderlying(depositAmount);
