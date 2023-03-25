@@ -74,7 +74,7 @@ library ExchangeRate {
                 /* updatedAt */,
                 /* answeredInRound */
             ) = ethStorage.rateOracle.latestRoundData();
-            require(rate > 0, "Invalid rate");
+            require(rate > 0);
 
             // No overflow, restricted on storage
             rateDecimals = int256(10**ethStorage.rateDecimalPlaces);
@@ -83,11 +83,24 @@ library ExchangeRate {
             }
         }
 
+        int256 buffer = ethStorage.buffer;
+        if (buffer > Constants.MIN_BUFFER_SCALE) {
+            // Buffers from 100 to 150 are 1-1 (i.e. a buffer of 150 is a 150% increase)
+            // in the debt amount. Buffers from 151 to 255 are scaled by a multiple of 10
+            // units to allow for much higher buffers at the outer limits. A stored
+            // buffer value of 151 = 150 + 10 = 160.
+            // The max buffer value of of 255 = 150 + 105 * 10 = 1200.
+
+            // No possibility of overflows due to storage size and constant definition
+            buffer = (buffer - Constants.MIN_BUFFER_SCALE) * Constants.BUFFER_SCALE 
+                + Constants.MIN_BUFFER_SCALE;
+        }
+
         return
             ETHRate({
                 rateDecimals: rateDecimals,
                 rate: rate,
-                buffer: ethStorage.buffer,
+                buffer: buffer,
                 haircut: ethStorage.haircut,
                 liquidationDiscount: ethStorage.liquidationDiscount
             });
