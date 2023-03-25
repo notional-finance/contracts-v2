@@ -73,14 +73,15 @@ library TradingAction {
     /// @notice Executes a trade for leveraged vaults (they can only lend or borrow).
     /// @param currencyId the currency id to lend or borrow
     /// @param trade the bytes32 encoded trade data
-    function executeVaultTrade(uint16 currencyId, bytes32 trade)
+    function executeVaultTrade(uint16 currencyId, address vault, bytes32 trade)
         external
         returns (int256 netPrimeCash) {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroupStateful(currencyId);
         MarketParameters memory market;
         TradeActionType tradeType = TradeActionType(uint256(uint8(bytes1(trade))));
 
-        (netPrimeCash, /* */) = _executeLendBorrowTrade(cashGroup, market, tradeType, block.timestamp, trade);
+        // During a vault trade, the vault executes the trade on behalf of the account
+        (netPrimeCash, /* */) = _executeLendBorrowTrade(vault, cashGroup, market, tradeType, block.timestamp, trade);
     }
 
     /// @notice Executes trades for a bitmapped portfolio, cannot be called directly
@@ -203,20 +204,11 @@ library TradingAction {
         TradeActionType tradeType = TradeActionType(uint256(uint8(bytes1(trade))));
         if (tradeType == TradeActionType.PurchaseNTokenResidual) {
             (maturity, cashAmount, fCashAmount) = _purchaseNTokenResidual(
-                account,
-                cashGroup,
-                blockTime,
-                trade
+                account, cashGroup, blockTime, trade
             );
-        } else if (tradeType == TradeActionType.SettleCashDebt) {
-            (maturity, cashAmount, fCashAmount) = _settleCashDebt(account, cashGroup, blockTime, trade);
         } else if (tradeType == TradeActionType.Lend || tradeType == TradeActionType.Borrow) {
             (cashAmount, fCashAmount) = _executeLendBorrowTrade(
-                cashGroup,
-                market,
-                tradeType,
-                blockTime,
-                trade
+                account, cashGroup, market, tradeType, blockTime, trade
             );
             require(cashAmount != 0, "Trade failed, liquidity");
 
@@ -224,15 +216,11 @@ library TradingAction {
             // with the proper maturity inside _executeLendBorrowTrade
             maturity = market.maturity;
             emit LendBorrowTrade(
-                account,
-                uint16(cashGroup.currencyId),
-                uint40(maturity),
-                cashAmount,
-                fCashAmount
+                account, uint16(cashGroup.currencyId), uint40(maturity), cashAmount, fCashAmount
             );
         } else {
             revert();
-    }
+        }
     }
 
     /// @notice Executes a lend or borrow trade
@@ -244,6 +232,7 @@ library TradingAction {
     /// @return cashAmount - a positive or negative cash amount accrued to the account
     /// @return fCashAmount -  a positive or negative fCash amount accrued to the account
     function _executeLendBorrowTrade(
+        address account,
         CashGroupParameters memory cashGroup,
         MarketParameters memory market,
         TradeActionType tradeType,
@@ -265,6 +254,7 @@ library TradingAction {
         if (tradeType == TradeActionType.Borrow) fCashAmount = fCashAmount.neg();
 
         cashAmount = market.executeTrade(
+            account,
             cashGroup,
             fCashAmount,
             market.maturity.sub(blockTime),
