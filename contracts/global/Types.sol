@@ -112,8 +112,10 @@ struct BalanceActionWithTrades {
 /****** In memory objects ******/
 /// @notice Internal object that represents settled cash balances
 struct SettleAmount {
-    uint256 currencyId;
-    int256 netCashChange;
+    uint16 currencyId;
+    int256 positiveSettledCash;
+    int256 negativeSettledCash;
+    PrimeRate presentPrimeRate;
 }
 
 /// @notice Internal object that represents a token
@@ -122,7 +124,7 @@ struct Token {
     bool hasTransferFee;
     int256 decimals;
     TokenType tokenType;
-    uint256 maxCollateralBalance;
+    uint256 deprecated_maxCollateralBalance;
 }
 
 /// @notice Internal object that represents an nToken portfolio
@@ -155,7 +157,7 @@ struct LiquidationFactors {
     // ETH exchange rate from collateral currency to ETH
     ETHRate collateralETHRate;
     // Asset rate for the local currency, used in cross currency calculations to calculate local asset cash required
-    AssetRateParameters localAssetRate;
+    PrimeRate localPrimeRate;
     // Used during currency liquidations if the account has liquidity tokens
     CashGroupParameters collateralCashGroup;
     // Used during currency liquidations if it is only a calculation, defaults to false
@@ -197,8 +199,8 @@ struct BalanceState {
     int256 storedNTokenBalance;
     // The net cash change as a result of asset settlement or trading
     int256 netCashChange;
-    // Net asset transfers into or out of the account
-    int256 netPrimeTransfer;
+    // Amount of prime cash to redeem and withdraw from the system
+    int256 primeCashWithdraw;
     // Net token transfers into or out of the account
     int256 netNTokenTransfer;
     // Net token supply change from minting or redeeming
@@ -207,10 +209,12 @@ struct BalanceState {
     uint256 lastClaimTime;
     // Accumulator for incentives that the account no longer has a claim over
     uint256 accountIncentiveDebt;
+    // Prime rate for converting prime cash balances
+    PrimeRate primeRate;
 }
 
 /// @dev Asset rate used to convert between underlying cash and asset cash
-struct AssetRateParameters {
+struct Deprecated_AssetRateParameters {
     // Address of the asset rate oracle
     AssetRateAdapter rateOracle;
     // The exchange rate from base to quote (if invert is required it is already done)
@@ -223,14 +227,14 @@ struct AssetRateParameters {
 struct CashGroupParameters {
     uint16 currencyId;
     uint256 maxMarketIndex;
-    AssetRateParameters assetRate;
+    PrimeRate primeRate;
     bytes32 data;
 }
 
 /// @dev A portfolio asset when loaded in memory
 struct PortfolioAsset {
     // Asset currency id
-    uint256 currencyId;
+    uint16 currencyId;
     uint256 maturity;
     // Asset type, fCash or liquidity token.
     uint256 assetType;
@@ -277,8 +281,7 @@ struct TokenStorage {
     bool hasTransferFee;
     TokenType tokenType;
     uint8 decimalPlaces;
-    // Upper limit on how much of this token the contract can hold at any time
-    uint72 maxCollateralBalance;
+    uint72 deprecated_maxCollateralBalance;
 }
 
 /// @dev Exchange rate object as it is represented in storage, total storage is 25 bytes.
@@ -350,6 +353,12 @@ struct AccountContext {
     uint16 bitmapCurrencyId;
     // 9 total active currencies possible (2 bytes each)
     bytes18 activeCurrencies;
+    // If this is set to true, the account can borrow variable prime cash and incur
+    // negative cash balances inside BatchAction. This does not impact the settlement
+    // of negative fCash to prime cash which will happen regardless of this setting. This
+    // exists here mainly as a safety setting to ensure that accounts do not accidentally
+    // incur negative cash balances.
+    bool allowPrimeBorrow;
 }
 
 /// @dev Holds nToken context information mapped via the nToken address, total storage is
@@ -408,6 +417,49 @@ struct MarketStorage {
     uint32 previousTradeTime;
     // This is stored in slot + 1
     uint80 totalLiquidity;
+}
+
+struct InterestRateParameters {
+    // First kink for the utilization rate in RATE_PRECISION
+    uint256 kinkUtilization1;
+    // Second kink for the utilization rate in RATE_PRECISION
+    uint256 kinkUtilization2;
+    // First kink interest rate in RATE_PRECISION
+    uint256 kinkRate1;
+    // Second kink interest rate in RATE_PRECISION
+    uint256 kinkRate2;
+    // Max interest rate in RATE_PRECISION
+    uint256 maxRate;
+    // Minimum fee charged in RATE_PRECISION
+    uint256 minFeeRate;
+    // Maximum fee charged in RATE_PRECISION
+    uint256 maxFeeRate;
+    // Percentage of the interest rate that will be applied as a fee
+    uint256 feeRatePercent;
+}
+
+// Specific interest rate curve settings for each market
+struct InterestRateCurveSettings {
+    // First kink for the utilization rate, specified as a percentage
+    // between 1-100
+    uint8 kinkUtilization1;
+    // Second kink for the utilization rate, specified as a percentage
+    // between 1-100
+    uint8 kinkUtilization2;
+    // Interest rate at the first kink, set as 1/256 units from the kink
+    // rate max
+    uint8 kinkRate1;
+    // Interest rate at the second kink, set as 1/256 units from the kink
+    // rate max
+    uint8 kinkRate2;
+    // Max interest rate, set in 25 bps increments
+    uint8 maxRate25BPS;
+    // Minimum fee charged in basis points
+    uint8 minFeeRateBPS;
+    // Maximum fee charged in basis points
+    uint8 maxFeeRateBPS;
+    // Percentage of the interest rate that will be applied as a fee
+    uint8 feeRatePercent;
 }
 
 struct ifCashStorage {
@@ -484,28 +536,28 @@ struct VaultConfigStorage {
     // Required collateral ratio for accounts to stay inside a vault, prevents accounts
     // from "free riding" on vaults. Enforced on entry and exit, not on deleverage.
     uint16 maxRequiredAccountCollateralRatioBPS;
-    // 80 bytes left
+    // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
+    uint32[2] minAccountSecondaryBorrow;
+    // 16 bytes left
 }
 
 struct VaultBorrowCapacityStorage {
     // Total fCash across all maturities that caps the borrow capacity
     uint80 maxBorrowCapacity;
-    // Current usage of that total borrow capacity
-    uint80 totalUsedBorrowCapacity;
+    // Total fCash debt across all maturities
+    uint80 totalfCashDebt;
 }
 
-struct VaultSecondaryBorrowStorage {
-    // fCash borrowed for a specific maturity on a secondary currency
-    uint80 totalfCashBorrowed;
-    // Used for accounting how much secondary borrow a single account owes as the fCashBorrowed
-    // increases or decreases
-    uint80 totalAccountDebtShares;
-    // The total secondary fCash borrowed converted to the primary borrow currency (underlying)
-    // snapshot prior to settlement. This is used to offset account value on settlement. Once this
-    // value is set, accounts can no longer borrow or repay on the secondary borrow currency
-    uint80 totalfCashBorrowedInPrimarySnapshot;
-    // Set to true once when the snapshot is set
-    bool hasSnapshotBeenSet;
+struct VaultAccountSecondaryDebtShareStorage {
+    // Maturity for the account's secondary borrows. This is stored separately from
+    // the vault account maturity to ensure that we have access to the proper state
+    // during a roll borrow position. It should never be allowed to deviate from the
+    // vaultAccount.maturity value (unless it is cleared to zero).
+    uint40 maturity;
+    // Account debt for the first secondary currency in either fCash or pCash denomination
+    uint80 accountDebtOne;
+    // Account debt for the second secondary currency in either fCash or pCash denomination
+    uint80 accountDebtTwo;
 }
 
 struct VaultConfig {
@@ -520,36 +572,34 @@ struct VaultConfig {
     uint256 maxBorrowMarketIndex;
     int256 maxDeleverageCollateralRatio;
     uint16[2] secondaryBorrowCurrencies;
-    AssetRateParameters assetRate;
+    PrimeRate primeRate;
     int256 maxRequiredAccountCollateralRatio;
+    int256[2] minAccountSecondaryBorrow;
 }
 
 /// @notice Represents a Vault's current borrow and collateral state
 struct VaultStateStorage {
     // This represents the total amount of borrowing in the vault for the current
-    // vault term. This value must equal the total fCash borrowed by all accounts
-    // in the vault.
-    uint80 totalfCash;
-    // The total amount of asset cash in the pool held as prepayment for fCash
-    uint80 totalPrimeCash;
+    // vault term. If the vault state is the prime cash maturity, this is stored in
+    // prime cash debt denomination, if fCash then it is stored in internal underlying.
+    uint80 totalDebt;
+    // The total amount of prime cash in the pool held as a result of emergency settlement
+    uint80 deprecated_totalPrimeCash;
     // Total vault shares in this maturity
     uint80 totalVaultShares;
-    // Set to true if a vault has been fully settled and the cash can be pulled. Matured
-    // accounts must wait for this flag to be set before they can proceed to exit after
-    // maturity
+    // Set to true if a vault's debt position has been migrated to the prime cash vault
     bool isSettled;
     // NOTE: 8 bits left
     // ----- This breaks into a new storage slot -------    
-    // TODO: potentially make total strategy tokens bigger...
     // The total amount of strategy tokens held in the pool
-    uint80 totalStrategyTokens;
+    uint80 deprecated_totalStrategyTokens;
     // Valuation of a strategy token at settlement
-    int80 settlementStrategyTokenValue;
+    int80 deprecated_settlementStrategyTokenValue;
     // NOTE: 96 bits left
 }
 
 /// @notice Represents the remaining assets in a vault post settlement
-struct VaultSettledAssetsStorage {
+struct Deprecated_VaultSettledAssetsStorage {
     // Remaining strategy tokens that have not been withdrawn
     uint80 remainingStrategyTokens;
     // Remaining asset cash that has not been withdrawn
@@ -558,48 +608,154 @@ struct VaultSettledAssetsStorage {
 
 struct VaultState {
     uint256 maturity;
-    int256 totalfCash;
-    bool isSettled;
+    // Total debt is always denominated in underlying on the stack
+    int256 totalDebtUnderlying;
     uint256 totalVaultShares;
-    uint256 totalPrimeCash;
-    uint256 totalStrategyTokens;
-    int256 settlementStrategyTokenValue;
+    bool isSettled;
 }
 
 /// @notice Represents an account's position within an individual vault
 struct VaultAccountStorage {
-    // The amount of fCash the account has borrowed from Notional. Stored as a uint but on the stack it
-    // is represented as a negative number.
-    uint80 fCash;
+    // Total amount of debt for the account in the primary borrowed currency.
+    // If the account is borrowing prime cash, this is stored in prime cash debt
+    // denomination, if fCash then it is stored in internal underlying.
+    uint80 accountDebt;
     // Vault shares that the account holds
     uint80 vaultShares;
     // Maturity when the vault shares and fCash will mature
     uint40 maturity;
-    // Last block when a vault entered, used to ensure that vault accounts do not flash enter/exit.
-    // While there is no specified attack vector here, we can use it to prevent an entire class
-    // of attacks from happening without reducing UX.
-    uint32 lastEntryBlockHeight;
-}
-
-struct VaultAccountSecondaryDebtShareStorage {
-    // Maturity for the account's secondary borrows. This is stored separately from
-    // the vault account maturity to ensure that we have access to the proper state
-    // during a roll borrow position. It should never be allowed to deviate from the
-    // vaultAccount.maturity value (unless it is cleared to zero).
-    uint40 maturity;
-    // Account debt shares for the first secondary currency
-    uint80 accountDebtSharesOne;
-    // Account debt shares for the second secondary currency
-    uint80 accountDebtSharesTwo;
+    // Last time when a vault was entered or exited, used to ensure that vault accounts do not
+    // flash enter/exit. While there is no specified attack vector here, we can use it to prevent
+    // an entire class of attacks from happening without reducing UX.
+    // NOTE: in the original version this value was set to the block.number, however, in this
+    // version it is being changed to time based. On ETH mainnet block heights are much smaller
+    // than block times, accounts that migrate from lastEntryBlockHeight => lastUpdateBlockTime
+    // will not see any issues with entering / exiting the protocol.
+    uint32 lastUpdateBlockTime;
+    // ----------------  Second Storage Slot ----------------------
+    // Cash balances held by the vault account as a result of lending at zero interest or due
+    // to deleveraging (liquidation). In the previous version of leveraged vaults, accounts would
+    // simply lend at zero interest which was not a problem. However, with vaults being able to
+    // discount fCash to present value, lending at zero percent interest may have an adverse effect
+    // on the account's collateral position (i.e. lending at zero puts them further into danger).
+    // Holding cash against debt will eliminate that risk, making vault liquidation more similar to
+    // regular Notional liquidation.
+    uint80 primaryCash;
+    uint80 secondaryCashOne;
+    uint80 secondaryCashTwo;
 }
 
 struct VaultAccount {
-    int256 fCash;
+    // On the stack, account debts are always in underlying
+    int256 accountDebtUnderlying;
     uint256 maturity;
     uint256 vaultShares;
     address account;
     // This cash balance is used just within a transaction to track deposits
     // and withdraws for an account. Must be zeroed by the time we store the account
     int256 tempCashBalance;
-    uint256 lastEntryBlockHeight;
+    uint256 lastUpdateBlockTime;
+}
+
+// Used to hold vault account liquidation factors in memory
+struct VaultAccountHealthFactors {
+    // Account's calculated collateral ratio
+    int256 collateralRatio;
+    // Total outstanding debt across all borrowed currencies in primary
+    int256 totalDebtOutstandingInPrimary;
+    // Total value of vault shares in underlying denomination
+    int256 vaultShareValueUnderlying;
+    // Debt outstanding in local currency denomination after present value and
+    // account cash held netting applied
+    int256[3] debtOutstanding;
+}
+
+// PrimeCashInterestRateParameters take up 16 bytes, this takes up 32 bytes so we
+// can expand another 16 bytes to increase the storage slots a bit....
+struct PrimeCashFactorsStorage {
+    // Storage slot 1 [Prime Supply Factors, 248 bytes]
+    uint40 lastAccrueTime;
+    uint88 totalPrimeSupply;
+    uint88 lastTotalUnderlyingValue;
+    // Overflows at 429% interest using RATE_PRECISION
+    uint32 oracleSupplyRate;
+    bool allowDebt;
+
+    // Storage slot 2 [Prime Debt Factors, 256 bytes]
+    uint88 totalPrimeDebt;
+    // Each one of these values below is stored as a FloatingPoint32 value which
+    // gives us approx 7 digits of precision for each value. Because these are used
+    // to maintain supply and borrow caps, they are not required to be exact.
+    uint32 maxUnderlyingSupply;
+    uint128 _reserved;
+    // Reserving the next 128 bytes for future use in case we decide to implement debt
+    // caps on a currency. In that case, we will need to track the total fcash overall
+    // and subtract the total debt held in vaults.
+    // uint32 maxUnderlyingDebt;
+    // uint32 totalfCashDebtOverall;
+    // uint32 totalfCashDebtInVaults;
+    // uint32 totalPrimeDebtInVaults;
+    // 8 bytes left
+    
+    // Storage slot 3 [Prime Scalars, 240 bytes]
+    // Scalars are stored in 18 decimal precision (i.e. double rate precision) and uint80
+    // maxes out at approx 1,210,000e18
+    // ln(1,210,000) = rate * years = 14
+    // Approx 46 years at 30% interest
+    // Approx 233 years at 6% interest
+    uint80 underlyingScalar;
+    uint80 supplyScalar;
+    uint80 debtScalar;
+    // The time window in 5 min increments that the rate oracle will be averaged over
+    uint8 rateOracleTimeWindow5Min;
+    // 8 bytes left
+}
+
+struct PrimeCashFactors {
+    uint256 lastAccrueTime;
+    uint256 totalPrimeSupply;
+    uint256 totalPrimeDebt;
+    uint256 oracleSupplyRate;
+    uint256 lastTotalUnderlyingValue;
+    uint256 underlyingScalar;
+    uint256 supplyScalar;
+    uint256 debtScalar;
+    uint256 rateOracleTimeWindow;
+}
+
+struct PrimeRate {
+    int256 supplyFactor;
+    int256 debtFactor;
+    uint256 oracleSupplyRate;
+}
+
+struct PrimeSettlementRateStorage {
+    uint80 supplyScalar;
+    uint80 debtScalar;
+    uint80 underlyingScalar;
+    bool isSet;
+}
+
+struct PrimeCashHoldingsOracle {
+   IPrimeCashHoldingsOracle oracle; 
+}
+
+// Per currency rebalancing context
+struct RebalancingContextStorage {
+    // Holds the previous underlying scalar to calculate the oracle money market rate
+    uint80 previousUnderlyingScalarAtRebalance;
+    // Rebalancing has a cool down period that sets the time averaging of the oracle money market rate
+    uint40 rebalancingCooldownInSeconds;
+    uint40 lastRebalanceTimestampInSeconds;
+    // The annualized underlying money market interest rate calculated based on the underlying scalar
+    uint32 oracleMoneyMarketRate;
+    // 64 bytes left
+}
+
+struct TotalfCashDebtStorage {
+    uint80 totalfCashDebt;
+    // These two variables are used to track fCash lend at zero
+    // edge conditions for leveraged vaults.
+    uint80 fCashDebtHeldInSettlementReserve;
+    uint80 primeCashHeldInSettlementReserve;
 }

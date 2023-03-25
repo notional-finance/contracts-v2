@@ -14,13 +14,17 @@ library Constants {
     uint256 internal constant ETH_CURRENCY_ID = 1;
     uint8 internal constant ETH_DECIMAL_PLACES = 18;
     int256 internal constant ETH_DECIMALS = 1e18;
+    address internal constant ETH_ADDRESS = address(0);
     // Used to prevent overflow when converting decimal places to decimal precision values via
     // 10**decimalPlaces. This is a safe value for int256 and uint256 variables. We apply this
     // constraint when storing decimal places in governance.
     uint256 internal constant MAX_DECIMAL_PLACES = 36;
 
-    // Address of the reserve account
-    address internal constant RESERVE = address(0);
+    // Address of the account where fees are collected
+    address internal constant FEE_RESERVE = 0x0000000000000000000000000000000000000FEE;
+    // Address of the account where settlement funds are collected, this is only
+    // used for off chain event tracking.
+    address internal constant SETTLEMENT_RESERVE = 0x00000000000000000000000000000000000005e7;
 
     // Most significant bit
     bytes32 internal constant MSB =
@@ -41,6 +45,10 @@ library Constants {
 
     // Basis for percentages
     int256 internal constant PERCENTAGE_DECIMALS = 100;
+    // Min Buffer Scale and Buffer Scale are used in ExchangeRate to increase the maximum
+    // possible buffer values at the higher end of the uint8 range.
+    int256 internal constant MIN_BUFFER_SCALE = 150;
+    int256 internal constant BUFFER_SCALE = 10;
     // Max number of traded markets, also used as the maximum number of assets in a portfolio array
     uint256 internal constant MAX_TRADED_MARKET_INDEX = 7;
     // Max number of fCash assets in a bitmap, this is based on the gas costs of calculating free collateral
@@ -72,10 +80,12 @@ library Constants {
     uint256 internal constant MONTH_BIT_OFFSET = 135;
     uint256 internal constant QUARTER_BIT_OFFSET = 195;
 
-    // This is a constant that represents the time period that all rates are normalized by, 360 days
-    uint256 internal constant IMPLIED_RATE_TIME = 360 * DAY;
     // Number of decimal places that rates are stored in, equals 100%
     int256 internal constant RATE_PRECISION = 1e9;
+    // Used for prime cash scalars
+    uint256 internal constant SCALAR_PRECISION = 1e18;
+    // Used in prime rate lib
+    int256 internal constant DOUBLE_SCALAR_PRECISION = 1e36;
     // One basis point in RATE_PRECISION terms
     uint256 internal constant BASIS_POINT = uint256(RATE_PRECISION / 10000);
     // Used to when calculating the amount to deleverage of a market when minting nTokens
@@ -88,30 +98,25 @@ library Constants {
     // This is the ABDK64x64 representation of RATE_PRECISION
     // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)
     int128 internal constant RATE_PRECISION_64x64 = 0x3b9aca000000000000000000;
-    int128 internal constant LOG_RATE_PRECISION_64x64 = 382276781265598821176;
-    // Limit the market proportion so that borrowing cannot hit extremely high interest rates
-    int256 internal constant MAX_MARKET_PROPORTION = RATE_PRECISION * 99 / 100;
 
-    uint8 internal constant FCASH_ASSET_TYPE = 1;
+    uint8 internal constant FCASH_ASSET_TYPE          = 1;
     // Liquidity token asset types are 1 + marketIndex (where marketIndex is 1-indexed)
     uint8 internal constant MIN_LIQUIDITY_TOKEN_INDEX = 2;
     uint8 internal constant MAX_LIQUIDITY_TOKEN_INDEX = 8;
-
-    // Used for converting bool to bytes1, solidity does not have a native conversion
-    // method for this
-    bytes1 internal constant BOOL_FALSE = 0x00;
-    bytes1 internal constant BOOL_TRUE = 0x01;
+    uint8 internal constant VAULT_SHARE_ASSET_TYPE    = 9;
+    uint8 internal constant VAULT_DEBT_ASSET_TYPE     = 10;
+    uint8 internal constant VAULT_CASH_ASSET_TYPE     = 11;
 
     // Account context flags
-    bytes1 internal constant HAS_ASSET_DEBT = 0x01;
-    bytes1 internal constant HAS_CASH_DEBT = 0x02;
-    bytes2 internal constant ACTIVE_IN_PORTFOLIO = 0x8000;
-    bytes2 internal constant ACTIVE_IN_BALANCES = 0x4000;
-    bytes2 internal constant UNMASK_FLAGS = 0x3FFF;
-    uint16 internal constant MAX_CURRENCIES = uint16(UNMASK_FLAGS);
+    bytes1 internal constant HAS_ASSET_DEBT           = 0x01;
+    bytes1 internal constant HAS_CASH_DEBT            = 0x02;
+    bytes2 internal constant ACTIVE_IN_PORTFOLIO      = 0x8000;
+    bytes2 internal constant ACTIVE_IN_BALANCES       = 0x4000;
+    bytes2 internal constant UNMASK_FLAGS             = 0x3FFF;
+    uint16 internal constant MAX_CURRENCIES           = uint16(UNMASK_FLAGS);
 
     // Equal to 100% of all deposit amounts for nToken liquidity across fCash markets.
-    int256 internal constant DEPOSIT_PERCENT_BASIS = 1e8;
+    int256 internal constant DEPOSIT_PERCENT_BASIS    = 1e8;
 
     // nToken Parameters: there are offsets in the nTokenParameters bytes6 variable returned
     // in nTokenHandler. Each constant represents a position in the byte array.
@@ -134,8 +139,18 @@ library Constants {
     bytes1 internal constant LOCAL_FCASH_ENABLED = 0x04;
     bytes1 internal constant CROSS_CURRENCY_FCASH_ENABLED = 0x08;
 
-    // Requires vault accounts to enter a position for a minimum of 5 blocks (approx 1 min)
-    // to mitigate strange behavior where accounts may enter and exit using flash loans or other
-    // MEV type behavior.
-    uint256 internal constant VAULT_ACCOUNT_MIN_BLOCKS = 5;
+    // Requires vault accounts to enter a position for a minimum of 1 min
+    // to mitigate strange behavior where accounts may enter and exit using
+    // flash loans or other MEV type behavior.
+    uint256 internal constant VAULT_ACCOUNT_MIN_TIME = 1 minutes;
+
+    // Placeholder constant to mark the variable rate prime cash maturity
+    uint40 internal constant PRIME_CASH_VAULT_MATURITY = type(uint40).max;
+
+    // This represents the maximum difference in internal precision units
+    // before and after a rebalancing. 10_000 represents 0.0001 units delta
+    // as a result of rebalancing. We should expect to never lose value as
+    // a result of rebalancing, but some rounding errors may exist as a result
+    // of redemption and deposit.
+    int256 internal constant REBALANCING_UNDERLYING_DELTA = 10_000;
 }

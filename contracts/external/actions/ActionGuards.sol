@@ -36,7 +36,9 @@ abstract contract ActionGuards is StorageLayoutV1 {
     // These accounts cannot receive deposits, transfers, fCash or any other
     // types of value transfers.
     function requireValidAccount(address account) internal view {
-        require(account != Constants.RESERVE); // Reserve address is address(0)
+        require(account != address(0));
+        require(account != Constants.FEE_RESERVE);
+        require(account != Constants.SETTLEMENT_RESERVE);
         require(account != address(this));
         (
             uint256 isNToken,
@@ -46,6 +48,10 @@ abstract contract ActionGuards is StorageLayoutV1 {
             /* parameters */
         ) = nTokenHandler.getNTokenContext(account);
         require(isNToken == 0);
+
+        // NOTE: we do not check the pCash proxy here. Unlike the nToken, the pCash proxy
+        // is a pure proxy and does not actually hold any assets. Any assets transferred
+        // to the pCash proxy will be lost.
     }
 
     /// @dev Throws if called by any account other than the owner.

@@ -14,9 +14,10 @@ library LibStorage {
     uint256 private constant STORAGE_SLOT_BASE = 1000000;
     /// @dev Set to MAX_TRADED_MARKET_INDEX * 2, Solidity does not allow assigning constants from imported values
     uint256 private constant NUM_NTOKEN_MARKET_FACTORS = 14;
-    /// @dev Theoretical maximum for MAX_PORTFOLIO_ASSETS, however, we limit this to MAX_TRADED_MARKET_INDEX
-    /// in practice. It is possible to exceed that value during liquidation up to 14 potential assets.
-    uint256 private constant MAX_PORTFOLIO_ASSETS = 16;
+    /// @dev Maximum limit for portfolio asset array, this has been reduced from 16 in the previous version. No
+    /// account has hit the theoretical limit and it would not possible for them to since accounts do not hold
+    /// liquidity tokens (only the nToken does).
+    uint256 internal constant MAX_PORTFOLIO_ASSETS = 8;
 
     /// @dev Storage IDs for storage buckets. Each id maps to an internal storage
     /// slot used for a particular mapping
@@ -30,7 +31,7 @@ library LibStorage {
         nTokenInitialization,
         Balance,
         Token,
-        SettlementRate,
+        SettlementRate_deprecated,
         CashGroup,
         Market,
         AssetsBitmap,
@@ -40,7 +41,7 @@ library LibStorage {
         // of the incentives calculation. It should only be used for accounts who have
         // not claimed before the migration
         nTokenTotalSupply_deprecated,
-        AssetRate,
+        AssetRate_deprecated,
         ExchangeRate,
         nTokenTotalSupply,
         SecondaryIncentiveRewarder,
@@ -50,8 +51,23 @@ library LibStorage {
         VaultAccount,
         VaultBorrowCapacity,
         VaultSecondaryBorrow,
-        VaultSettledAssets,
-        VaultAccountSecondaryDebtShare
+        // With the upgrade to prime cash vaults, settled assets is no longer required
+        // for the vault calculation. Do not remove this or other storage slots will be
+        // broken.
+        VaultSettledAssets_deprecated,
+        VaultAccountSecondaryDebtShare,
+        ActiveInterestRateParameters,
+        NextInterestRateParameters,
+        PrimeCashFactors,
+        PrimeSettlementRates,
+        PrimeCashHoldingsOracles,
+        TotalfCashDebtOutstanding,
+        pCashAddress,
+        pDebtAddress,
+        pCashTransferAllowance,
+        RebalancingTargets,
+        RebalancingContext,
+        StoredTokenBalances
     }
 
     /// @dev Mapping from an account address to account context
@@ -115,10 +131,10 @@ library LibStorage {
     }
 
     /// @dev Mapping from currency id to maturity to its corresponding SettlementRate
-    function getSettlementRateStorage() internal pure
+    function getSettlementRateStorage_deprecated() internal pure
         returns (mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store)
     {
-        uint256 slot = _getStorageSlot(StorageId.SettlementRate);
+        uint256 slot = _getStorageSlot(StorageId.SettlementRate_deprecated);
         assembly { store.slot := slot }
     }
 
@@ -179,10 +195,10 @@ library LibStorage {
 
     /// @dev Returns the exchange rate between an underlying currency and asset for trading
     /// and free collateral. Mapping is from currency id to rate storage object.
-    function getAssetRateStorage() internal pure
+    function getAssetRateStorage_deprecated() internal pure
         returns (mapping(uint256 => AssetRateStorage) storage store)
     {
-        uint256 slot = _getStorageSlot(StorageId.AssetRate);
+        uint256 slot = _getStorageSlot(StorageId.AssetRate_deprecated);
         assembly { store.slot := slot }
     }
 
@@ -242,20 +258,12 @@ library LibStorage {
     }
 
     /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to maturity to
-    /// currencyId to VaultSecondaryBorrowStorage object
+    /// currencyId to VaultStateStorage object, only totalDebt, totalPrimeCash, and isSettled are used for
+    /// vault secondary borrows, but this allows code to be shared.
     function getVaultSecondaryBorrow() internal pure returns (
-        mapping(address => mapping(uint256 => mapping(uint256 => VaultSecondaryBorrowStorage))) storage store
+        mapping(address => mapping(uint256 => mapping(uint256 => VaultStateStorage))) storage store
     ) {
         uint256 slot = _getStorageSlot(StorageId.VaultSecondaryBorrow);
-        assembly { store.slot := slot }
-    }
-
-    /// @dev Returns object for an VaultAccount, mapping is from account address to vault address to maturity to
-    /// VaultSettledAssetsStorage object
-    function getVaultSettledAssets() internal pure returns (
-        mapping(address => mapping(uint256 => VaultSettledAssetsStorage)) storage store
-    ) {
-        uint256 slot = _getStorageSlot(StorageId.VaultSettledAssets);
         assembly { store.slot := slot }
     }
 
@@ -265,6 +273,102 @@ library LibStorage {
     ) {
         uint256 slot = _getStorageSlot(StorageId.VaultAccountSecondaryDebtShare);
         assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for currently active InterestRateParameters,
+    /// mapping is from a currency id to a bytes32[2] array of parameters
+    function getActiveInterestRateParameters() internal pure returns (
+        mapping(uint256 => bytes32[2]) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.ActiveInterestRateParameters);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns object for the next set of InterestRateParameters,
+    /// mapping is from a currency id to a bytes32[2] array of parameters
+    function getNextInterestRateParameters() internal pure returns (
+        mapping(uint256 => bytes32[2]) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.NextInterestRateParameters);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns mapping from currency id to PrimeCashFactors
+    function getPrimeCashFactors() internal pure returns (
+        mapping(uint256 => PrimeCashFactorsStorage) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.PrimeCashFactors);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns mapping from currency to maturity to PrimeSettlementRates
+    function getPrimeSettlementRates() internal pure returns (
+        mapping(uint256 => mapping(uint256 => PrimeSettlementRateStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.PrimeSettlementRates);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns mapping from currency to an external oracle that reports the
+    /// total underlying value for prime cash
+    function getPrimeCashHoldingsOracle() internal pure returns (
+        mapping(uint256 => PrimeCashHoldingsOracle) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.PrimeCashHoldingsOracles);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns mapping from currency to maturity to total fCash debt outstanding figure.
+    function getTotalfCashDebtOutstanding() internal pure returns (
+        mapping(uint256 => mapping(uint256 => TotalfCashDebtStorage)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.TotalfCashDebtOutstanding);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns mapping from currency to pCash proxy address
+    function getPCashAddressStorage() internal pure returns (
+        mapping(uint256 => address) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.pCashAddress);
+        assembly { store.slot := slot }
+    }
+
+    function getPDebtAddressStorage() internal pure returns (
+        mapping(uint256 => address) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.pDebtAddress);
+        assembly { store.slot := slot }
+    }
+
+    /// @dev Returns mapping for pCash ERC20 transfer allowances
+    function getPCashTransferAllowance() internal pure returns (
+        // owner => spender => currencyId => transferAllowance
+        mapping(address => mapping(address => mapping(uint16 => uint256))) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.pCashTransferAllowance);
+        assembly { store.slot := slot }
+    }
+
+    function getRebalancingTargets() internal pure returns (
+        mapping(uint16 => mapping(address => uint8)) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.RebalancingTargets);
+        assembly { store.slot := slot }
+    }
+
+    function getRebalancingContext() internal pure returns (
+        mapping(uint16 => RebalancingContextStorage) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.RebalancingContext);
+        assembly { store.slot := slot }
+    }
+
+    function getStoredTokenBalances() internal pure returns (
+        mapping(address => uint256) storage store
+    ) {
+        uint256 slot = _getStorageSlot(StorageId.StoredTokenBalances);
+        assembly { store.slot := slot }        
     }
 
     /// @dev Get the storage slot given a storage ID.
