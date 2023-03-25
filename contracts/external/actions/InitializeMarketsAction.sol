@@ -62,13 +62,12 @@ library InitializeMarketsAction {
     struct GovernanceParameters {
         int256[] depositShares;
         int256[] leverageThresholds;
-        int256[] annualizedAnchorRates;
-        int256[] proportions;
+        uint256[] proportions;
+        InterestRateParameters[] interestRateParams;
     }
 
-    function _getGovernanceParameters(uint256 currencyId, uint256 maxMarketIndex)
+    function _getGovernanceParameters(uint16 currencyId, uint256 maxMarketIndex)
         private
-        view
         returns (GovernanceParameters memory)
     {
         GovernanceParameters memory params;
@@ -77,10 +76,24 @@ library InitializeMarketsAction {
             maxMarketIndex
         );
 
-        (params.annualizedAnchorRates, params.proportions) = nTokenHandler.getInitializationParameters(
+        int256[] memory _proportions = nTokenHandler.getInitializationParameters(currencyId, maxMarketIndex);
+        // NOTE: this conversion from int256 => uint256 is done for legacy reasons
+        params.proportions = new uint256[](_proportions.length);
+        for (uint256 i = 0; i < _proportions.length; i++) {
+            params.proportions[i] = _proportions[i].toUint();
+        }
+
+        // Copies the next interest rate parameters set by governance into the
+        // "active" interest rate parameters for the current quarter.
+        InterestRateCurve.setActiveInterestRateParameters(currencyId);
+        params.interestRateParams = new InterestRateParameters[](maxMarketIndex);
+        // maxMarketIndex is 1-indexed
+        for (uint256 i = 1; i <= maxMarketIndex; i++) {
+            params.interestRateParams[i - 1] = InterestRateCurve.getActiveInterestRateParameters(
             currencyId,
-            maxMarketIndex
+                i
         );
+        }
 
         return params;
     }
@@ -298,7 +311,7 @@ library InitializeMarketsAction {
         uint256 referenceTime
     ) private pure returns (uint256) {
         // Cannot interpolate six month rate without a 1 year market
-        require(previousMarkets.length >= 3, "IM: six month error");
+        require(previousMarkets.length >= 3);
 
         return
             CashGroup.interpolateOracleRate(
@@ -309,69 +322,6 @@ library InitializeMarketsAction {
                 // Maturity date == 6 months from reference time
                 referenceTime + 2 * Constants.QUARTER
             );
-    }
-
-    /// @notice Calculates a market proportion via the implied rate. The formula is:
-    ///    exchangeRate = e ^ (impliedRate * timeToMaturity)
-    ///    exchangeRate = (1 / rateScalar) * ln(proportion / (1 - proportion)) + rateAnchor
-    ///    proportion / (1 - proportion) = e^((exchangeRate - rateAnchor) * rateScalar)
-    ///    exp = e^((exchangeRate - rateAnchor) * rateScalar)
-    ///    proportion / (1 - proportion) = exp
-    ///    exp * (1 - proportion) = proportion
-    ///    exp - exp * proportion = proportion
-    ///    exp = proportion + exp * proportion
-    ///    exp = proportion * (1 + exp)
-    ///    proportion = exp / (1 + exp)
-    function _getProportionFromOracleRate(
-        uint256 oracleRate,
-        uint256 timeToMaturity,
-        int256 rateScalar,
-        uint256 annualizedAnchorRate
-    ) private pure returns (int256) {
-        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
-        // Exchange rate value here will be floored at Constants.RATE_PRECISION when the oracleRate is zero
-        int256 exchangeRate = Market.getExchangeRateFromImpliedRate(oracleRate, timeToMaturity);
-
-        int128 expValue = ABDKMath64x64.fromInt(
-            // (exchangeRate - rateAnchor) * rateScalar
-            (exchangeRate.sub(rateAnchor)).mulInRatePrecision(rateScalar)
-        );
-        // Scale this back to a decimal in abdk
-        expValue = ABDKMath64x64.div(expValue, Constants.RATE_PRECISION_64x64);
-        // Take the exponent
-        expValue = ABDKMath64x64.exp(expValue);
-        // proportion = exp / (1 + exp)
-        // NOTE: 2**64 == 1 in ABDKMath64x64
-        int128 proportion = ABDKMath64x64.div(expValue, ABDKMath64x64.add(expValue, 2**64));
-
-        // Scale this back to 1e9 precision
-        proportion = ABDKMath64x64.mul(proportion, Constants.RATE_PRECISION_64x64);
-
-        return ABDKMath64x64.toInt(proportion);
-    }
-
-    /// @dev Returns the oracle rate given the market ratios of fCash to cash. The annualizedAnchorRate
-    /// is used to calculate a rate anchor. Since a rate anchor varies with timeToMaturity and annualizedAnchorRate
-    /// does not, this method will return consistent values regardless of the timeToMaturity of when initialize
-    /// markets is called. This can be helpful if a currency needs to be initialized mid quarter when it is
-    /// newly launched.
-    function _calculateOracleRate(
-        int256 fCashAmount,
-        int256 underlyingCashToMarket,
-        int256 rateScalar,
-        uint256 annualizedAnchorRate,
-        uint256 timeToMaturity
-    ) internal pure returns (uint256) {
-        int256 rateAnchor = Market.getExchangeRateFromImpliedRate(annualizedAnchorRate, timeToMaturity);
-        uint256 oracleRate = Market.getImpliedRate(
-            fCashAmount,
-            underlyingCashToMarket,
-            rateScalar,
-            rateAnchor,
-            timeToMaturity
-        );
-
-        return oracleRate;
     }
 
     /// @notice Returns the linear interpolation between two market rates. The formula is
@@ -386,7 +336,7 @@ library InitializeMarketsAction {
         uint256 longRate = longMarket.oracleRate;
         // the next market maturity is always a quarter away
         uint256 newMaturity = longMarket.maturity + Constants.QUARTER;
-        require(shortMaturity < longMaturity, "IM: interpolation error");
+        require(shortMaturity < longMaturity);
 
         // It's possible that the rates are inverted where the short market rate > long market rate and
         // we will get an underflow here so we check for that
@@ -439,19 +389,20 @@ library InitializeMarketsAction {
         return nToken.cashGroup.assetRate.convertToUnderlying(primeCashToMarket);
     }
 
-    /// @notice Calculates the fCash amount given the cash and proportion:
-    // proportion = totalfCash / (totalfCash + totalCashUnderlying)
-    // proportion * (totalfCash + totalCashUnderlying) = totalfCash
-    // proportion * totalCashUnderlying + proportion * totalfCash = totalfCash
-    // proportion * totalCashUnderlying = totalfCash * (1 - proportion)
-    // totalfCash = proportion * totalCashUnderlying / (1 - proportion)
-    function _calculatefCashAmountFromProportion(
+    /// @notice Calculates the fCash amount given the cash and utilization:
+    // utilization = totalfCash / (totalfCash + totalCashUnderlying)
+    // utilization * (totalfCash + totalCashUnderlying) = totalfCash
+    // utilization * totalCashUnderlying + utilization * totalfCash = totalfCash
+    // utilization * totalCashUnderlying = totalfCash * (1 - utilization)
+    // totalfCash = utilization * totalCashUnderlying / (1 - utilization)
+    function _calculatefCashAmountFromUtilization(
         int256 underlyingCashToMarket,
-        int256 proportion
+        uint256 utilization 
     ) private pure returns (int256) {
-        return underlyingCashToMarket
-            .mul(proportion)
-            .div(Constants.RATE_PRECISION.sub(proportion));
+        require(utilization < uint256(Constants.RATE_PRECISION));
+        int256 _utilization = int256(utilization);
+        // NOTE: sub underflow checked above, no div by zero possible
+        return (underlyingCashToMarket.mul(_utilization) / (Constants.RATE_PRECISION - _utilization));
     }
 
     /// @notice Sweeps nToken cash balance into markets after accounting for cash withholding. Can be
@@ -508,10 +459,10 @@ library InitializeMarketsAction {
             new MarketParameters[](nToken.cashGroup.maxMarketIndex);
 
         // This should be sufficient to validate that the currency id is valid
-        require(nToken.cashGroup.maxMarketIndex != 0, "IM: no markets to init");
+        require(nToken.cashGroup.maxMarketIndex != 0);
         // If the nToken has any assets then this is not the first initialization
         if (isFirstInit) {
-            require(nToken.portfolioState.storedAssets.length == 0, "IM: not first init");
+            require(nToken.portfolioState.storedAssets.length == 0);
         }
 
         int256 netPrimeCashAvailable = _calculateNetPrimeCashAvailable(
@@ -543,8 +494,6 @@ library InitializeMarketsAction {
                     nToken
                 );
 
-            uint256 timeToMaturity = newMarket.maturity.sub(blockTime);
-            int256 rateScalar = nToken.cashGroup.getRateScalar(i + 1, timeToMaturity);
             // Governance will prevent previousMarkets.length from being equal to 1, meaning that we will
             // either have 0 markets (on first init), exactly 2 markets, or 2+ markets. In the case that there
             // are exactly two markets then the 6 month market must be initialized via this method (there is no
@@ -561,16 +510,10 @@ library InitializeMarketsAction {
             ) {
                 // Any newly added markets cannot have their implied rates interpolated via the previous
                 // markets. In this case we initialize the markets using the rate anchor and proportion.
-                int256 fCashAmount = _calculatefCashAmountFromProportion(underlyingCashToMarket, parameters.proportions[i]);
+                int256 fCashAmount = _calculatefCashAmountFromUtilization(underlyingCashToMarket, parameters.proportions[i]);
 
                 newMarket.totalfCash = fCashAmount;
-                newMarket.oracleRate = _calculateOracleRate(
-                    fCashAmount,
-                    underlyingCashToMarket,
-                    rateScalar,
-                    uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
-                    timeToMaturity
-                );
+                newMarket.oracleRate = parameters.interestRateParams[i].getInterestRate(parameters.proportions[i]);
 
                 // If this fails it is because the rate anchor and proportion are not set properly by
                 // governance.
@@ -615,35 +558,20 @@ library InitializeMarketsAction {
                 // When initializing new markets we need to ensure that the new implied oracle rates align
                 // with the current yield curve or valuations for ifCash will spike. This should reference the
                 // previously calculated implied rate and the current market.
-                int256 proportion =
-                    _getProportionFromOracleRate(
-                        oracleRate,
-                        timeToMaturity,
-                        rateScalar,
-                        uint256(parameters.annualizedAnchorRates[i]) // No overflow, uint32 when set
-                    );
+                uint256 utilization = parameters.interestRateParams[i].getUtilizationFromInterestRate(oracleRate);
 
-                // If the calculated proportion is greater than the leverage threshold then we cannot
+                // If the calculated utilization is greater than the leverage threshold then we cannot
                 // provide liquidity without risk of liquidation. In this case, set the leverage threshold
-                // as the new proportion and calculate the oracle rate from it. This will result in fCash valuations
+                // as the new utilization and calculate the oracle rate from it. This will result in fCash valuations
                 // changing on chain, however, adding liquidity via nTokens would also end up with this
                 // result as well.
-                if (proportion > parameters.leverageThresholds[i]) {
-                    proportion = parameters.leverageThresholds[i];
-                    newMarket.totalfCash = _calculatefCashAmountFromProportion(underlyingCashToMarket, proportion);
-
-                    oracleRate = _calculateOracleRate(
-                        newMarket.totalfCash,
-                        underlyingCashToMarket,
-                        rateScalar,
-                        uint256(parameters.annualizedAnchorRates[i]), // No overflow, uint32 when set
-                        timeToMaturity
-                    );
-
+                if (utilization > parameters.leverageThresholds[i].toUint()) {
+                    utilization = parameters.leverageThresholds[i].toUint();
+                    oracleRate = parameters.interestRateParams[i].getInterestRate(utilization);
                     require(oracleRate != 0, "Oracle rate overflow");
-                } else {
-                    newMarket.totalfCash = _calculatefCashAmountFromProportion(underlyingCashToMarket, proportion);
                 }
+
+                newMarket.totalfCash = _calculatefCashAmountFromUtilization(underlyingCashToMarket, utilization);
 
                 // It's possible that totalfCash is zero from rounding errors above, we want to set this to a minimum value
                 // so that we don't have divide by zero errors.
@@ -682,7 +610,7 @@ library InitializeMarketsAction {
 
     function finalizeMarket(
         MarketParameters memory market,
-        uint256 currencyId,
+        uint16 currencyId,
         nTokenPortfolio memory nToken
     ) internal {
         // Always reference the current settlement date

@@ -150,7 +150,7 @@ library nTokenHandler {
     {
         mapping(uint256 => uint32[NUM_NTOKEN_MARKET_FACTORS]) storage store = LibStorage.getNTokenDepositStorage();
         uint32[NUM_NTOKEN_MARKET_FACTORS] storage depositParameters = store[currencyId];
-        (depositShares, leverageThresholds) = _getParameters(depositParameters, maxMarketIndex, false);
+        (depositShares, leverageThresholds) = _getParameters(depositParameters, maxMarketIndex);
     }
 
     /// @notice Sets the deposit parameters
@@ -196,8 +196,9 @@ library nTokenHandler {
         require(proportions.length == annualizedAnchorRates.length, "PT: proportions length");
 
         for (uint256 i; i < proportions.length; i++) {
+            // Anchor rates are no longer used and must always be set to zero
+            require(annualizedAnchorRates[i] == 0);
             // Proportions must be between zero and the rate precision
-            require(annualizedAnchorRates[i] > 0, "NT: anchor rate zero");
             require(
                 proportions[i] > 0 && proportions[i] < Constants.RATE_PRECISION,
                 "PT: invalid proportion"
@@ -213,17 +214,18 @@ library nTokenHandler {
     function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
         internal
         view
-        returns (int256[] memory annualizedAnchorRates, int256[] memory proportions)
+        returns (int256[] memory proportions)
     {
         mapping(uint256 => uint32[NUM_NTOKEN_MARKET_FACTORS]) storage store = LibStorage.getNTokenInitStorage();
         uint32[NUM_NTOKEN_MARKET_FACTORS] storage initParameters = store[currencyId];
-        (annualizedAnchorRates, proportions) = _getParameters(initParameters, maxMarketIndex, true);
+
+        // NOTE: annualized anchor rates are deprecated as a result of the liquidity curve change
+        (/* annualizedAnchorRates */, proportions) = _getParameters(initParameters, maxMarketIndex);
     }
 
     function _getParameters(
         uint32[NUM_NTOKEN_MARKET_FACTORS] storage slot,
-        uint256 maxMarketIndex,
-        bool noUnset
+        uint256 maxMarketIndex
     ) private view returns (int256[] memory, int256[] memory) {
         uint256 index = 0;
         int256[] memory array1 = new int256[](maxMarketIndex);
@@ -233,10 +235,6 @@ library nTokenHandler {
             index++;
             array2[i] = slot[index];
             index++;
-
-            if (noUnset) {
-                require(array1[i] > 0 && array2[i] > 0, "PT: init value zero");
-            }
         }
 
         return (array1, array2);

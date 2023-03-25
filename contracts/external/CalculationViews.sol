@@ -101,7 +101,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     }
         
     function _getfCashAmountGivenCashAmount(
-        int88 netCashToAccount,
+        int88 netUnderlyingToAccount,
         uint256 marketIndex,
         uint256 blockTime,
         CashGroupParameters memory cashGroup
@@ -111,19 +111,16 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
         require(market.maturity > blockTime, "Invalid block time");
         uint256 timeToMaturity = market.maturity - blockTime;
-        (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
-            Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
-        int256 fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+        InterestRateParameters memory irParams = InterestRateCurve.getActiveInterestRateParameters(
+            cashGroup.currencyId, marketIndex
+        );
 
-        return
-            Market.getfCashGivenCashAmount(
+        return InterestRateCurve.getfCashGivenCashAmount(
+            irParams,
                 market.totalfCash,
-                netCashToAccount,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                fee,
-                0
+            netUnderlyingToAccount,
+            cashGroup.primeRate.convertToUnderlying(market.totalPrimeCash),
+            timeToMaturity
             );
     }
 
@@ -160,8 +157,8 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         uint256 timeToMaturity = market.maturity - blockTime;
 
         // prettier-ignore
-        (int256 assetCash, /* int fee */) =
-            market.calculateTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+        (int256 primeCash, /* int fee */) =
+            InterestRateCurve.calculatefCashTrade(market, cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         // Check the slippage here and revert
         if (rateLimit != 0) {
@@ -174,7 +171,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
             }
         }
 
-        return (assetCash, cashGroup.assetRate.convertToUnderlying(assetCash));
+        return (primeCash, cashGroup.primeRate.convertToUnderlying(primeCash));
     }
 
     /// @notice Returns the claimable incentives for all nToken balances
@@ -297,7 +294,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     /// @param maturity the maturity of the fCash to lend
     /// @param minLendRate the minimum lending rate (slippage protection)
     /// @param blockTime the block time for when the trade will be calculated
-    /// @param useUnderlying true if specifying the underlying token, false if specifying the asset token
+    /// @param useUnderlying true if specifying the underlying token, false if specifying prime cash
     /// @return fCashAmount the amount of fCash that the lender will receive
     /// @return marketIndex the corresponding market index for the lending
     /// @return encodedTrade the encoded bytes32 object to pass to batch trade
@@ -320,7 +317,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
             int256 underlyingInternal,
             CashGroupParameters memory cashGroup
         ) = _convertDepositAmountToUnderlyingInternal(currencyId, depositAmountExternal, useUnderlying);
-        int256 fCash = _getfCashAmountGivenCashAmount(_safeInt88(underlyingInternal.neg()), marketIndex, blockTime, cashGroup);
+        int256 fCash = _getfCashAmountGivenCashAmount(underlyingInternal.neg().toInt88(), marketIndex, blockTime, cashGroup);
         require(0 < fCash);
 
         (
@@ -331,12 +328,11 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
     /// @notice Returns the amount of fCash that would received if lending deposit amount.
     /// @param currencyId id number of the currency
-    /// @param borrowedAmountExternal amount to borrow in the token's native precision. For aTokens use
-    /// what is returned by the balanceOf selector (not scaledBalanceOf).
+    /// @param borrowedAmountExternal amount to borrow in the token's native precision.
     /// @param maturity the maturity of the fCash to lend
     /// @param maxBorrowRate the maximum borrow rate (slippage protection). If zero then no slippage will be applied
     /// @param blockTime the block time for when the trade will be calculated
-    /// @param useUnderlying true if specifying the underlying token, false if specifying the asset token
+    /// @param useUnderlying true if specifying the underlying token, false if specifying prime cash
     /// @return fCashDebt the amount of fCash that the borrower will owe, this will be stored as a negative
     /// balance in Notional
     /// @return marketIndex the corresponding market index for the lending
@@ -360,7 +356,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
             int256 underlyingInternal,
             CashGroupParameters memory cashGroup
         ) = _convertDepositAmountToUnderlyingInternal(currencyId, borrowedAmountExternal, useUnderlying);
-        int256 fCash = _getfCashAmountGivenCashAmount(_safeInt88(underlyingInternal), marketIndex, blockTime, cashGroup);
+        int256 fCash = _getfCashAmountGivenCashAmount(underlyingInternal.toInt88(), marketIndex, blockTime, cashGroup);
         require(fCash < 0);
 
         (
@@ -377,7 +373,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     /// @param minLendRate the minimum lending rate (slippage protection)
     /// @param blockTime the block time for when the trade will be calculated
     /// @return depositAmountUnderlying the amount of underlying tokens the lender must deposit
-    /// @return depositAmountAsset the amount of asset tokens the lender must deposit
+    /// @return depositAmountPrimeCash the amount of prime cash tokens the lender must deposit or mint
     /// @return marketIndex the corresponding market index for the lending
     /// @return encodedTrade the encoded bytes32 object to pass to batch trade
     function getDepositFromfCashLend(
@@ -388,7 +384,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         uint256 blockTime
     ) external view override returns (
         uint256 depositAmountUnderlying,
-        uint256 depositAmountAsset,
+        uint256 depositAmountPrimeCash,
         uint8 marketIndex,
         bytes32 encodedTrade
     ) {
@@ -398,12 +394,12 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
         int88 fCash = int88(SafeInt256.toInt(fCashAmount));
         (
-            int256 assetCashInternal,
+            int256 primeCash,
             int256 underlyingCashInternal
         ) = _getCashAmountGivenfCashAmount(currencyId, fCash, marketIndex, blockTime, minLendRate);
 
-        depositAmountUnderlying = _convertToAmountExternal(currencyId, underlyingCashInternal, true);
-        depositAmountAsset = _convertToAmountExternal(currencyId, assetCashInternal, false);
+        depositAmountUnderlying = _convertToAmountExternal(currencyId, underlyingCashInternal);
+        depositAmountPrimeCash = primeCash.neg().toUint();
         (encodedTrade, /* */) = _encodeLendBorrowTrade(TradeActionType.Lend, marketIndex, fCash, minLendRate);
     }
 
@@ -415,7 +411,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     /// @param maxBorrowRate the maximum borrow rate (slippage protection)
     /// @param blockTime the block time for when the trade will be calculated
     /// @return borrowAmountUnderlying the amount of underlying tokens the borrower will receive
-    /// @return borrowAmountAsset the amount of asset tokens the borrower will receive
+    /// @return borrowAmountPrimeCash the amount of prime cash tokens the borrower will receive
     /// @return marketIndex the corresponding market index for the lending
     /// @return encodedTrade the encoded bytes32 object to pass to batch trade
     function getPrincipalFromfCashBorrow(
@@ -426,7 +422,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         uint256 blockTime
     ) external view override returns (
         uint256 borrowAmountUnderlying,
-        uint256 borrowAmountAsset,
+        uint256 borrowAmountPrimeCash,
         uint8 marketIndex,
         bytes32 encodedTrade
     ) {
@@ -436,12 +432,12 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
 
         int88 fCash = int88(SafeInt256.toInt(fCashBorrow).neg());
         (
-            int256 assetCashInternal,
+            int256 primeCash,
             int256 underlyingCashInternal
         ) = _getCashAmountGivenfCashAmount(currencyId, fCash, marketIndex, blockTime, maxBorrowRate);
 
-        borrowAmountUnderlying = _convertToAmountExternal(currencyId, underlyingCashInternal, true);
-        borrowAmountAsset = _convertToAmountExternal(currencyId, assetCashInternal, false);
+        borrowAmountUnderlying = _convertToAmountExternal(currencyId, underlyingCashInternal);
+        borrowAmountPrimeCash = primeCash.toUint();
         (encodedTrade, /* */) = _encodeLendBorrowTrade(TradeActionType.Borrow, marketIndex, fCash, maxBorrowRate);
     }
 

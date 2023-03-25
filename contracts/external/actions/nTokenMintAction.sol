@@ -299,7 +299,7 @@ library nTokenMintAction {
             // Floor the exchange rate at zero interest rate
             assumedExchangeRate = Constants.RATE_PRECISION;
         } else {
-            assumedExchangeRate = Market.getExchangeRateFromImpliedRate(
+                assumedExchangeRate = InterestRateCurve.getfCashExchangeRate(
                 market.lastImpliedRate.sub(Constants.DELEVERAGE_BUFFER),
                 timeToMaturity
             );

@@ -619,7 +619,7 @@ library TradingAction {
         }
 
         int256 exchangeRate =
-            Market.getExchangeRateFromImpliedRate(oracleRate, maturity.sub(blockTime));
+            InterestRateCurve.getfCashExchangeRate(oracleRate, maturity.sub(blockTime));
 
         // Returns the net asset cash from the nToken perspective, which is the same sign as the fCash amount
         return

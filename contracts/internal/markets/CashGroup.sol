@@ -26,7 +26,7 @@ library CashGroup {
     // Bit number references for each parameter in the 32 byte word (0-indexed)
     uint256 private constant MARKET_INDEX_BIT = 31;
     uint256 private constant RATE_ORACLE_TIME_WINDOW_BIT = 30;
-    uint256 private constant TOTAL_FEE_BIT = 29;
+    uint256 private constant _DEPRECATED_TOTAL_FEE_BIT = 29;
     uint256 private constant RESERVE_FEE_SHARE_BIT = 28;
     uint256 private constant DEBT_BUFFER_BIT = 27;
     uint256 private constant FCASH_HAIRCUT_BIT = 26;
@@ -36,12 +36,12 @@ library CashGroup {
     // 7 bytes allocated, one byte per market for the liquidity token haircut
     uint256 private constant LIQUIDITY_TOKEN_HAIRCUT_FIRST_BIT = 22;
     // 7 bytes allocated, one byte per market for the rate scalar
-    uint256 private constant RATE_SCALAR_FIRST_BIT = 15;
+    uint256 private constant _DEPRECATED_RATE_SCALAR_FIRST_BIT = 15; // @deprecated
 
     // Offsets for the bytes of the different parameters
     uint256 private constant MARKET_INDEX = (31 - MARKET_INDEX_BIT) * 8;
     uint256 private constant RATE_ORACLE_TIME_WINDOW = (31 - RATE_ORACLE_TIME_WINDOW_BIT) * 8;
-    uint256 private constant TOTAL_FEE = (31 - TOTAL_FEE_BIT) * 8;
+    uint256 private constant _DEPRECATED_TOTAL_FEE = (31 - _DEPRECATED_TOTAL_FEE_BIT) * 8;
     uint256 private constant RESERVE_FEE_SHARE = (31 - RESERVE_FEE_SHARE_BIT) * 8;
     uint256 private constant DEBT_BUFFER = (31 - DEBT_BUFFER_BIT) * 8;
     uint256 private constant FCASH_HAIRCUT = (31 - FCASH_HAIRCUT_BIT) * 8;
@@ -49,28 +49,7 @@ library CashGroup {
     uint256 private constant LIQUIDATION_FCASH_HAIRCUT = (31 - LIQUIDATION_FCASH_HAIRCUT_BIT) * 8;
     uint256 private constant LIQUIDATION_DEBT_BUFFER = (31 - LIQUIDATION_DEBT_BUFFER_BIT) * 8;
     uint256 private constant LIQUIDITY_TOKEN_HAIRCUT = (31 - LIQUIDITY_TOKEN_HAIRCUT_FIRST_BIT) * 8;
-    uint256 private constant RATE_SCALAR = (31 - RATE_SCALAR_FIRST_BIT) * 8;
-
-    /// @notice Returns the rate scalar scaled by time to maturity. The rate scalar multiplies
-    /// the ln() portion of the liquidity curve as an inverse so it increases with time to
-    /// maturity. The effect of the rate scalar on slippage must decrease with time to maturity.
-    function getRateScalar(
-        CashGroupParameters memory cashGroup,
-        uint256 marketIndex,
-        uint256 timeToMaturity
-    ) internal pure returns (int256) {
-        require(1 <= marketIndex && marketIndex <= cashGroup.maxMarketIndex); // dev: invalid market index
-
-        uint256 offset = RATE_SCALAR + 8 * (marketIndex - 1);
-        int256 scalar = int256(uint8(uint256(cashGroup.data >> offset))) * Constants.RATE_PRECISION;
-        int256 rateScalar =
-            scalar.mul(int256(Constants.IMPLIED_RATE_TIME)).div(SafeInt256.toInt(timeToMaturity));
-
-        // Rate scalar is denominated in RATE_PRECISION, it is unlikely to underflow in the
-        // division above.
-        require(rateScalar > 0); // dev: rate scalar underflow
-        return rateScalar;
-    }
+    uint256 private constant _DEPRECATED_RATE_SCALAR = (31 - _DEPRECATED_RATE_SCALAR_FIRST_BIT) * 8;
 
     /// @notice Haircut on liquidity tokens to account for the risk associated with changes in the
     /// proportion of cash to fCash within the pool. This is set as a percentage less than or equal to 100.
@@ -86,11 +65,6 @@ library CashGroup {
         uint256 offset =
             LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - Constants.MIN_LIQUIDITY_TOKEN_INDEX);
         return uint8(uint256(cashGroup.data >> offset));
-    }
-
-    /// @notice Total trading fee denominated in RATE_PRECISION with basis point increments
-    function getTotalFee(CashGroupParameters memory cashGroup) internal pure returns (uint256) {
-        return uint256(uint8(uint256(cashGroup.data >> TOTAL_FEE))) * Constants.BASIS_POINT;
     }
 
     /// @notice Percentage of the total trading fee that goes to the reserve
@@ -281,7 +255,6 @@ library CashGroup {
             "CG: invalid reserve share"
         );
         require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
-        require(cashGroup.rateScalars.length == cashGroup.maxMarketIndex);
         // This is required so that fCash liquidation can proceed correctly
         require(cashGroup.liquidationfCashHaircut5BPS < cashGroup.fCashHaircut5BPS);
         require(cashGroup.liquidationDebtBuffer5BPS < cashGroup.debtBuffer5BPS);
@@ -297,7 +270,7 @@ library CashGroup {
         bytes32 data =
             (bytes32(uint256(cashGroup.maxMarketIndex)) |
                 (bytes32(uint256(cashGroup.rateOracleTimeWindow5Min)) << RATE_ORACLE_TIME_WINDOW) |
-                (bytes32(uint256(cashGroup.totalFeeBPS)) << TOTAL_FEE) |
+                (bytes32(0) << _DEPRECATED_TOTAL_FEE) |
                 (bytes32(uint256(cashGroup.reserveFeeShare)) << RESERVE_FEE_SHARE) |
                 (bytes32(uint256(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER) |
                 (bytes32(uint256(cashGroup.fCashHaircut5BPS)) << FCASH_HAIRCUT) |
@@ -319,12 +292,6 @@ library CashGroup {
                     (LIQUIDITY_TOKEN_HAIRCUT + i * 8));
         }
 
-        for (uint256 i = 0; i < cashGroup.rateScalars.length; i++) {
-            // Causes a divide by zero error
-            require(cashGroup.rateScalars[i] != 0, "CG: invalid rate scalar");
-            data = data | (bytes32(uint256(cashGroup.rateScalars[i])) << (RATE_SCALAR + i * 8));
-        }
-
         mapping(uint256 => bytes32) storage store = LibStorage.getCashGroupStorage();
         store[currencyId] = data;
     }
@@ -342,14 +309,14 @@ library CashGroup {
 
         for (uint8 i = 0; i < maxMarketIndex; i++) {
             tokenHaircuts[i] = uint8(data[LIQUIDITY_TOKEN_HAIRCUT_FIRST_BIT - i]);
-            rateScalars[i] = uint8(data[RATE_SCALAR_FIRST_BIT - i]);
+            rateScalars[i] = uint8(data[_DEPRECATED_RATE_SCALAR_FIRST_BIT - i]);
         }
 
         return
             CashGroupSettings({
                 maxMarketIndex: maxMarketIndex,
                 rateOracleTimeWindow5Min: uint8(data[RATE_ORACLE_TIME_WINDOW_BIT]),
-                totalFeeBPS: uint8(data[TOTAL_FEE_BIT]),
+                totalFeeBPS: uint8(data[_DEPRECATED_TOTAL_FEE_BIT]),
                 reserveFeeShare: uint8(data[RESERVE_FEE_SHARE_BIT]),
                 debtBuffer5BPS: uint8(data[DEBT_BUFFER_BIT]),
                 fCashHaircut5BPS: uint8(data[FCASH_HAIRCUT_BIT]),

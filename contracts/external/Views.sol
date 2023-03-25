@@ -153,14 +153,13 @@ contract Views is StorageLayoutV2, NotionalViews {
 
     /// @notice Returns market initialization parameters for a given currency
     function getInitializationParameters(uint16 currencyId)
-        external
-        view
-        override
-        returns (int256[] memory annualizedAnchorRates, int256[] memory proportions)
-    {
+        external view override returns (
+            int256[] memory deprecated_annualizedAnchorRates,
+            int256[] memory proportions
+        ) {
         _checkValidCurrency(currencyId);
         uint256 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
-        (annualizedAnchorRates, proportions) = nTokenHandler.getInitializationParameters(
+        proportions = nTokenHandler.getInitializationParameters(
             currencyId,
             maxMarketIndex
         );
@@ -179,6 +178,26 @@ contract Views is StorageLayoutV2, NotionalViews {
             currencyId,
             maxMarketIndex
         );
+    }
+
+    function getInterestRateCurve(uint16 currencyId) external view override returns (
+        InterestRateParameters[] memory nextInterestRateCurve,
+        InterestRateParameters[] memory activeInterestRateCurve
+    ) {
+        _checkValidCurrency(currencyId);
+        uint256 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
+        // If no markets are listed, just exit
+        if (maxMarketIndex == 0) return (nextInterestRateCurve, activeInterestRateCurve);
+
+        nextInterestRateCurve = new InterestRateParameters[](maxMarketIndex);
+        activeInterestRateCurve = new InterestRateParameters[](maxMarketIndex);
+
+        for (uint256 i = 1; i <= maxMarketIndex; i++) {
+            nextInterestRateCurve[i - 1] = InterestRateCurve
+                .getNextInterestRateParameters(currencyId, i);
+            activeInterestRateCurve[i - 1] = InterestRateCurve
+                .getActiveInterestRateParameters(currencyId, i);
+        }
     }
 
     /// @notice Returns nToken address for a given currency
