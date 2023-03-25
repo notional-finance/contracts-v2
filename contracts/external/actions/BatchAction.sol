@@ -198,6 +198,9 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             }
 
             balanceState.finalizeNoWithdraw(account, accountContext);
+
+            // Check the supply cap after balances have been finalized
+            balanceState.primeRate.checkSupplyCap(balanceState.currencyId);
         }
 
         // Update the portfolio state if bitmap is not enabled. If bitmap is already enabled
@@ -438,7 +441,12 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         balanceState.primeCashWithdraw = withdrawAmount.neg();
         balanceState.finalizeWithWithdraw(account, accountContext, !redeemToUnderlying);
 
-        balanceState.finalize(account, accountContext, redeemToUnderlying);
+        // Check the supply cap after all balances have been finalized.
+        // NOTE: there is an edge condition when attempting to redeem nTokens while the supply cap has
+        // been breached that will cause this to revert. Accounts should be able to redeem their nTokens
+        // regardless of the supply cap situation. In order to work around this, accounts can call
+        // AccountAction#nTokenRedeem and then AccountAction#withdraw, neither of which check supply caps.
+        balanceState.primeRate.checkSupplyCap(balanceState.currencyId);
     }
 
     function _finalizeAccountContext(address account, AccountContext memory accountContext)

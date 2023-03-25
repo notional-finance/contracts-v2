@@ -107,6 +107,9 @@ contract AccountAction is ActionGuards {
         balanceState.finalizeNoWithdraw(account, accountContext);
         accountContext.setAccountContext(account);
 
+        // Check the supply cap after all balances have been finalized
+        balanceState.primeRate.checkSupplyCap(currencyId);
+
         // NOTE: no free collateral checks required for depositing
         return primeCashReceived.toUint();
     }
@@ -146,6 +149,9 @@ contract AccountAction is ActionGuards {
 
         balanceState.finalizeNoWithdraw(account, accountContext);
         accountContext.setAccountContext(account);
+
+        // Check the supply cap after all balances have been finalized
+        balanceState.primeRate.checkSupplyCap(currencyId);
 
         // NOTE: no free collateral checks required for depositing
         return primeCashReceived.toUint();
@@ -253,6 +259,9 @@ contract AccountAction is ActionGuards {
         if (context.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
+
+        // Do not check supply caps during nToken redemption, no deposits are taken during 
+        // redemption so the supply should not change.
 
         return (totalPrimeCash, assets.length > 0);
     }
