@@ -26,7 +26,7 @@ interface NotionalViews {
             Token memory assetToken,
             Token memory underlyingToken,
             ETHRate memory ethRate,
-            AssetRateParameters memory assetRate
+            Deprecated_AssetRateParameters memory assetRate
         );
 
     function getCashGroup(uint16 currencyId) external view returns (CashGroupSettings memory);
@@ -34,7 +34,12 @@ interface NotionalViews {
     function getCashGroupAndAssetRate(uint16 currencyId)
         external
         view
-        returns (CashGroupSettings memory cashGroup, AssetRateParameters memory assetRate);
+        returns (CashGroupSettings memory cashGroup, Deprecated_AssetRateParameters memory assetRate);
+
+    function getInterestRateCurve(uint16 currencyId) external view returns (
+        InterestRateParameters[] memory nextInterestRateCurve,
+        InterestRateParameters[] memory activeInterestRateCurve
+    );
 
     function getInitializationParameters(uint16 currencyId)
         external
@@ -47,6 +52,10 @@ interface NotionalViews {
         returns (int256[] memory depositShares, int256[] memory leverageThresholds);
 
     function nTokenAddress(uint16 currencyId) external view returns (address);
+
+    function pCashAddress(uint16 currencyId) external view returns (address);
+
+    function pDebtAddress(uint16 currencyId) external view returns (address);
 
     function getNoteToken() external view returns (address);
 
@@ -67,10 +76,23 @@ interface NotionalViews {
         view
         returns (address incentiveRewarder);
 
+    function getPrimeFactors(uint16 currencyId, uint256 blockTime) external view returns (
+        PrimeRate memory primeRate,
+        PrimeCashFactors memory factors,
+        uint256 maxUnderlyingSupply,
+        uint256 totalUnderlyingSupply
+    );
+
+    function getPrimeFactorsStored(uint16 currencyId) external view returns (PrimeCashFactors memory);
+
+    function getPrimeCashHoldingsOracle(uint16 currencyId) external view returns (address);
+
+    function getTotalfCashDebtOutstanding(uint16 currencyId, uint256 maturity) external view returns (int256);
+
     function getSettlementRate(uint16 currencyId, uint40 maturity)
         external
         view
-        returns (AssetRateParameters memory);
+        returns (PrimeRate memory);
 
     function getMarket(
         uint16 currencyId,
@@ -117,6 +139,10 @@ interface NotionalViews {
 
     function getAccountContext(address account) external view returns (AccountContext memory);
 
+    function getAccountPrimeDebtBalance(uint16 currencyId, address account) external view returns (
+        int256 debtBalance
+    );
+
     function getAccountBalance(uint16 currencyId, address account)
         external
         view
@@ -142,5 +168,9 @@ interface NotionalViews {
 
     function getReserveBuffer(uint16 currencyId) external view returns (uint256);
 
-    function getLendingPool() external view returns (address);
+    function getRebalancingTarget(uint16 currencyId, address holding) external view returns (uint8);
+
+    function getRebalancingCooldown(uint16 currencyId) external view returns (uint40);
+
+    function getStoredTokenBalances(address[] calldata tokens) external view returns (uint256[] memory balances);
 }

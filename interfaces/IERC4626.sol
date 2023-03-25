@@ -37,8 +37,8 @@ interface IERC4626 {
      * - MUST NOT reflect slippage or other on-chain conditions, when performing the actual exchange.
      * - MUST NOT revert.
      *
-     * NOTE: This calculation MAY NOT reflect the “per-user” price-per-share, and instead should reflect the
-     * “average-user’s” price-per-share, meaning what the average user should expect to see when exchanging to and
+     * NOTE: This calculation MAY NOT reflect the "per-user" price-per-share, and instead should reflect the
+     * "average-user's" price-per-share, meaning what the average user should expect to see when exchanging to and
      * from.
      */
     function convertToShares(uint256 assets) external view returns (uint256 shares);
@@ -52,8 +52,8 @@ interface IERC4626 {
      * - MUST NOT reflect slippage or other on-chain conditions, when performing the actual exchange.
      * - MUST NOT revert.
      *
-     * NOTE: This calculation MAY NOT reflect the “per-user” price-per-share, and instead should reflect the
-     * “average-user’s” price-per-share, meaning what the average user should expect to see when exchanging to and
+     * NOTE: This calculation MAY NOT reflect the "per-user" price-per-share, and instead should reflect the
+     * "average-user's" price-per-share, meaning what the average user should expect to see when exchanging to and
      * from.
      */
     function convertToAssets(uint256 shares) external view returns (uint256 assets);

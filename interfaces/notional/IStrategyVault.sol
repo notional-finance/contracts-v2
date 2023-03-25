@@ -26,10 +26,10 @@ interface IStrategyVault {
         uint256 depositAmount,
         uint256 maturity,
         bytes calldata data
-    ) external payable returns (uint256 strategyTokensMinted);
+    ) external payable returns (uint256 vaultSharesMinted);
 
     /// @notice Called when an account is exiting a position and the vault must transfer tokens
-    /// back to Notional in order to repay debts. The vault will redeem `strategyTokens` for underlying
+    /// back to Notional in order to repay debts. The vault will redeem `vaultShares` for underlying
     /// tokens and send `underlyingToRepayDebt` back to the Notional. Any remaining tokens must be
     /// sent to the `receiver` address.
     /// @dev MUST revert if called by any other contract than Notional.
@@ -38,7 +38,7 @@ interface IStrategyVault {
     function redeemFromNotional(
         address account,
         address receiver,
-        uint256 strategyTokens,
+        uint256 vaultShares,
         uint256 maturity,
         uint256 underlyingToRepayDebt,
         bytes calldata data
@@ -48,16 +48,16 @@ interface IStrategyVault {
     /// currency.
     function convertStrategyToUnderlying(
         address account,
-        uint256 strategyTokens,
+        uint256 vaultShares,
         uint256 maturity
     ) external view returns (int256 underlyingValue);
 
-    /// @notice If vaults are borrowing in secondary currencies, this hook will be called by Notional
-    /// to instruct the vault on how much secondary currency must be repaid to Notional.
-    /// @dev MUST revert if called by any other contract than Notional.
-    function repaySecondaryBorrowCallback(
-        address token,
-        uint256 underlyingRequired,
-        bytes calldata data
-    ) external returns (bytes memory returnData);
+    /// @notice Called during vault account settlement when the vault does not allow rolling
+    /// maturities, will convert strategy tokens from the given maturity into prime cash strategy
+    /// tokens.
+    function convertVaultSharesToPrimeMaturity(
+        address account,
+        uint256 vaultShares,
+        uint256 maturity
+    ) external returns (uint256 primeStrategyTokens);
 }

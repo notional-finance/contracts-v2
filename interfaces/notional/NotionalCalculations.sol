@@ -10,6 +10,13 @@ interface NotionalCalculations {
         view
         returns (uint256);
 
+    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view returns (int256);
+
+    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
+        external
+        view
+        returns (int256);
+
     function getfCashAmountGivenCashAmount(
         uint16 currencyId,
         int88 netCashToAccount,
@@ -99,4 +106,20 @@ interface NotionalCalculations {
         int256 cashBalanceInternal,
         bool useUnderlying
     ) external view returns (int256);
+
+    function convertUnderlyingToPrimeCash(
+        uint16 currencyId,
+        int256 underlyingExternal
+    ) external view returns (int256);
+
+    function convertSettledfCash(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 fCashBalance,
+        uint256 blockTime
+    ) external view returns (int256 signedPrimeSupplyValue);
+
+    function accruePrimeInterest(
+        uint16 currencyId
+    ) external returns (PrimeRate memory pr, PrimeCashFactors memory);
 }

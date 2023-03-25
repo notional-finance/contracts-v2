@@ -12,6 +12,10 @@ contract nBeaconProxy is BeaconProxy {
     }
 
     function getImplementation() external view returns (address) {
-        return _getImplementation();
+        return _implementation();
+    }
+
+    function getBeacon() external view returns (address) {
+        return _beacon();
     }
 }

@@ -9,13 +9,19 @@ interface nTokenERC20 {
 
     function nTokenTotalSupply(address nTokenAddress) external view returns (uint256);
 
+    function nTokenBalanceOf(uint16 currencyId, address account) external view returns (uint256);
+
     function nTokenTransferAllowance(
         uint16 currencyId,
         address owner,
         address spender
     ) external view returns (uint256);
 
-    function nTokenBalanceOf(uint16 currencyId, address account) external view returns (uint256);
+    function pCashTransferAllowance(
+        uint16 currencyId,
+        address owner,
+        address spender
+    ) external view returns (uint256);
 
     function nTokenTransferApprove(
         uint16 currencyId,
@@ -24,7 +30,21 @@ interface nTokenERC20 {
         uint256 amount
     ) external returns (bool);
 
+    function pCashTransferApprove(
+        uint16 currencyId,
+        address owner,
+        address spender,
+        uint256 amount
+    ) external returns (bool);
+
     function nTokenTransfer(
+        uint16 currencyId,
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
+
+    function pCashTransfer(
         uint16 currencyId,
         address from,
         address to,
@@ -39,14 +59,16 @@ interface nTokenERC20 {
         uint256 amount
     ) external returns (bool);
 
+    function pCashTransferFrom(
+        uint16 currencyId,
+        address spender,
+        address from,
+        address to,
+        uint256 amount
+    ) external returns (bool);
+
     function nTokenTransferApproveAll(address spender, uint256 amount) external returns (bool);
 
     function nTokenClaimIncentives() external returns (uint256);
 
-    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view returns (int256);
-
-    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
-        external
-        view
-        returns (int256);
 }

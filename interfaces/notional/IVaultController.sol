@@ -6,7 +6,9 @@ import {
     VaultConfigStorage,
     VaultConfig,
     VaultState,
-    VaultAccount
+    VaultAccount,
+    VaultAccountHealthFactors,
+    PrimeRate
 } from "../../contracts/global/Types.sol";
 
 interface IVaultAction {
@@ -18,84 +20,17 @@ interface IVaultAction {
     event VaultDeleverageStatus(address indexed vaultAddress, bool disableDeleverage);
     /// @notice Emitted when a secondary currency borrow capacity is updated
     event VaultUpdateSecondaryBorrowCapacity(address indexed vault, uint16 indexed currencyId, uint80 maxSecondaryBorrowCapacity);
-    /// @notice Emitted when a vault has a shortfall upon settlement
-    event VaultShortfall(address indexed vault, uint16 indexed currencyId, uint256 indexed maturity, int256 shortfall);
-    /// @notice Emitted when a vault has an insolvency that cannot be covered by the
-    /// cash reserve
-    event ProtocolInsolvency(address indexed vault, uint16 indexed currencyId, uint256 indexed maturity, int256 shortfall);
-    /// @notice Emitted when a vault fee is accrued via borrowing (denominated in asset cash)
-    event VaultFeeAccrued(address indexed vault, uint16 indexed currencyId, uint256 indexed maturity, int256 reserveFee, int256 nTokenFee);
     /// @notice Emitted when the borrow capacity on a vault changes
     event VaultBorrowCapacityChange(address indexed vault, uint16 indexed currencyId, uint256 totalUsedBorrowCapacity);
 
     /// @notice Emitted when a vault executes a secondary borrow
-    event VaultSecondaryBorrow(
+    event VaultSecondaryTransaction(
         address indexed vault,
         address indexed account,
         uint16 indexed currencyId,
         uint256 maturity,
-        uint256 debtSharesMinted,
-        uint256 fCashBorrowed
-    );
-
-    /// @notice Emitted when a vault repays a secondary borrow
-    event VaultRepaySecondaryBorrow(
-        address indexed vault,
-        address indexed account,
-        uint16 indexed currencyId,
-        uint256 maturity,
-        uint256 debtSharesRepaid,
-        uint256 fCashLent
-    );
-
-    /// @notice Emitted when secondary borrows are snapshot prior to settlement
-    event VaultSecondaryBorrowSnapshot(
-        address indexed vault,
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 totalfCashBorrowedInPrimarySnapshot,
-        int256 exchangeRate
-    );
-
-    /// @notice Emitted when a vault settles assets
-    event VaultSettledAssetsRemaining(
-        address indexed vault,
-        uint256 indexed maturity,
-        int256 remainingPrimeCash,
-        uint256 remainingStrategyTokens
-    );
-
-    event VaultStateUpdate(
-        address indexed vault,
-        uint256 indexed maturity,
-        int256 totalfCash,
-        uint256 totalPrimeCash,
-        uint256 totalStrategyTokens,
-        uint256 totalVaultShares
-    );
-
-    event VaultSettled(
-        address indexed vault,
-        uint256 indexed maturity,
-        int256 totalfCash,
-        uint256 totalPrimeCash,
-        uint256 totalStrategyTokens,
-        uint256 totalVaultShares,
-        int256 strategyTokenValue
-    );
-    
-    event VaultRedeemStrategyToken(
-        address indexed vault,
-        uint256 indexed maturity,
-        int256 primeCashReceived,
-        uint256 strategyTokensRedeemed
-    );
-    
-    event VaultMintStrategyToken(
-        address indexed vault,
-        uint256 indexed maturity,
-        uint256 primeCashDeposited,
-        uint256 strategyTokensMinted
+        int256 netUnderlyingDebt,
+        int256 netPrimeSupply
     );
 
     /** Vault Action Methods */
@@ -124,15 +59,6 @@ interface IVaultAction {
         uint80 maxVaultBorrowCapacity
     ) external;
 
-    /// @notice Governance only method to force a particular vault to deleverage
-    function reduceMaxBorrowCapacity(
-        address vaultAddress,
-        uint80 maxVaultBorrowCapacity,
-        uint256 maturity,
-        uint256 strategyTokensToRedeem,
-        bytes calldata vaultData
-    ) external;
-
     /// @notice Governance only method to update a vault's secondary borrow capacity
     function updateSecondaryBorrowCapacity(
         address vaultAddress,
@@ -140,130 +66,28 @@ interface IVaultAction {
         uint80 maxBorrowCapacity
     ) external;
 
-    /// @notice Vault authenticated method that takes asset cash from the pool and mints strategy tokens
-    function depositVaultCashToStrategyTokens(
-        uint256 maturity,
-        uint256 primeCashToDepositExternal,
-        bytes calldata vaultData
-    ) external;
-
-    /// @notice Vault authenticated method that takes strategy tokens and mints asset cash to the pool
-    function redeemStrategyTokensToCash(
-        uint256 maturity,
-        uint256 strategyTokensToRedeem,
-        bytes calldata vaultData
-    ) external returns (
-        int256 primeCashRequiredToSettle,
-        int256 underlyingCashRequiredToSettle
-    );
-
     function borrowSecondaryCurrencyToVault(
         address account,
         uint256 maturity,
-        uint256[2] calldata fCashToBorrow,
+        uint256[2] calldata underlyingToBorrow,
         uint32[2] calldata maxBorrowRate,
         uint32[2] calldata minRollLendRate
-    ) external returns (uint256[2] memory underlyingTokensTransferred);
+    ) external returns (int256[2] memory underlyingTokensTransferred);
 
     function repaySecondaryCurrencyFromVault(
         address account,
-        uint16 currencyId,
         uint256 maturity,
-        uint256 fCashToRepay,
-        uint32 slippageLimit,
-        bytes calldata callbackData
-    ) external returns (bytes memory returnData);
+        uint256[2] calldata underlyingToRepay,
+        uint32[2] calldata minLendRate
+    ) external payable returns (int256[2] memory underlyingDepositExternal);
 
-    function initiateSecondaryBorrowSettlement(uint256 maturity)
-        external returns (uint256[2] memory secondaryBorrowSnapshot);
-
-    /// @notice Non-authenticated method that will set settlement values for a vault so that
-    /// account holders can withdraw matured assets.
-    function settleVault(address vault, uint256 maturity) external;
-
-    /// @notice View method to get vault configuration
-    function getVaultConfig(address vault) external view returns (VaultConfig memory vaultConfig);
-
-    function getBorrowCapacity(address vault, uint16 currencyId)
-        external view returns (uint256 totalUsedBorrowCapacity, uint256 maxBorrowCapacity);
-
-    function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
-        external view returns (
-            uint256 totalfCashBorrowed,
-            uint256 totalAccountDebtShares,
-            uint256 totalfCashBorrowedInPrimarySnapshot
-        );
-
-    /// @notice View method to get vault state
-    function getVaultState(address vault, uint256 maturity) external view returns (VaultState memory vaultState);
-
-    /// @notice View method to get the current amount of cash remaining to settle the vault
-    function getCashRequiredToSettle(
+    function settleSecondaryBorrowForAccount(
         address vault,
-        uint256 maturity
-    ) external view returns (
-        int256 primeCashRequiredToSettle,
-        int256 underlyingCashRequiredToSettle
-    );
+        address account
+    ) external returns (bool didTransferSecondary);
 }
 
 interface IVaultAccountAction {
-
-    event VaultEnterPosition(
-        address indexed vault,
-        address indexed account,
-        uint256 indexed maturity,
-        uint256 fCashBorrowed
-    );
-
-    event VaultRollPosition(
-        address indexed vault,
-        address indexed account,
-        uint256 indexed newMaturity,
-        uint256 fCashBorrowed
-    );
-
-    event VaultExitPostMaturity(
-        address indexed vault,
-        address indexed account,
-        uint256 indexed maturity,
-        uint256 underlyingToReceiver
-    );
-
-    event VaultExitPreMaturity(
-        address indexed vault,
-        address indexed account,
-        uint256 indexed maturity,
-        uint256 fCashToLend,
-        uint256 vaultSharesToRedeem,
-        uint256 underlyingToReceiver
-    );
-
-    event VaultDeleverageAccount(
-        address indexed vault,
-        address indexed account,
-        uint256 vaultSharesToLiquidator,
-        int256 fCashRepaid
-    );
-
-    event VaultLiquidatorProfit(
-        address indexed vault,
-        address indexed account,
-        address indexed liquidator,
-        uint256 vaultSharesToLiquidator,
-        bool transferSharesToLiquidator
-    );
-
-    event VaultEnterMaturity(
-        address indexed vault,
-        uint256 indexed maturity,
-        address indexed account,
-        uint256 underlyingTokensDeposited,
-        uint256 cashTransferToVault,
-        uint256 strategyTokenDeposited,
-        uint256 vaultSharesMinted
-    );
-    
     /**
      * @notice Borrows a specified amount of fCash in the vault's borrow currency and deposits it
      * all plus the depositAmountExternal into the vault to mint strategy tokens.
@@ -335,6 +159,35 @@ interface IVaultAccountAction {
         bytes calldata exitVaultData
     ) external payable returns (uint256 underlyingToReceiver);
 
+    function settleVaultAccount(address account, address vault) external;
+}
+
+interface IVaultLiquidationAction {
+    event VaultDeleverageAccount(
+        address indexed vault,
+        address indexed account,
+        uint16 currencyId,
+        uint256 vaultSharesToLiquidator,
+        int256 depositAmountPrimeCash
+    );
+
+    event VaultLiquidatorProfit(
+        address indexed vault,
+        address indexed account,
+        address indexed liquidator,
+        uint256 vaultSharesToLiquidator,
+        bool transferSharesToLiquidator
+    );
+    
+    event VaultAccountCashLiquidation(
+        address indexed vault,
+        address indexed account,
+        address indexed liquidator,
+        uint16 currencyId,
+        int256 fCashDeposit,
+        int256 cashToLiquidator
+    );
+
     /**
      * @notice If an account is below the minimum collateral ratio, this method wil deleverage (liquidate)
      * that account. `depositAmountExternal` in the borrow currency will be transferred from the liquidator
@@ -343,32 +196,69 @@ interface IVaultAccountAction {
      * @param account the address that will exit the vault
      * @param vault the vault to enter
      * @param liquidator the address that will receive profits from liquidation
-     * @param depositAmountExternal amount of cash to deposit
-     * @param transferSharesToLiquidator transfers the shares to the liquidator instead of redeeming them
-     * @param redeemData calldata sent to the vault when redeeming liquidator profits
-     * @return profitFromLiquidation amount of vaultShares or cash received from liquidation
+     * @param depositAmountPrimeCash amount of cash to deposit
+     * @return vaultSharesFromLiquidation amount of vaultShares received from liquidation
      */
     function deleverageAccount(
         address account,
         address vault,
         address liquidator,
-        uint256 depositAmountExternal,
-        bool transferSharesToLiquidator,
-        bytes calldata redeemData
-    ) external returns (uint256 profitFromLiquidation);
+        uint16 currencyIndex,
+        int256 depositUnderlyingInternal
+    ) external payable returns (uint256 vaultSharesFromLiquidation, int256 depositAmountPrimeCash);
 
-    function getVaultAccount(address account, address vault) external view returns (VaultAccount memory);
-    function getVaultAccountDebtShares(address account, address vault) external view returns (
-        uint256 debtSharesMaturity,
-        uint256[2] memory accountDebtShares,
-        uint256 accountStrategyTokens
-    );
-    function getVaultAccountCollateralRatio(address account, address vault) external view returns (
-        int256 collateralRatio,
-        int256 minCollateralRatio,
-        int256 maxLiquidatorDepositPrimeCash,
-        uint256 vaultSharesToLiquidator
-    );
+    function liquidateVaultCashBalance(
+        address account,
+        address vault,
+        address liquidator,
+        uint256 currencyIndex,
+        int256 fCashDeposit
+    ) external returns (int256 cashToLiquidator);
 }
 
-interface IVaultController is IVaultAccountAction, IVaultAction {}
+interface IVaultAccountHealth {
+    function getVaultAccountHealthFactors(address account, address vault) external view returns (
+        VaultAccountHealthFactors memory h,
+        int256[3] memory maxLiquidatorDepositUnderlying,
+        uint256[3] memory vaultSharesToLiquidator
+    );
+
+    function calculateDepositAmountInDeleverage(
+        uint256 currencyIndex,
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        VaultState memory vaultState,
+        int256 depositUnderlyingInternal
+    ) external returns (int256 depositInternal, uint256 vaultSharesToLiquidator, PrimeRate memory);
+
+    function checkVaultAccountCollateralRatio(address vault, address account) external;
+
+    function getVaultAccount(address account, address vault) external view returns (VaultAccount memory);
+    function getVaultAccountWithFeeAccrual(
+        address account, address vault
+    ) external view returns (VaultAccount memory, int256 accruedPrimeVaultFeeInUnderlying);
+
+    function getVaultConfig(address vault) external view returns (VaultConfig memory vaultConfig);
+
+    function getBorrowCapacity(address vault, uint16 currencyId) external view returns (
+        uint256 currentPrimeDebtUnderlying,
+        uint256 totalfCashDebt,
+        uint256 maxBorrowCapacity
+    );
+
+    function getSecondaryBorrow(address vault, uint16 currencyId, uint256 maturity) 
+        external view returns (int256 totalDebt);
+
+    /// @notice View method to get vault state
+    function getVaultState(address vault, uint256 maturity) external view returns (VaultState memory vaultState);
+
+    function getVaultAccountSecondaryDebt(address account, address vault) external view returns (
+        uint256 maturity,
+        int256[2] memory accountSecondaryDebt,
+        int256[2] memory accountSecondaryCashHeld
+    );
+
+    function signedBalanceOfVaultTokenId(address account, uint256 id) external view returns (int256);
+}
+
+interface IVaultController is IVaultAccountAction, IVaultAction, IVaultLiquidationAction, IVaultAccountHealth {}

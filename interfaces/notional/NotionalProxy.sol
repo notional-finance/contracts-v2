@@ -108,6 +108,42 @@ interface NotionalProxy is
         int256[] fCashNotionalTransfer
     );
 
+    event SetPrimeSettlementRate(
+        uint256 indexed currencyId,
+        uint256 indexed maturity,
+        int256 supplyFactor,
+        int256 debtFactor
+    );
+
+    /// @notice Emits every time interest is accrued
+    event PrimeCashInterestAccrued(uint16 indexed currencyId);
+
+    /// @notice Emits when the totalPrimeDebt changes due to borrowing
+    event PrimeDebtChanged(
+        uint16 indexed currencyId,
+        uint256 totalPrimeSupply,
+        uint256 totalPrimeDebt
+    );
+
+    /// @notice Emits when the totalPrimeSupply changes due to token deposits or withdraws
+    event PrimeSupplyChanged(
+        uint16 indexed currencyId,
+        uint256 totalPrimeSupply,
+        uint256 lastTotalUnderlyingValue
+    );
+
+    event PrimeCashCurveChanged(uint16 indexed currencyId);
+
+    event PrimeCashHoldingsOracleUpdated(uint16 indexed currencyId, address oracle);
+
+    event TotalfCashDebtOutstandingChanged(
+        uint16 indexed currencyId,
+        uint256 indexed maturity,
+        int256 totalfCashDebt,
+        int256 netDebtChange
+    );
+
+
     /** UUPS Upgradeable contract calls */
     function upgradeTo(address newImplementation) external;
 
@@ -126,7 +162,7 @@ interface NotionalProxy is
 
     function sweepCashIntoMarkets(uint16 currencyId) external;
 
-    /** Redeem nToken Action */
+    /** Account Action */
     function nTokenRedeem(
         address redeemer,
         uint16 currencyId,
@@ -135,7 +171,8 @@ interface NotionalProxy is
         bool acceptResidualAssets
     ) external returns (int256);
 
-    /** Account Action */
+    function enablePrimeBorrow(bool allowPrimeBorrow) external;
+
     function enableBitmapCurrency(uint16 currencyId) external;
 
     function settleAccount(address account) external;
@@ -184,7 +221,7 @@ interface NotionalProxy is
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external returns (int256, int256);
+    ) external payable returns (int256, int256);
 
     function calculateCollateralCurrencyLiquidation(
         address liquidateAccount,
@@ -192,13 +229,7 @@ interface NotionalProxy is
         uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation
-    )
-        external
-        returns (
-            int256,
-            int256,
-            int256
-        );
+    ) external returns (int256, int256, int256);
 
     function liquidateCollateralCurrency(
         address liquidateAccount,
@@ -208,13 +239,7 @@ interface NotionalProxy is
         uint96 maxNTokenLiquidation,
         bool withdrawCollateral,
         bool redeemToUnderlying
-    )
-        external
-        returns (
-            int256,
-            int256,
-            int256
-        );
+    ) external payable returns (int256, int256, int256);
 
     function calculatefCashLocalLiquidation(
         address liquidateAccount,
@@ -228,7 +253,7 @@ interface NotionalProxy is
         uint16 localCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256);
+    ) external payable returns (int256[] memory, int256);
 
     function calculatefCashCrossCurrencyLiquidation(
         address liquidateAccount,
@@ -244,5 +269,5 @@ interface NotionalProxy is
         uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         uint256[] calldata maxfCashLiquidateAmounts
-    ) external returns (int256[] memory, int256);
+    ) external payable returns (int256[] memory, int256);
 }

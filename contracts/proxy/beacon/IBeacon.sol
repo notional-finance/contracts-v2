@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 // OpenZeppelin Contracts v4.3.2 (proxy/beacon/IBeacon.sol)
 
-pragma solidity =0.7.6;
+pragma solidity >=0.7.6;
 
 /**
  * @dev This is the interface that {BeaconProxy} expects of its beacon.
@@ -13,4 +13,8 @@ interface IBeacon {
      * {BeaconProxy} will check that this address is a contract.
      */
     function implementation() external view returns (address);
+}
+
+interface IUpgradeableBeacon is IBeacon {
+    function upgradeTo(address newImplementation) external;
 }
