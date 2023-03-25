@@ -254,27 +254,6 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         emit UpdateInitializationParameters(currencyId);
     }
 
-    /// @notice Updates the emission rate of incentives for a given currency
-    /// @dev emit:UpdateIncentiveEmissionRate
-    /// @param currencyId the currency id that the nToken references
-    /// @param newEmissionRate Target total incentives to emit for an nToken over an entire year
-    /// denominated in WHOLE TOKENS (i.e. setting this to 1 means 1e8 tokens). The rate will not be
-    /// exact due to multiplier effects and fluctuating token supply.
-    function updateIncentiveEmissionRate(uint16 currencyId, uint32 newEmissionRate)
-        external
-        override
-        onlyOwner
-    {
-        _checkValidCurrency(currencyId);
-        address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(nTokenAddress != address(0), "Invalid currency");
-        // Sanity check that emissions rate is not specified in 1e8 terms.
-        require(newEmissionRate < Constants.INTERNAL_TOKEN_PRECISION, "Invalid rate");
-
-        nTokenSupply.setIncentiveEmissionRate(nTokenAddress, newEmissionRate, block.timestamp);
-        emit UpdateIncentiveEmissionRate(currencyId, newEmissionRate);
-    }
-
     /// @notice Updates collateralization parameters for an nToken
     /// @dev emit:UpdateTokenCollateralParameters
     /// @param currencyId the currency id that the nToken references
