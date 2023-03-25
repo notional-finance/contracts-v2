@@ -208,6 +208,7 @@ library LiquidationHelpers {
 
     function finalizeLiquidatorLocal(
         address liquidator,
+        address liquidateAccount,
         uint16 localCurrencyId,
         int256 netLocalFromLiquidator,
         int256 netLocalNTokens
@@ -247,12 +248,16 @@ library LiquidationHelpers {
         liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
         liquidatorLocalBalance.finalizeNoWithdraw(liquidator, liquidatorContext);
 
+        Emitter.emitTransferPrimeCash(liquidator, liquidateAccount, localCurrencyId, netLocalFromLiquidator);
+        Emitter.emitTransferNToken(liquidator, liquidateAccount, localCurrencyId, netLocalNTokens);
+
         return liquidatorContext;
     }
 
     function finalizeLiquidatorCollateral(
         address liquidator,
         AccountContext memory liquidatorContext,
+        address liquidateAccount,
         uint16 collateralCurrencyId,
         int256 netCollateralToLiquidator,
         int256 netCollateralNTokens,
@@ -272,6 +277,9 @@ library LiquidationHelpers {
         balance.netNTokenTransfer = netCollateralNTokens;
         // Liquidator will always receive native ETH
         balance.finalizeWithWithdraw(liquidator, liquidatorContext, false);
+
+        Emitter.emitTransferPrimeCash(liquidateAccount, liquidator, collateralCurrencyId, netCollateralToLiquidator);
+        Emitter.emitTransferNToken(liquidateAccount, liquidator, collateralCurrencyId, netCollateralNTokens);
 
         return liquidatorContext;
     }

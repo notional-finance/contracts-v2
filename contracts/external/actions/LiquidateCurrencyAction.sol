@@ -100,13 +100,13 @@ contract LiquidateCurrencyAction is ActionGuards {
         //  - transfers local asset cash to/from liquidator wallet (not notional cash
         //    balance). Exception is with tokens that have a transfer fee
         //  - transfers ntokens to liquidator
-        AccountContext memory liquidatorContext =
-            LiquidationHelpers.finalizeLiquidatorLocal(
-                msg.sender,
-                localCurrency,
-                localPrimeCashFromLiquidator,
-                localBalanceState.netNTokenTransfer.neg()
-            );
+        AccountContext memory liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
+            msg.sender,
+            liquidateAccount,
+            localCurrency,
+            localPrimeCashFromLiquidator,
+            localBalanceState.netNTokenTransfer.neg()
+        );
         liquidatorContext.setAccountContext(msg.sender);
 
         // Finalizes liquidated account changes:
@@ -197,13 +197,13 @@ contract LiquidateCurrencyAction is ActionGuards {
             BalanceState memory collateralBalanceState,
             AccountContext memory accountContext
         ) = _collateralCurrencyLiquidation(
-                liquidateAccount,
-                localCurrency,
-                collateralCurrency,
-                maxCollateralLiquidation,
-                maxNTokenLiquidation,
-                false // is not calculation
-            );
+            liquidateAccount,
+            localCurrency,
+            collateralCurrency,
+            maxCollateralLiquidation,
+            maxNTokenLiquidation,
+            false // is not calculation
+        );
 
         // Finalizes the liquidator side of the transaction:
         //   - transfers local asset cash from the liquidator wallet (exception
@@ -213,6 +213,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         //   - transfers ntokens to liquidator
         //   - sets account context
         _finalizeLiquidatorBalances(
+            liquidateAccount,
             localCurrency,
             collateralCurrency,
             localPrimeCashFromLiquidator,
@@ -288,8 +289,8 @@ contract LiquidateCurrencyAction is ActionGuards {
         factors.isCalculation = isCalculation;
 
         localPrimeCashFromLiquidator = LiquidateCurrency.liquidateLocalCurrency(
-                maxNTokenLiquidation,
-                localBalanceState,
+            maxNTokenLiquidation,
+            localBalanceState,
             factors
         );
     }
@@ -309,21 +310,22 @@ contract LiquidateCurrencyAction is ActionGuards {
         LiquidationFactors memory factors;
         (accountContext, factors, /* */) = LiquidationHelpers.preLiquidationActions(
             liquidateAccount, localCurrency, collateralCurrency
-            );
+        );
 
         collateralBalanceState.loadBalanceState(liquidateAccount, collateralCurrency, accountContext);
         factors.isCalculation = isCalculation;
 
         localPrimeCashFromLiquidator = LiquidateCurrency.liquidateCollateralCurrency(
-                maxCollateralLiquidation,
-                maxNTokenLiquidation,
-                collateralBalanceState,
+            maxCollateralLiquidation,
+            maxNTokenLiquidation,
+            collateralBalanceState,
             factors
         );
     }
 
     /// @dev Only used for collateral currency liquidation
     function _finalizeLiquidatorBalances(
+        address liquidateAccount,
         uint16 localCurrency,
         uint16 collateralCurrency,
         int256 localPrimeCashFromLiquidator,
@@ -332,18 +334,19 @@ contract LiquidateCurrencyAction is ActionGuards {
         bool redeemToUnderlying
     ) private {
         // Will transfer local currency from the liquidator
-        AccountContext memory liquidatorContext =
-            LiquidationHelpers.finalizeLiquidatorLocal(
-                msg.sender,
-                localCurrency,
-                localPrimeCashFromLiquidator,
-                0 // No nToken transfers
-            );
+        AccountContext memory liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
+            msg.sender,
+            liquidateAccount,
+            localCurrency,
+            localPrimeCashFromLiquidator,
+            0 // No nToken transfers
+        );
 
         // Will transfer collateral to the liquidator
         LiquidationHelpers.finalizeLiquidatorCollateral(
             msg.sender,
             liquidatorContext,
+            liquidateAccount,
             collateralCurrency,
             collateralBalanceState.netCashChange.neg(),
             collateralBalanceState.netNTokenTransfer.neg(),

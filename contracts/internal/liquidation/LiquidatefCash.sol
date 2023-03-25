@@ -255,7 +255,6 @@ library LiquidatefCash {
         require(c.factors.localPrimeAvailable < 0); // dev: no local debt
         require(c.factors.collateralAssetAvailable > 0); // dev: no collateral assets
 
-        c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
         {
             // NOTE: underlying benefit is return in asset terms from this function, convert it to underlying
             // for the purposes of this method. The underlyingBenefitRequired is denominated in collateral currency
@@ -483,6 +482,9 @@ library LiquidatefCash {
             netLocalFromLiquidator,
             primeRate
         );
+
+        // If netLocalFromLiquidator < 0, will flip the from and to addresses
+        Emitter.emitTransferPrimeCash(liquidator, liquidateAccount, localCurrency, netLocalFromLiquidator);
 
         bool liquidatorIncursDebt;
         (liquidatorIncursDebt, liquidatorContext) =
