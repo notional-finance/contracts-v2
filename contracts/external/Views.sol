@@ -556,6 +556,24 @@ contract Views is StorageLayoutV2, NotionalViews {
         return reserveBuffer[currencyId];
     }
 
+    function getRebalancingTarget(uint16 currencyId, address holding) external view override returns (uint8) {
+        mapping(address => uint8) storage rebalancingTargets = LibStorage.getRebalancingTargets()[currencyId];
+        return rebalancingTargets[holding];
+    }
+
+    function getRebalancingCooldown(uint16 currencyId) external view override returns (uint40) {
+        mapping(uint16 => RebalancingContextStorage) storage store = LibStorage.getRebalancingContext();
+        return store[currencyId].rebalancingCooldownInSeconds;
+    }
+
+    function getStoredTokenBalances(address[] calldata tokens) external view override returns (uint256[] memory balances) {
+        mapping(address => uint256) storage store = LibStorage.getStoredTokenBalances();
+        balances = new uint256[](tokens.length);
+        for (uint256 i; i < tokens.length; ++i) {
+            balances[i] = store[tokens[i]];
+        }
+    }
+
     /// @notice Get a list of deployed library addresses (sorted by library name)
     function getLibInfo() external pure returns (address, address) {
         return (address(FreeCollateralExternal), address(MigrateIncentives));

@@ -39,6 +39,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
     IERC20 public immutable COMP;
     Comptroller public immutable COMPTROLLER;
+    IRebalancingStrategy public immutable REBALANCING_STRATEGY;
 
     /// @dev Harvest methods are only callable by the authorized treasury manager contract
     modifier onlyManagerContract() {
@@ -46,9 +47,10 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         _;
     }
 
-    constructor(Comptroller _comptroller) {
+    constructor(Comptroller _comptroller, IRebalancingStrategy _rebalancingStrategy) {
         COMPTROLLER = _comptroller;
         COMP = IERC20(_comptroller.getCompAddress());
+        REBALANCING_STRATEGY = _rebalancingStrategy;
     }
 
     /// @notice Sets the new treasury manager contract
@@ -190,5 +192,154 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
         // NOTE: TreasuryManager contract will emit an AssetsHarvested event
         return amountsTransferred;
+    }
+
+    function setRebalancingTargets(uint16 currencyId, RebalancingTargetConfig[] calldata targets) external override onlyOwner {
+        IPrimeCashHoldingsOracle oracle = PrimeCashExchangeRate.getPrimeCashHoldingsOracle(currencyId);
+        address[] memory holdings = oracle.holdings();
+
+        require(targets.length == holdings.length);
+
+        mapping(address => uint8) storage rebalancingTargets = LibStorage.getRebalancingTargets()[currencyId];
+        uint256 totalPercentage;
+        for (uint256 i; i < holdings.length; ++i) {
+            RebalancingTargetConfig calldata config = targets[i];
+            address holding = holdings[i];
+
+            require(config.holding == holding);
+            totalPercentage = totalPercentage.add(config.target);
+            rebalancingTargets[holding] = config.target;
+        }
+        require(totalPercentage <= uint256(Constants.PERCENTAGE_DECIMALS));
+
+        emit RebalancingTargetsUpdated(currencyId, targets);
+    }
+
+    function setRebalancingCooldown(uint16 currencyId, uint40 cooldownTimeInSeconds) external override onlyOwner {
+        mapping(uint16 => RebalancingContextStorage) storage store = LibStorage.getRebalancingContext();
+        store[currencyId].rebalancingCooldownInSeconds = cooldownTimeInSeconds;
+        emit RebalancingCooldownUpdated(currencyId, cooldownTimeInSeconds);
+    }
+
+    function rebalance(uint16[] calldata currencyId) external override onlyManagerContract {
+        for (uint256 i; i < currencyId.length; ++i) {
+            _rebalanceCurrency(currencyId[i]);
+        }
+    }
+
+    function _rebalanceCurrency(uint16 currencyId) private {
+        RebalancingContextStorage memory context = LibStorage.getRebalancingContext()[currencyId];
+
+        require(
+            uint256(context.lastRebalanceTimestampInSeconds).add(context.rebalancingCooldownInSeconds) < block.timestamp, 
+            "Rebalancing cooldown"
+        );
+
+        // Accrues interest up to the current block before any rebalancing is executed
+        PrimeRateLib.buildPrimeRateStateful(currencyId);
+
+        PrimeCashFactors memory factors = PrimeCashExchangeRate.getPrimeCashFactors(currencyId);
+        _executeRebalance(currencyId);
+
+        // if previous underlying scalar at rebalance == 0, then it is the first rebalance and
+        // annualized interest rate will be left as zero. The previous underlying scalar will
+        // be set to the new factors.underlyingScalar.
+        uint256 annualizedInterestRate;
+        if (context.previousUnderlyingScalarAtRebalance != 0) {
+            uint256 interestRate = factors.underlyingScalar
+                .mul(Constants.SCALAR_PRECISION)
+                .div(context.previousUnderlyingScalarAtRebalance)
+                .sub(Constants.SCALAR_PRECISION) 
+                .div(uint256(Constants.RATE_PRECISION));
+
+            annualizedInterestRate = interestRate
+                .mul(Constants.YEAR)
+                .div(block.timestamp.sub(context.lastRebalanceTimestampInSeconds));
+        }
+
+        _saveRebalancingContext(currencyId, factors.underlyingScalar, annualizedInterestRate);
+
+        emit CurrencyRebalanced(currencyId, factors.underlyingScalar, annualizedInterestRate);
+    }
+
+    function _saveRebalancingContext(uint16 currencyId, uint256 underlyingScalar, uint256 annualizedInterestRate) private {
+        mapping(uint16 => RebalancingContextStorage) storage store = LibStorage.getRebalancingContext();
+        store[currencyId].lastRebalanceTimestampInSeconds = block.timestamp.toUint40();
+        store[currencyId].previousUnderlyingScalarAtRebalance = underlyingScalar.toUint80();
+        store[currencyId].oracleMoneyMarketRate = annualizedInterestRate.toUint32();
+    }
+
+    function _getRebalancingTargets(uint16 currencyId, address[] memory holdings) private view returns (uint8[] memory targets) {
+        mapping(address => uint8) storage rebalancingTargets = LibStorage.getRebalancingTargets()[currencyId];
+        targets = new uint8[](holdings.length);
+        uint256 totalPercentage;
+        for (uint256 i; i < holdings.length; ++i) {
+            uint8 target = rebalancingTargets[holdings[i]];
+            targets[i] = target;
+            totalPercentage = totalPercentage.add(target);
+        }
+        require(totalPercentage <= uint256(Constants.PERCENTAGE_DECIMALS));
+    }
+
+    function _executeRebalance(uint16 currencyId) private {
+        IPrimeCashHoldingsOracle oracle = PrimeCashExchangeRate.getPrimeCashHoldingsOracle(currencyId);
+        uint8[] memory rebalancingTargets = _getRebalancingTargets(currencyId, oracle.holdings());
+        (RebalancingData memory data) = REBALANCING_STRATEGY.calculateRebalance(oracle, rebalancingTargets);
+
+        (/* */, uint256 totalUnderlyingValueBefore) = oracle.getTotalUnderlyingValueStateful();
+
+        // Process redemptions first
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
+        TokenHandler.executeMoneyMarketRedemptions(underlyingToken, data.redeemData);
+
+        // Process deposits
+        _executeDeposits(underlyingToken, data.depositData);
+
+        (/* */, uint256 totalUnderlyingValueAfter) = oracle.getTotalUnderlyingValueStateful();
+
+        int256 underlyingDelta = totalUnderlyingValueBefore.toInt().sub(totalUnderlyingValueAfter.toInt());
+        require(underlyingDelta.abs() < Constants.REBALANCING_UNDERLYING_DELTA);
+    }
+
+    function _executeDeposits(Token memory underlyingToken, DepositData[] memory deposits) private {
+        uint256 totalUnderlyingDepositAmount;
+        
+        for (uint256 i; i < deposits.length; i++) {
+            DepositData memory depositData = deposits[i];
+            // Measure the token balance change if the `assetToken` value is set in the
+            // current deposit data struct. 
+            uint256 oldAssetBalance = IERC20(depositData.assetToken).balanceOf(address(this));
+
+            // Measure the underlying balance change before and after the call.
+            uint256 oldUnderlyingBalance = underlyingToken.balanceOf(address(this));
+
+            for (uint256 j; j < depositData.targets.length; ++j) {
+                // This will revert if the individual call reverts.
+                GenericToken.executeLowLevelCall(
+                    depositData.targets[j], 
+                    depositData.msgValue[j], 
+                    depositData.callData[j]
+                );
+            }
+
+            // Ensure that the underlying balance change matches the deposit amount
+            uint256 newUnderlyingBalance = underlyingToken.balanceOf(address(this));
+            uint256 underlyingBalanceChange = oldUnderlyingBalance.sub(newUnderlyingBalance);
+            // If the call is not the final deposit, then underlyingDepositAmount should
+            // be set to zero.
+            require(underlyingBalanceChange <= depositData.underlyingDepositAmount);
+        
+            // Measure and update the asset token
+            uint256 newAssetBalance = IERC20(depositData.assetToken).balanceOf(address(this));
+            require(oldAssetBalance <= newAssetBalance);
+            TokenHandler.updateStoredTokenBalance(depositData.assetToken, oldAssetBalance, newAssetBalance);
+
+            // Update the total value with the net change
+            totalUnderlyingDepositAmount = totalUnderlyingDepositAmount.add(underlyingBalanceChange);
+
+            // totalUnderlyingDepositAmount needs to be subtracted from the underlying balance because
+            // we are trading underlying cash for asset cash
+            TokenHandler.updateStoredTokenBalance(underlyingToken.tokenAddress, oldUnderlyingBalance, newUnderlyingBalance);
+        }
     }
 }
