@@ -2,15 +2,29 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./nTokenHandler.sol";
-import "../portfolio/BitmapAssetsHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../math/Bitmap.sol";
+import {
+    PrimeRate,
+    nTokenPortfolio,
+    CashGroupParameters,
+    MarketParameters,
+    PortfolioAsset
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {Bitmap} from "../../math/Bitmap.sol";
+
+import {BitmapAssetsHandler} from "../portfolio/BitmapAssetsHandler.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {CashGroup} from "../markets/CashGroup.sol";
+import {DateTime} from "../markets/DateTime.sol";
+import {AssetHandler} from "../valuation/AssetHandler.sol";
+
+import {nTokenHandler} from "./nTokenHandler.sol";
 
 library nTokenCalculations {
     using Bitmap for bytes32;
     using SafeInt256 for int256;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using CashGroup for CashGroupParameters;
 
     /// @notice Returns the nToken present value denominated in asset terms.

@@ -2,19 +2,37 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../internal/markets/Market.sol";
-import "../../internal/nToken/nTokenHandler.sol";
-import "../../internal/nToken/nTokenCalculations.sol";
-import "../../internal/portfolio/PortfolioHandler.sol";
-import "../../internal/portfolio/TransferAssets.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../math/Bitmap.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    BalanceState,
+    CashGroupParameters,
+    MarketParameters,
+    nTokenPortfolio,
+    PortfolioState,
+    PortfolioAsset,
+    ifCashStorage,
+    AssetStorageState
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {Bitmap} from "../../math/Bitmap.sol";
+
+import {Emitter} from "../../internal/Emitter.sol";
+import {Market} from "../../internal/markets/Market.sol";
+import {DateTime} from "../../internal/markets/DateTime.sol";
+import {CashGroup} from "../../internal/markets/CashGroup.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {nTokenCalculations} from "../../internal/nToken/nTokenCalculations.sol";
+import {PortfolioHandler} from "../../internal/portfolio/PortfolioHandler.sol";
+import {TransferAssets} from "../../internal/portfolio/TransferAssets.sol";
+import {BitmapAssetsHandler} from "../../internal/portfolio/BitmapAssetsHandler.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {PrimeCashExchangeRate} from "../../internal/pCash/PrimeCashExchangeRate.sol";
 
 library nTokenRedeemAction {
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using Bitmap for bytes32;
     using BalanceHandler for BalanceState;
     using Market for MarketParameters;

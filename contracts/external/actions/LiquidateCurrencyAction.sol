@@ -2,11 +2,21 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./ActionGuards.sol";
-import "../../internal/AccountContextHandler.sol";
-import "../../internal/liquidation/LiquidateCurrency.sol";
-import "../../internal/liquidation/LiquidationHelpers.sol";
-import "../../math/SafeInt256.sol";
+import {
+    BalanceState,
+    AccountContext,
+    LiquidationFactors
+} from "../../global/Types.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+
+import {AccountContextHandler} from "../../internal/AccountContextHandler.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {LiquidateCurrency} from "../../internal/liquidation/LiquidateCurrency.sol";
+import {LiquidationHelpers} from "../../internal/liquidation/LiquidationHelpers.sol";
+import {ActionGuards} from "./ActionGuards.sol";
+
+import {MigrateIncentives} from "../MigrateIncentives.sol";
+import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
 
 contract LiquidateCurrencyAction is ActionGuards {
     using AccountContextHandler for AccountContext;

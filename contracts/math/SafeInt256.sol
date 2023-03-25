@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.7.6;
 
-import "../global/Constants.sol";
+import {Constants} from "../global/Constants.sol";
 
 library SafeInt256 {
     int256 private constant _INT256_MIN = type(int256).min;

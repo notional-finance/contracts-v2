@@ -2,24 +2,26 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./LiquidationHelpers.sol";
-import "../AccountContextHandler.sol";
-import "../valuation/ExchangeRate.sol";
-import "../markets/CashGroup.sol";
-import "../markets/AssetRate.sol";
-import "../portfolio/BitmapAssetsHandler.sol";
-import "../portfolio/PortfolioHandler.sol";
-import "../balances/BalanceHandler.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    ETHRate,
+    BalanceState,
+    AccountContext,
+    LiquidationFactors
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+
+import {LiquidationHelpers} from "./LiquidationHelpers.sol";
+import {AccountContextHandler} from "../AccountContextHandler.sol";
+import {ExchangeRate} from "../valuation/ExchangeRate.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
 
 library LiquidateCurrency {
     using SafeInt256 for int256;
     using ExchangeRate for ETHRate;
-    using PortfolioHandler for PortfolioState;
-    using AssetHandler for PortfolioAsset;
-    using AssetRate for AssetRateParameters;
-    using CashGroup for CashGroupParameters;
-    using Market for MarketParameters;
+    using PrimeRateLib for PrimeRate;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
 

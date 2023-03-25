@@ -2,34 +2,35 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import {LibStorage} from "../../global/LibStorage.sol";
-import {Constants} from "../../global/Constants.sol";
-import {DateTime} from "../markets/DateTime.sol";
-import {SafeInt256} from "../../math/SafeInt256.sol";
-import {SafeUint256} from "../../math/SafeUint256.sol";
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-import {TradingAction} from "../../external/actions/TradingAction.sol";
-import {ExchangeRate} from "../valuation/ExchangeRate.sol";
-import {DateTime} from "../markets/DateTime.sol";
-import {CashGroup, CashGroupParameters, Market, MarketParameters} from "../markets/CashGroup.sol";
-import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
-import {Token, TokenType, TokenHandler} from "../balances/TokenHandler.sol";
-import {GenericToken} from "../balances/protocols/GenericToken.sol";
-import {BalanceHandler} from "../balances/BalanceHandler.sol";
-
 import {
     VaultConfig,
     VaultAccount,
     VaultConfigStorage,
     VaultBorrowCapacityStorage,
-    VaultSecondaryBorrowStorage,
-    VaultAccountSecondaryDebtShareStorage,
     TradeActionType,
-    ETHRate
+    PrimeRate,
+    Token,
+    TokenType,
+    VaultState
 } from "../../global/Types.sol";
-import {VaultStateLib, VaultState, VaultStateStorage} from "./VaultState.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {Emitter} from "../Emitter.sol";
+import {DateTime} from "../markets/DateTime.sol";
+import {CashGroup} from "../markets/CashGroup.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../pCash/PrimeCashExchangeRate.sol";
+import {TokenHandler} from "../balances/TokenHandler.sol";
+import {GenericToken} from "../balances/protocols/GenericToken.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
+import {VaultStateLib} from "./VaultState.sol";
+
+import {TradingAction} from "../../external/actions/TradingAction.sol";
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
+import {IERC20} from "../../../interfaces/IERC20.sol";
 
 /// @notice Vault configuration holds per vault parameters and methods that interact
 /// with vault level parameters (such as fee assessments, collateral ratios, capacity
@@ -39,44 +40,10 @@ library VaultConfiguration {
     using VaultStateLib for VaultState;
     using SafeUint256 for uint256;
     using SafeInt256 for int256;
-    using AssetRate for AssetRateParameters;
-    using CashGroup for CashGroupParameters;
-    using Market for MarketParameters;
+    using PrimeRateLib for PrimeRate;
 
-    /// @notice Emitted when a vault fee is accrued via borrowing (denominated in asset cash)
-    event VaultFeeAccrued(address indexed vault, uint16 indexed currencyId, uint256 indexed maturity, int256 reserveFee, int256 nTokenFee);
     /// @notice Emitted when the borrow capacity on a vault changes
     event VaultBorrowCapacityChange(address indexed vault, uint16 indexed currencyId, uint256 totalUsedBorrowCapacity);
-
-    /// @notice Emitted when a vault executes a secondary borrow
-    event VaultSecondaryBorrow(
-        address indexed vault,
-        address indexed account,
-        uint16 indexed currencyId,
-        uint256 maturity,
-        uint256 debtSharesMinted,
-        uint256 fCashBorrowed
-    );
-
-    /// @notice Emitted when a vault repays a secondary borrow
-    event VaultRepaySecondaryBorrow(
-        address indexed vault,
-        address indexed account,
-        uint16 indexed currencyId,
-        uint256 maturity,
-        uint256 debtSharesRepaid,
-        uint256 fCashLent
-    );
-
-    /// @notice Emitted when secondary borrows are snapshot prior to settlement
-    event VaultSecondaryBorrowSnapshot(
-        address indexed vault,
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 totalfCashBorrowedInPrimarySnapshot,
-        int256 exchangeRate
-    );
-
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address indexed vault, bool enabled);
     /// @notice Emitted when a vault has a shortfall upon settlement

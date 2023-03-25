@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity >=0.7.6;
 
+import {WETH9} from "../../interfaces/WETH9.sol";
+import {IUpgradeableBeacon} from "../proxy/beacon/IBeacon.sol";
+
 /// @title Hardcoded deployed contracts are listed here. These are hardcoded to reduce
 /// gas costs for immutable addresses. They must be updated per environment that Notional
 /// is deployed to.

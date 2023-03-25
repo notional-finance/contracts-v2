@@ -2,23 +2,41 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../internal/valuation/ExchangeRate.sol";
-import "../../internal/markets/CashGroup.sol";
-import "../../internal/nToken/nTokenHandler.sol";
-import "../../internal/nToken/nTokenSupply.sol";
-import "../../internal/balances/TokenHandler.sol";
-import "../../global/StorageLayoutV2.sol";
-import "../../global/LibStorage.sol";
-import "../../global/Types.sol";
-import "../../proxy/utils/UUPSUpgradeable.sol";
-import "../adapters/nTokenERC20Proxy.sol";
-import "../../../interfaces/notional/IRewarder.sol";
-import "../../../interfaces/notional/AssetRateAdapter.sol";
-import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
-import "../../../interfaces/notional/NotionalGovernance.sol";
-import "../../../interfaces/notional/nTokenERC20.sol";
-import "./ActionGuards.sol";
+import {
+    CashGroupSettings,
+    TokenStorage,
+    ETHRateStorage,
+    InterestRateCurveSettings,
+    Token
+} from "../../global/Types.sol";
+import {StorageLayoutV2} from "../../global/StorageLayoutV2.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {Deployments} from "../../global/Deployments.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {ExchangeRate} from "../../internal/valuation/ExchangeRate.sol";
+import {CashGroup} from "../../internal/markets/CashGroup.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {nTokenSupply} from "../../internal/nToken/nTokenSupply.sol";
+import {TokenHandler} from "../../internal/balances/TokenHandler.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {PrimeCashExchangeRate} from "../../internal/pCash/PrimeCashExchangeRate.sol";
+import {InterestRateCurve} from "../../internal/markets/InterestRateCurve.sol";
+
 import "@openzeppelin/contracts/utils/Address.sol";
+import {ActionGuards} from "./ActionGuards.sol";
+
+// Proxies
+import {UUPSUpgradeable} from "../../proxy/utils/UUPSUpgradeable.sol";
+import {nBeaconProxy} from "../../proxy/nBeaconProxy.sol";
+import {IUpgradeableBeacon} from "../../proxy/beacon/IBeacon.sol";
+
+// Interfaces
+import {IRewarder} from "../../../interfaces/notional/IRewarder.sol";
+import {AggregatorV2V3Interface} from "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import {NotionalGovernance} from "../../../interfaces/notional/NotionalGovernance.sol";
+import {IPrimeCashHoldingsOracle} from "../../../interfaces/notional/IPrimeCashHoldingsOracle.sol";
 
 /// @notice Governance methods can only be called by the governance contract
 contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeable, ActionGuards {

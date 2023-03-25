@@ -3,6 +3,7 @@ pragma solidity >=0.7.6;
 pragma abicoder v2;
 
 import "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import "../../interfaces/notional/IPrimeCashHoldingsOracle.sol";
 import "../../interfaces/notional/AssetRateAdapter.sol";
 
 /// @notice Different types of internal tokens

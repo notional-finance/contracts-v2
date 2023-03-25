@@ -2,25 +2,24 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./AssetRate.sol";
-import "./CashGroup.sol";
-import "./DateTime.sol";
-import "../balances/BalanceHandler.sol";
-import "../../global/LibStorage.sol";
-import "../../global/Types.sol";
-import "../../global/Constants.sol";
-import "../../math/SafeInt256.sol";
-import "../../math/ABDKMath64x64.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    MarketStorage,
+    MarketParameters,
+    CashGroupParameters
+} from "../../global/Types.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {Emitter} from "../Emitter.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
+import {DateTime} from "./DateTime.sol";
+import {InterestRateCurve} from "./InterestRateCurve.sol";
 
 library Market {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
-    using CashGroup for CashGroupParameters;
-    using AssetRate for AssetRateParameters;
-
-    // Max positive value for a ABDK64x64 integer
-    int256 private constant MAX64 = 0x7FFFFFFFFFFFFFFF;
 
     /// @notice Add liquidity to a market, assuming that it is initialized. If not then
     /// this method will revert and the market must be initialized first.

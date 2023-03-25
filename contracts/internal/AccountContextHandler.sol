@@ -2,12 +2,16 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../global/LibStorage.sol";
-import "./balances/BalanceHandler.sol";
-import "./portfolio/BitmapAssetsHandler.sol";
-import "./portfolio/PortfolioHandler.sol";
+import {AccountContext, LibStorage} from "../global/LibStorage.sol";
+import {Constants} from "../global/Constants.sol";
+import {PortfolioState, PortfolioAsset} from "../global/Types.sol";
+import {DateTime} from "./markets/DateTime.sol";
+import {PrimeCashExchangeRate} from "./pCash/PrimeCashExchangeRate.sol";
+import {PortfolioHandler} from "./portfolio/PortfolioHandler.sol";
+import {SafeInt256} from "../math/SafeInt256.sol";
 
 library AccountContextHandler {
+    using SafeInt256 for int256;
     using PortfolioHandler for PortfolioState;
 
     bytes18 private constant TURN_OFF_PORTFOLIO_FLAGS = 0x7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF7FFF;

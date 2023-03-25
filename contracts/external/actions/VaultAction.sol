@@ -2,20 +2,38 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import {ActionGuards} from "./ActionGuards.sol";
-import {IVaultAction} from "../../../interfaces/notional/IVaultController.sol";
-import "../../internal/vaults/VaultConfiguration.sol";
-import "../../internal/vaults/VaultAccount.sol";
-import {VaultStateLib, VaultState} from "../../internal/vaults/VaultState.sol";
-
+import {
+    VaultState,
+    VaultConfig,
+    VaultConfigStorage,
+    VaultStateStorage,
+    VaultBorrowCapacityStorage,
+    VaultAccount,
+    Token,
+    PrimeRate
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../../internal/pCash/PrimeCashExchangeRate.sol";
+import {TokenHandler} from "../../internal/balances/TokenHandler.sol";
+import {VaultConfiguration} from "../../internal/vaults/VaultConfiguration.sol";
+import {VaultAccountLib} from "../../internal/vaults/VaultAccount.sol";
+import {VaultStateLib} from "../../internal/vaults/VaultState.sol";
+import {VaultSecondaryBorrow} from "../../internal/vaults/VaultSecondaryBorrow.sol";
+
+import {IVaultAction, IVaultAccountHealth} from "../../../interfaces/notional/IVaultController.sol";
+import {ActionGuards} from "./ActionGuards.sol";
+import {TradingAction} from "./TradingAction.sol";
 
 contract VaultAction is ActionGuards, IVaultAction {
     using VaultConfiguration for VaultConfig;
     using VaultAccountLib for VaultAccount;
     using VaultStateLib for VaultState;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using TokenHandler for Token;
     using SafeInt256 for int256;
     using SafeUint256 for uint256;

@@ -2,27 +2,59 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../external/FreeCollateralExternal.sol";
-import "../internal/valuation/ExchangeRate.sol";
-import "../internal/markets/CashGroup.sol";
-import "../internal/markets/AssetRate.sol";
-import "../internal/nToken/nTokenHandler.sol";
-import "../internal/nToken/nTokenSupply.sol";
-import "../internal/balances/TokenHandler.sol";
-import "../global/LibStorage.sol";
-import "../global/StorageLayoutV2.sol";
-import "../global/Deployments.sol";
-import "../math/SafeInt256.sol";
-import "../../interfaces/notional/NotionalViews.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    ETHRate,
+    Token,
+    CashGroupParameters,
+    MarketParameters,
+    BalanceState,
+    AccountContext,
+    nTokenPortfolio,
+    ETHRateStorage,
+    AssetRateStorage,
+    CashGroupSettings,
+    InterestRateParameters,
+    PrimeCashFactors,
+    PortfolioAsset,
+    AccountBalance,
+    BalanceStorage,
+    Deprecated_AssetRateParameters,
+    RebalancingContextStorage
+} from "../global/Types.sol";
+import {SafeUint256} from "../math/SafeUint256.sol";
+import {SafeInt256} from "../math/SafeInt256.sol";
+import {LibStorage} from "../global/LibStorage.sol";
+import {StorageLayoutV2} from "../global/StorageLayoutV2.sol";
+import {Deployments} from "../global/Deployments.sol";
+import {Constants} from "../global/Constants.sol";
+
+import {ExchangeRate} from "../internal/valuation/ExchangeRate.sol";
+import {CashGroup} from "../internal/markets/CashGroup.sol";
+import {Market} from "../internal/markets/Market.sol";
+import {InterestRateCurve} from "../internal/markets/InterestRateCurve.sol";
+import {DeprecatedAssetRate} from "../internal/markets/DeprecatedAssetRate.sol";
+import {nTokenHandler} from "../internal/nToken/nTokenHandler.sol";
+import {nTokenSupply} from "../internal/nToken/nTokenSupply.sol";
+import {PrimeRateLib} from "../internal/pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../internal/pCash/PrimeCashExchangeRate.sol";
+import {TokenHandler} from "../internal/balances/TokenHandler.sol";
+import {BalanceHandler} from "../internal/balances/BalanceHandler.sol";
+import {PortfolioHandler} from "../internal/portfolio/PortfolioHandler.sol";
+import {BitmapAssetsHandler} from "../internal/portfolio/BitmapAssetsHandler.sol";
+import {AccountContextHandler} from "../internal/AccountContextHandler.sol";
+
+import {NotionalViews} from "../../interfaces/notional/NotionalViews.sol";
+import {FreeCollateralExternal} from "./FreeCollateralExternal.sol";
+import {MigrateIncentives} from "./MigrateIncentives.sol";
 
 contract Views is StorageLayoutV2, NotionalViews {
     using CashGroup for CashGroupParameters;
     using TokenHandler for Token;
     using Market for MarketParameters;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using BalanceHandler for BalanceState;
     using nTokenHandler for nTokenPortfolio;
     using AccountContextHandler for AccountContext;

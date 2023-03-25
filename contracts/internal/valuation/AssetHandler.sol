@@ -2,21 +2,27 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../global/Types.sol";
-import "../../global/Constants.sol";
-import "../markets/CashGroup.sol";
-import "../markets/AssetRate.sol";
-import "../markets/DateTime.sol";
-import "../portfolio/PortfolioHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../math/ABDKMath64x64.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    CashGroupParameters,
+    PortfolioAsset,
+    MarketParameters
+} from "../../global/Types.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {ABDKMath64x64} from "../../math/ABDKMath64x64.sol";
+import {Constants} from "../../global/Constants.sol";
+
+import {DateTime} from "../markets/DateTime.sol";
+import {CashGroup} from "../markets/CashGroup.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {PortfolioHandler} from "../portfolio/PortfolioHandler.sol";
 
 library AssetHandler {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
     using CashGroup for CashGroupParameters;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
 
     function isLiquidityToken(uint256 assetType) internal pure returns (bool) {
         return

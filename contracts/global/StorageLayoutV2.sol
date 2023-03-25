@@ -2,7 +2,7 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./StorageLayoutV1.sol";
+import {StorageLayoutV1} from "./StorageLayoutV1.sol";
 
 contract StorageLayoutV2 is StorageLayoutV1 {
     // Contract that manages the treasury and reserves

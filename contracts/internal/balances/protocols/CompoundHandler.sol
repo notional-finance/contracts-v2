@@ -2,14 +2,17 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./GenericToken.sol";
-import "../../../../interfaces/compound/CErc20Interface.sol";
-import "../../../../interfaces/compound/CEtherInterface.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "../../../global/Types.sol";
+import {Token} from "../../../global/Types.sol";
+import {SafeUint256} from "../../../math/SafeUint256.sol";
+
+import {GenericToken} from "./GenericToken.sol";
+
+import {CErc20Interface} from "../../../../interfaces/compound/CErc20Interface.sol";
+import {CEtherInterface} from "../../../../interfaces/compound/CEtherInterface.sol";
+import {IERC20} from "../../../../interfaces/IERC20.sol";
 
 library CompoundHandler {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     // Return code for cTokens that represents no error
     uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;

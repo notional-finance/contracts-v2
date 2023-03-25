@@ -2,11 +2,16 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./PortfolioHandler.sol";
-import "./BitmapAssetsHandler.sol";
-import "../AccountContextHandler.sol";
-import "../../global/Types.sol";
-import "../../math/SafeInt256.sol";
+import {
+    PortfolioState,
+    PortfolioAsset,
+    AccountContext
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {PortfolioHandler} from "./PortfolioHandler.sol";
+import {BitmapAssetsHandler} from "./BitmapAssetsHandler.sol";
+import {AccountContextHandler} from "../AccountContextHandler.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
 
 /// @notice Helper library for transferring assets from one portfolio to another
 library TransferAssets {

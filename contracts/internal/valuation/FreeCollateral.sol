@@ -2,21 +2,38 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./AssetHandler.sol";
-import "./ExchangeRate.sol";
-import "../markets/CashGroup.sol";
-import "../AccountContextHandler.sol";
-import "../balances/BalanceHandler.sol";
-import "../portfolio/PortfolioHandler.sol";
-import "../nToken/nTokenHandler.sol";
-import "../nToken/nTokenCalculations.sol";
-import "../../math/SafeInt256.sol";
+import {
+    PrimeRate,
+    CashGroupParameters,
+    PortfolioAsset,
+    ETHRate,
+    AccountContext,
+    nTokenPortfolio,
+    MarketParameters,
+    LiquidationFactors
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {Bitmap} from "../../math/Bitmap.sol";
+
+import {CashGroup} from "../markets/CashGroup.sol";
+import {AccountContextHandler} from "../AccountContextHandler.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../pCash/PrimeCashExchangeRate.sol";
+import {PortfolioHandler} from "../portfolio/PortfolioHandler.sol";
+import {BitmapAssetsHandler} from "../portfolio/BitmapAssetsHandler.sol";
+import {nTokenHandler} from "../nToken/nTokenHandler.sol";
+import {nTokenCalculations} from "../nToken/nTokenCalculations.sol";
+
+import {ExchangeRate} from "./ExchangeRate.sol";
+import {AssetHandler} from "./AssetHandler.sol";
 
 library FreeCollateral {
     using SafeInt256 for int256;
     using Bitmap for bytes;
     using ExchangeRate for ETHRate;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
 

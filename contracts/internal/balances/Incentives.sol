@@ -2,16 +2,22 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./TokenHandler.sol";
-import "../nToken/nTokenHandler.sol";
-import "../nToken/nTokenSupply.sol";
-import "../../math/SafeInt256.sol";
-import "../../external/MigrateIncentives.sol";
-import "../../../interfaces/notional/IRewarder.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    BalanceState
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {TokenHandler} from "./TokenHandler.sol";
+import {nTokenHandler} from "../nToken/nTokenHandler.sol";
+import {nTokenSupply} from "../nToken/nTokenSupply.sol";
+
+import {MigrateIncentives} from "../../external/MigrateIncentives.sol";
+import {IRewarder} from "../../../interfaces/notional/IRewarder.sol";
 
 library Incentives {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
 
     /// @notice Calculates the total incentives to claim including those claimed under the previous

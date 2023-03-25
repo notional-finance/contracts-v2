@@ -2,17 +2,18 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../valuation/AssetHandler.sol";
-import "../markets/Market.sol";
-import "../markets/AssetRate.sol";
-import "../portfolio/PortfolioHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../global/Constants.sol";
-import "../../global/Types.sol";
+import {SettleAmount, AssetStorageState, PrimeRate} from "../../global/Types.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {Constants} from "../../global/Constants.sol";
+
+import {PortfolioAsset, AssetHandler} from "../valuation/AssetHandler.sol";
+import {Market, MarketParameters} from "../markets/Market.sol";
+import {PortfolioState, PortfolioHandler} from "../portfolio/PortfolioHandler.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
 
 library SettlePortfolioAssets {
     using SafeInt256 for int256;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using Market for MarketParameters;
     using PortfolioHandler for PortfolioState;
     using AssetHandler for PortfolioAsset;

@@ -2,29 +2,35 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import {SafeInt256} from "../../math/SafeInt256.sol";
-import {SafeUint256} from "../../math/SafeUint256.sol";
 import {
+    VaultConfig,
     VaultAccount,
     VaultAccountStorage,
-    VaultSettledAssetsStorage,
+    VaultState,
+    VaultStateStorage,
     VaultAccountSecondaryDebtShareStorage,
-    VaultSecondaryBorrowStorage
+    PrimeRate
 } from "../../global/Types.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {Constants} from "../../global/Constants.sol";
-import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
-import {TokenType, Token, TokenHandler} from "../balances/TokenHandler.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 
-import {VaultConfig, VaultConfiguration} from "./VaultConfiguration.sol";
-import {VaultStateLib, VaultState} from "./VaultState.sol";
-import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
+import {Emitter} from "../Emitter.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../pCash/PrimeCashExchangeRate.sol";
+import {TokenHandler} from "../balances/TokenHandler.sol";
+
+import {VaultSecondaryBorrow} from "./VaultSecondaryBorrow.sol";
+import {VaultConfiguration} from "./VaultConfiguration.sol";
+import {VaultStateLib} from "./VaultState.sol";
+
+import {IVaultAction} from "../../../interfaces/notional/IVaultController.sol";
 
 library VaultAccountLib {
     using VaultConfiguration for VaultConfig;
     using VaultStateLib for VaultState;
-    using AssetRate for AssetRateParameters;
-    using TokenHandler for Token;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 

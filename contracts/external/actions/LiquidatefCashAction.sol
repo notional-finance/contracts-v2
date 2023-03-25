@@ -2,15 +2,26 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./ActionGuards.sol";
-import "../../internal/AccountContextHandler.sol";
-import "../../internal/liquidation/LiquidatefCash.sol";
-import "../../internal/liquidation/LiquidationHelpers.sol";
-import "../../math/SafeInt256.sol";
+import {
+    AccountContext,
+    PrimeRate,
+    LiquidationFactors
+} from "../../global/Types.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+
+import {ActionGuards} from "./ActionGuards.sol";
+import {AccountContextHandler} from "../../internal/AccountContextHandler.sol";
+import {LiquidatefCash} from "../../internal/liquidation/LiquidatefCash.sol";
+import {LiquidationHelpers} from "../../internal/liquidation/LiquidationHelpers.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+
+import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
+import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
 
 contract LiquidatefCashAction is ActionGuards {
     using AccountContextHandler for AccountContext;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
 
     event LiquidatefCashEvent(

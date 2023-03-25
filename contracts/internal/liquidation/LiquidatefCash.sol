@@ -2,28 +2,44 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./LiquidationHelpers.sol";
-import "../AccountContextHandler.sol";
-import "../valuation/AssetHandler.sol";
-import "../markets/CashGroup.sol";
-import "../markets/AssetRate.sol";
-import "../balances/TokenHandler.sol";
-import "../balances/BalanceHandler.sol";
-import "../valuation/ExchangeRate.sol";
-import "../portfolio/PortfolioHandler.sol";
-import "../portfolio/BitmapAssetsHandler.sol";
-import "../../external/FreeCollateralExternal.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    ETHRate,
+    PortfolioAsset,
+    CashGroupParameters,
+    PortfolioState,
+    Token,
+    AccountContext,
+    PrimeRate,
+    LiquidationFactors
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {Emitter} from "../Emitter.sol";
+import {AssetHandler} from "../valuation/AssetHandler.sol";
+import {CashGroup} from "../markets/CashGroup.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {TokenHandler} from "../balances/TokenHandler.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
+import {ExchangeRate} from "../valuation/ExchangeRate.sol";
+import {PortfolioHandler} from "../portfolio/PortfolioHandler.sol";
+import {BitmapAssetsHandler} from "../portfolio/BitmapAssetsHandler.sol";
+
+import {AccountContextHandler} from "../AccountContextHandler.sol";
+import {LiquidationHelpers} from "./LiquidationHelpers.sol";
+
+import {FreeCollateralExternal} from "../../external/FreeCollateralExternal.sol";
+import {SettleAssetsExternal} from "../../external/SettleAssetsExternal.sol";
 
 library LiquidatefCash {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
     using ExchangeRate for ETHRate;
     using AssetHandler for PortfolioAsset;
     using CashGroup for CashGroupParameters;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using AccountContextHandler for AccountContext;
-    using PortfolioHandler for PortfolioState;
     using TokenHandler for Token;
 
     /// @notice Calculates the risk adjusted and liquidation discount factors used when liquidating fCash. The

@@ -2,13 +2,15 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../markets/AssetRate.sol";
-import "../../global/LibStorage.sol";
-import "../portfolio/BitmapAssetsHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../math/Bitmap.sol";
-import "../../global/Constants.sol";
-import "../../global/Types.sol";
+import {PrimeRate, ifCashStorage} from "../../global/Types.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {Bitmap} from "../../math/Bitmap.sol";
+
+import {DateTime} from "../markets/DateTime.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {BitmapAssetsHandler} from "../portfolio/BitmapAssetsHandler.sol";
 
 /**
  * Settles a bitmap portfolio by checking for all matured fCash assets and turning them into cash
@@ -19,8 +21,8 @@ import "../../global/Types.sol";
  * newSettleTime and the absolute times (maturities) that the previous bitmap references.
  */
 library SettleBitmapAssets {
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
-    using AssetRate for AssetRateParameters;
     using Bitmap for bytes32;
 
     /// @notice Given a bitmap for a cash group and timestamps, will settle all assets

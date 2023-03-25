@@ -2,19 +2,36 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./Incentives.sol";
-import "./TokenHandler.sol";
-import "../AccountContextHandler.sol";
-import "../../global/Types.sol";
-import "../../global/Constants.sol";
-import "../../math/SafeInt256.sol";
-import "../../math/FloatingPoint56.sol";
+import {
+    BalanceState,
+    BalanceStorage,
+    SettleAmount,
+    TokenType,
+    AccountContext,
+    PrimeRate,
+    Token
+} from "../../global/Types.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {FloatingPoint} from "../../math/FloatingPoint.sol";
+
+import {Emitter} from "../Emitter.sol";
+import {nTokenHandler} from "../nToken/nTokenHandler.sol";
+import {AccountContextHandler} from "../AccountContextHandler.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../pCash/PrimeCashExchangeRate.sol";
+
+import {TokenHandler} from "./TokenHandler.sol";
+import {Incentives} from "./Incentives.sol";
 
 library BalanceHandler {
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
     using TokenHandler for Token;
-    using AssetRate for AssetRateParameters;
     using AccountContextHandler for AccountContext;
+    using PrimeRateLib for PrimeRate;
 
     /// @notice Emitted when a cash balance changes
     event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);

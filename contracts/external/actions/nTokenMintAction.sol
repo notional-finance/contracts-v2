@@ -2,26 +2,45 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../global/Constants.sol";
-import "../../internal/nToken/nTokenHandler.sol";
-import "../../internal/nToken/nTokenCalculations.sol";
-import "../../internal/markets/Market.sol";
-import "../../internal/markets/CashGroup.sol";
-import "../../internal/markets/AssetRate.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../internal/portfolio/PortfolioHandler.sol";
-import "../../math/SafeInt256.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    BalanceState,
+    CashGroupParameters,
+    MarketParameters,
+    nTokenPortfolio,
+    PortfolioState,
+    PortfolioAsset,
+    AssetStorageState
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {Bitmap} from "../../math/Bitmap.sol";
+
+import {Emitter} from "../../internal/Emitter.sol";
+import {DateTime} from "../../internal/markets/DateTime.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {nTokenCalculations} from "../../internal/nToken/nTokenCalculations.sol";
+import {InterestRateCurve} from "../../internal/markets/InterestRateCurve.sol";
+import {Market} from "../../internal/markets/Market.sol";
+import {CashGroup} from "../../internal/markets/CashGroup.sol";
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {PortfolioHandler} from "../../internal/portfolio/PortfolioHandler.sol";
+import {BitmapAssetsHandler} from "../../internal/portfolio/BitmapAssetsHandler.sol";
+import {AssetHandler} from "../../internal/valuation/AssetHandler.sol";
 
 library nTokenMintAction {
+    using Bitmap for bytes32;
     using SafeInt256 for int256;
+    using SafeUint256 for uint256;
     using BalanceHandler for BalanceState;
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
     using nTokenHandler for nTokenPortfolio;
     using PortfolioHandler for PortfolioState;
-    using AssetRate for AssetRateParameters;
-    using SafeMath for uint256;
+    using PrimeRateLib for PrimeRate;
+
     using nTokenHandler for nTokenPortfolio;
 
     /// @notice Converts the given amount of cash to nTokens in the same currency.

@@ -2,10 +2,17 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./TransferAssets.sol";
-import "../valuation/AssetHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../global/LibStorage.sol";
+import {
+    PortfolioState,
+    PortfolioAsset,
+    PortfolioAssetStorage,
+    AssetStorageState
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {TransferAssets} from "./TransferAssets.sol";
+import {AssetHandler} from "../valuation/AssetHandler.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
 
 /// @notice Handles the management of an array of assets including reading from storage, inserting
 /// updating, deleting and writing back to storage.

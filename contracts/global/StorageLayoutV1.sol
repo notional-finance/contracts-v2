@@ -2,8 +2,6 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./Types.sol";
-
 /**
  * @notice Storage layout for the system. Do not change this file once deployed, future storage
  * layouts must inherit this and increment the version number.

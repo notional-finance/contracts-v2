@@ -2,25 +2,38 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../FreeCollateralExternal.sol";
-import "../SettleAssetsExternal.sol";
-import "../../internal/markets/Market.sol";
-import "../../internal/markets/CashGroup.sol";
-import "../../internal/markets/AssetRate.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../internal/portfolio/PortfolioHandler.sol";
-import "../../internal/portfolio/TransferAssets.sol";
-import "../../math/SafeInt256.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    PortfolioState,
+    AccountContext,
+    MarketParameters,
+    CashGroupParameters,
+    PrimeRate,
+    TradeActionType
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {InterestRateCurve} from "../../internal/markets/InterestRateCurve.sol";
+import {Market} from "../../internal/markets/Market.sol";
+import {DateTime} from "../../internal/markets/DateTime.sol";
+import {CashGroup} from "../../internal/markets/CashGroup.sol";
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {PortfolioHandler} from "../../internal/portfolio/PortfolioHandler.sol";
+import {BitmapAssetsHandler} from "../../internal/portfolio/BitmapAssetsHandler.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {AccountContextHandler} from "../../internal/AccountContextHandler.sol";
 
 library TradingAction {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
     using Market for MarketParameters;
     using CashGroup for CashGroupParameters;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     event LendBorrowTrade(
         address indexed account,

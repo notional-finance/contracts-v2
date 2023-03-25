@@ -2,28 +2,52 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./actions/nTokenMintAction.sol";
-import "../internal/balances/TokenHandler.sol";
-import "../global/StorageLayoutV1.sol";
-import "../internal/markets/CashGroup.sol";
-import "../internal/markets/AssetRate.sol";
-import "../internal/nToken/nTokenSupply.sol";
-import "../internal/nToken/nTokenHandler.sol";
-import "../math/SafeInt256.sol";
-import "../../interfaces/notional/NotionalCalculations.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    MarketParameters,
+    Token,
+    CashGroupParameters,
+    nTokenPortfolio,
+    AccountContext,
+    BalanceState,
+    TradeActionType,
+    InterestRateParameters,
+    PrimeCashFactors
+} from "../global/Types.sol";
+import {StorageLayoutV1} from "../global/StorageLayoutV1.sol";
+import {Constants} from "../global/Constants.sol";
+import {SafeInt256} from "../math/SafeInt256.sol";
+import {SafeUint256} from "../math/SafeUint256.sol";
+
+import {AccountContextHandler} from "../internal/AccountContextHandler.sol";
+import {BalanceHandler} from "../internal/balances/BalanceHandler.sol";
+import {TokenHandler} from "../internal/balances/TokenHandler.sol";
+import {Incentives} from "../internal/balances/Incentives.sol";
+import {Market} from "../internal/markets/Market.sol";
+import {CashGroup} from "../internal/markets/CashGroup.sol";
+import {DateTime} from "../internal/markets/DateTime.sol";
+import {InterestRateCurve} from "../internal/markets/InterestRateCurve.sol";
+import {PrimeRateLib} from "../internal/pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../internal/pCash/PrimeCashExchangeRate.sol";
+import {nTokenSupply} from "../internal/nToken/nTokenSupply.sol";
+import {nTokenHandler} from "../internal/nToken/nTokenHandler.sol";
+import {nTokenCalculations} from "../internal/nToken/nTokenCalculations.sol";
+import {AssetHandler} from "../internal/valuation/AssetHandler.sol";
+
+import {MigrateIncentives} from "./MigrateIncentives.sol";
+import {nTokenMintAction} from "./actions/nTokenMintAction.sol";
+import {NotionalCalculations} from "../../interfaces/notional/NotionalCalculations.sol";
 
 contract CalculationViews is StorageLayoutV1, NotionalCalculations {
     using TokenHandler for Token;
     using Market for MarketParameters;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using CashGroup for CashGroupParameters;
     using nTokenHandler for nTokenPortfolio;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     function _checkValidCurrency(uint16 currencyId) internal view {
         require(0 < currencyId && currencyId <= maxCurrencyId, "Invalid currency id");

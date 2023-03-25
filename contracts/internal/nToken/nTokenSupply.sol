@@ -2,14 +2,19 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./nTokenHandler.sol";
-import "../../global/LibStorage.sol";
-import "../../math/SafeInt256.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    nTokenTotalSupplyStorage,
+    nTokenContext
+} from "../../global/Types.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {nTokenHandler} from "./nTokenHandler.sol";
 
 library nTokenSupply {
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     /// @notice Retrieves stored nToken supply and related factors. Do not use accumulatedNOTEPerNToken for calculating
     /// incentives! Use `getUpdatedAccumulatedNOTEPerNToken` instead.

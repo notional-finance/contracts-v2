@@ -2,16 +2,31 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../internal/portfolio/PortfolioHandler.sol";
-import "../internal/balances/BalanceHandler.sol";
-import "../internal/settlement/SettlePortfolioAssets.sol";
-import "../internal/settlement/SettleBitmapAssets.sol";
-import "../internal/AccountContextHandler.sol";
+import {
+    AccountContext,
+    PrimeRate,
+    PortfolioAsset,
+    PortfolioState,
+    SettleAmount
+} from "../global/Types.sol";
+import {Constants} from "../global/Constants.sol";
+import {SafeInt256} from "../math/SafeInt256.sol";
 
-/// @notice External library for settling assets
+import {Emitter} from "../internal/Emitter.sol";
+import {AccountContextHandler} from "../internal/AccountContextHandler.sol";
+import {PortfolioHandler} from "../internal/portfolio/PortfolioHandler.sol";
+import {TransferAssets} from "../internal/portfolio/TransferAssets.sol";
+import {BalanceHandler} from "../internal/balances/BalanceHandler.sol";
+import {SettlePortfolioAssets} from "../internal/settlement/SettlePortfolioAssets.sol";
+import {SettleBitmapAssets} from "../internal/settlement/SettleBitmapAssets.sol";
+import {PrimeRateLib} from "../internal/pCash/PrimeRateLib.sol";
+
+/// @notice External library for settling assets and portfolio management
 library SettleAssetsExternal {
+    using SafeInt256 for int256;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
+
     event AccountSettled(address indexed account);
 
     /// @notice Settles an account, returns the new account context object after settlement.

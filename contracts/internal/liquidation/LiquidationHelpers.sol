@@ -2,23 +2,32 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./LiquidatefCash.sol";
-import "../AccountContextHandler.sol";
-import "../valuation/ExchangeRate.sol";
-import "../portfolio/BitmapAssetsHandler.sol";
-import "../portfolio/PortfolioHandler.sol";
-import "../balances/BalanceHandler.sol";
-import "../balances/TokenHandler.sol";
-import "../markets/AssetRate.sol";
-import "../../external/FreeCollateralExternal.sol";
-import "../../math/SafeInt256.sol";
+import {
+    ETHRate,
+    BalanceState,
+    PrimeRate,
+    AccountContext,
+    Token,
+    PortfolioAsset,
+    LiquidationFactors,
+    PortfolioState
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+
+import {Emitter} from "../Emitter.sol";
+import {AccountContextHandler} from "../AccountContextHandler.sol";
+import {ExchangeRate} from "../valuation/ExchangeRate.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
+import {TokenHandler} from "../balances/TokenHandler.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {FreeCollateralExternal} from "../../external/FreeCollateralExternal.sol";
 
 library LiquidationHelpers {
     using SafeInt256 for int256;
     using ExchangeRate for ETHRate;
     using BalanceHandler for BalanceState;
-    using PortfolioHandler for PortfolioState;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using AccountContextHandler for AccountContext;
     using TokenHandler for Token;
 

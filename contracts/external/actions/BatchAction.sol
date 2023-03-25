@@ -2,24 +2,43 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./TradingAction.sol";
-import "./ActionGuards.sol";
-import "./nTokenMintAction.sol";
-import "./nTokenRedeemAction.sol";
-import "../SettleAssetsExternal.sol";
-import "../FreeCollateralExternal.sol";
-import "../../math/SafeInt256.sol";
-import "../../global/StorageLayoutV1.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../internal/portfolio/PortfolioHandler.sol";
-import "../../internal/AccountContextHandler.sol";
-import "../../../interfaces/notional/NotionalCallback.sol";
+import {
+    BalanceState,
+    PortfolioState,
+    AccountContext,
+    PrimeRate,
+    BatchLend,
+    BalanceAction,
+    BalanceActionWithTrades,
+    DepositActionType,
+    TradeActionType,
+    Token
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {StorageLayoutV1} from "../../global/StorageLayoutV1.sol";
+
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {TokenHandler} from "../../internal/balances/TokenHandler.sol";
+import {PortfolioHandler} from "../../internal/portfolio/PortfolioHandler.sol";
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {AccountContextHandler} from "../../internal/AccountContextHandler.sol";
+import {NotionalCallback} from "../../../interfaces/notional/NotionalCallback.sol";
+import {DeprecatedAssetRate} from "../../internal/markets/DeprecatedAssetRate.sol";
+
+import {MigrateIncentives} from "../MigrateIncentives.sol";
+import {TradingAction} from "./TradingAction.sol";
+import {ActionGuards} from "./ActionGuards.sol";
+import {nTokenMintAction} from "./nTokenMintAction.sol";
+import {nTokenRedeemAction} from "./nTokenRedeemAction.sol";
+import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
+import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
 
 contract BatchAction is StorageLayoutV1, ActionGuards {
     using BalanceHandler for BalanceState;
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using TokenHandler for Token;
     using SafeInt256 for int256;
 

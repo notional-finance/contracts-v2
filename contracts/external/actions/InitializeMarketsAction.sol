@@ -2,18 +2,35 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./nTokenMintAction.sol";
-import "../../internal/markets/Market.sol";
-import "../../internal/markets/CashGroup.sol";
-import "../../internal/markets/AssetRate.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../internal/portfolio/PortfolioHandler.sol";
-import "../../internal/settlement/SettlePortfolioAssets.sol";
-import "../../internal/settlement/SettleBitmapAssets.sol";
-import "../../internal/nToken/nTokenHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../math/Bitmap.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    PortfolioState,
+    MarketParameters,
+    BalanceState,
+    CashGroupParameters,
+    nTokenPortfolio,
+    InterestRateParameters,
+    PortfolioAsset
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {Bitmap} from "../../math/Bitmap.sol";
+
+import {Emitter} from "../../internal/Emitter.sol";
+import {Market} from "../../internal/markets/Market.sol";
+import {DateTime} from "../../internal/markets/DateTime.sol";
+import {CashGroup} from "../../internal/markets/CashGroup.sol";
+import {InterestRateCurve} from "../../internal/markets/InterestRateCurve.sol";
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {PortfolioHandler} from "../../internal/portfolio/PortfolioHandler.sol";
+import {BitmapAssetsHandler} from "../../internal/portfolio/BitmapAssetsHandler.sol";
+import {SettleBitmapAssets} from "../../internal/settlement/SettleBitmapAssets.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {AssetHandler} from "../../internal/valuation/AssetHandler.sol";
+
+import {nTokenMintAction} from "./nTokenMintAction.sol";
 
 /// @notice Initialize markets is called once every quarter to setup the new markets. Only the nToken account
 /// can initialize markets, and this method will be called on behalf of that account. In this action
@@ -30,18 +47,17 @@ import "@openzeppelin/contracts/math/SafeMath.sol";
 ///  - Set new markets and add liquidity tokens to portfolio
 library InitializeMarketsAction {
     using Bitmap for bytes32;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
     using PortfolioHandler for PortfolioState;
     using Market for MarketParameters;
     using BalanceHandler for BalanceState;
     using CashGroup for CashGroupParameters;
-    using AssetRate for AssetRateParameters;
-    using AccountContextHandler for AccountContext;
+    using PrimeRateLib for PrimeRate;
     using nTokenHandler for nTokenPortfolio;
+    using InterestRateCurve for InterestRateParameters;
 
     event MarketsInitialized(uint16 currencyId);
-    event SweepCashIntoMarkets(uint16 currencyId, int256 cashIntoMarkets);
 
     struct GovernanceParameters {
         int256[] depositShares;

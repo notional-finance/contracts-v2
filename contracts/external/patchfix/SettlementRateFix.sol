@@ -26,7 +26,7 @@ contract SettlementRateFix {
     }
 
     function _deleteSettlementRate(uint256 currencyId, uint256 maturity) private {
-        mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage();
+        mapping(uint256 => mapping(uint256 => SettlementRateStorage)) storage store = LibStorage.getSettlementRateStorage_deprecated();
         delete store[currencyId][maturity];
         emit SetSettlementRate(currencyId, maturity, 0);
     }

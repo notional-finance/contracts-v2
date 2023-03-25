@@ -10,10 +10,11 @@ import "../../../interfaces/WETH9.sol";
 import "./NotionalV2LiquidatorStorageLayoutV1.sol";
 import "../../internal/markets/DateTime.sol";
 import "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 
 abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV1 {
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     enum LiquidationAction {
         LocalCurrency_NoTransferFee_Withdraw,

@@ -2,17 +2,31 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./ActionGuards.sol";
-import "./nTokenRedeemAction.sol";
-import "../SettleAssetsExternal.sol";
-import "../FreeCollateralExternal.sol";
-import "../../math/SafeInt256.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../internal/AccountContextHandler.sol";
+import {
+    BalanceState,
+    AccountContext,
+    PortfolioAsset,
+    PrimeRate
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+
+import {TransferAssets} from "../../internal/portfolio/TransferAssets.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {AccountContextHandler} from "../../internal/AccountContextHandler.sol";
+
+import {ActionGuards} from "./ActionGuards.sol";
+import {nTokenRedeemAction} from "./nTokenRedeemAction.sol";
+import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
+import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
+import {MigrateIncentives} from "../MigrateIncentives.sol";
 
 contract AccountAction is ActionGuards {
     using BalanceHandler for BalanceState;
     using AccountContextHandler for AccountContext;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
 
     event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);

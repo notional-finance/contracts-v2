@@ -7,15 +7,25 @@ import {
     VaultConfig,
     VaultState,
     VaultStateStorage,
-    VaultSettledAssetsStorage
+    PrimeRate,
+    PrimeCashFactorsStorage,
+    Token
 } from "../../global/Types.sol";
-import {AssetRate, AssetRateParameters} from "../markets/AssetRate.sol";
-import {Token, TokenHandler} from "../balances/TokenHandler.sol";
+import {Constants} from "../../global/Constants.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
-import {Constants} from "../../global/Constants.sol";
+import {FloatingPoint} from "../../math/FloatingPoint.sol";
+
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../pCash/PrimeCashExchangeRate.sol";
+import {TokenHandler} from "../balances/TokenHandler.sol";
+
 import {VaultConfiguration} from "./VaultConfiguration.sol";
-import {LibStorage} from "../../global/LibStorage.sol";
+import {VaultAccountLib} from "./VaultAccount.sol";
+import {VaultValuation} from "./VaultValuation.sol";
+import {VaultSecondaryBorrow} from "./VaultSecondaryBorrow.sol";
+
 import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 
 /// @notice VaultState holds a combination of asset cash and strategy tokens on behalf of the
@@ -24,7 +34,7 @@ import {IStrategyVault} from "../../../interfaces/notional/IStrategyVault.sol";
 /// asset cash during a risk-off event or as it unwinds to repay its debt at maturity. A VaultState
 /// will also hold settlement values after a vault is matured.
 library VaultStateLib {
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using TokenHandler for Token;
     using VaultConfiguration for VaultConfig;
     using SafeInt256 for int256;

@@ -2,19 +2,25 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./Market.sol";
-import "./AssetRate.sol";
-import "./DateTime.sol";
-import "../../global/LibStorage.sol";
-import "../../global/Types.sol";
-import "../../global/Constants.sol";
-import "../../math/SafeInt256.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    CashGroupParameters,
+    CashGroupSettings,
+    MarketParameters,
+    PrimeRate
+} from "../../global/Types.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../pCash/PrimeCashExchangeRate.sol";
+import {Market} from "./Market.sol";
+import {DateTime} from "./DateTime.sol";
 
 library CashGroup {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
     using SafeInt256 for int256;
-    using AssetRate for AssetRateParameters;
     using Market for MarketParameters;
 
     // Bit number references for each parameter in the 32 byte word (0-indexed)

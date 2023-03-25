@@ -2,14 +2,22 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./nTokenSupply.sol";
-import "../markets/CashGroup.sol";
-import "../markets/AssetRate.sol";
-import "../portfolio/PortfolioHandler.sol";
-import "../balances/BalanceHandler.sol";
-import "../../global/LibStorage.sol";
-import "../../math/SafeInt256.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    nTokenContext,
+    nTokenPortfolio
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+
+import {BitmapAssetsHandler} from "../portfolio/BitmapAssetsHandler.sol";
+import {PortfolioHandler} from "../portfolio/PortfolioHandler.sol";
+import {BalanceHandler} from "../balances/BalanceHandler.sol";
+import {CashGroup} from "../markets/CashGroup.sol";
+import {DateTime} from "../markets/DateTime.sol";
+
+import {nTokenSupply} from "./nTokenSupply.sol";
+import {IRewarder} from "../../../interfaces/notional/IRewarder.sol";
 
 library nTokenHandler {
     using SafeInt256 for int256;

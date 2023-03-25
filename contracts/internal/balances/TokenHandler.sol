@@ -2,21 +2,33 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../math/SafeInt256.sol";
-import "../../global/LibStorage.sol";
-import "../../global/Types.sol";
-import "../../global/Constants.sol";
-import "../../global/Deployments.sol";
-import "./protocols/AaveHandler.sol";
-import "./protocols/CompoundHandler.sol";
-import "./protocols/GenericToken.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
-import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import {
+    Token,
+    TokenType,
+    TokenStorage,
+    PrimeRate
+} from "../../global/Types.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+import {Constants} from "../../global/Constants.sol";
+import {Deployments} from "../../global/Deployments.sol";
+
+import {Emitter} from "../Emitter.sol";
+import {PrimeCashExchangeRate} from "../pCash/PrimeCashExchangeRate.sol";
+import {PrimeRateLib} from "../pCash/PrimeRateLib.sol";
+
+import {CompoundHandler} from "./protocols/CompoundHandler.sol";
+import {GenericToken} from "./protocols/GenericToken.sol";
+
+import {IERC20} from "../../../interfaces/IERC20.sol";
+import {IPrimeCashHoldingsOracle, RedeemData} from "../../../interfaces/notional/IPrimeCashHoldingsOracle.sol";
 
 /// @notice Handles all external token transfers and events
 library TokenHandler {
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
+    using PrimeRateLib for PrimeRate;
 
     function setMaxCollateralBalance(uint256 currencyId, uint72 maxCollateralBalance) internal {
         mapping(uint256 => mapping(bool => TokenStorage)) storage store = LibStorage.getTokenStorage();

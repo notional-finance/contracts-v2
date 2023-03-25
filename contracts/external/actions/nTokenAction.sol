@@ -2,27 +2,41 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./ActionGuards.sol";
-import "../../internal/nToken/nTokenHandler.sol";
-import "../../internal/nToken/nTokenSupply.sol";
-import "../../internal/nToken/nTokenCalculations.sol";
-import "../../internal/markets/AssetRate.sol";
-import "../../internal/balances/BalanceHandler.sol";
-import "../../internal/balances/Incentives.sol";
-import "../../math/SafeInt256.sol";
-import "../../global/StorageLayoutV1.sol";
-import "../../external/FreeCollateralExternal.sol";
-import "../../../interfaces/notional/nTokenERC20.sol";
-import "@openzeppelin/contracts/utils/SafeCast.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    PrimeRate,
+    BalanceState,
+    AccountContext,
+    nTokenPortfolio
+} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {StorageLayoutV1} from "../../global/StorageLayoutV1.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
+
+import {AccountContextHandler} from "../../internal/AccountContextHandler.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
+import {nTokenSupply} from "../../internal/nToken/nTokenSupply.sol";
+import {nTokenCalculations} from "../../internal/nToken/nTokenCalculations.sol";
+import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../../internal/pCash/PrimeCashExchangeRate.sol";
+import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
+import {Incentives} from "../../internal/balances/Incentives.sol";
+
+import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
+import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
+import {ActionGuards} from "./ActionGuards.sol";
+import {MigrateIncentives} from "../MigrateIncentives.sol";
+
+import {nTokenERC20} from "../../../interfaces/notional/nTokenERC20.sol";
 
 contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     using BalanceHandler for BalanceState;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
     using SafeInt256 for int256;
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     /// @notice Total number of tokens in circulation
     /// @param nTokenAddress The address of the nToken

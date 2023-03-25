@@ -2,11 +2,11 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../global/Constants.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeUint256} from "../../math/SafeUint256.sol";
 
 library DateTime {
-    using SafeMath for uint256;
+    using SafeUint256 for uint256;
 
     /// @notice Returns the current reference time which is how all the AMM dates are calculated.
     function getReferenceTime(uint256 blockTime) internal pure returns (uint256) {

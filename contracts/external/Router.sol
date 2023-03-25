@@ -7,10 +7,15 @@ import "../global/StorageLayoutV1.sol";
 import "../global/Types.sol";
 import {nTokenERC20} from "../../interfaces/notional/nTokenERC20.sol";
 import "../../interfaces/notional/NotionalProxy.sol";
-import {IVaultAction, IVaultAccountAction} from "../../interfaces/notional/IVaultController.sol";
 import {nERC1155Interface} from "../../interfaces/notional/nERC1155Interface.sol";
 import {NotionalGovernance} from "../../interfaces/notional/NotionalGovernance.sol";
 import {NotionalCalculations} from "../../interfaces/notional/NotionalCalculations.sol";
+import {
+    IVaultAction,
+    IVaultAccountAction,
+    IVaultLiquidationAction,
+    IVaultAccountHealth
+} from "../../interfaces/notional/IVaultController.sol";
 
 /**
  * @notice Sits behind an upgradeable proxy and routes methods to an appropriate implementation contract. All storage

@@ -1,24 +1,12 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.7.6;
 
-import "../../../../interfaces/IEIP20NonStandard.sol";
+import {Deployments} from "../../../global/Deployments.sol";
+import {IEIP20NonStandard} from "../../../../interfaces/IEIP20NonStandard.sol";
+import {SafeUint256} from "../../../math/SafeUint256.sol";
 
 library GenericToken {
-    bytes4 internal constant defaultBalanceOfSelector = IEIP20NonStandard.balanceOf.selector;
-
-    /**
-     * @dev Manually checks the balance of an account using the method selector. Reduces bytecode size and allows
-     * for overriding the balanceOf selector to use scaledBalanceOf for aTokens
-     */
-    function checkBalanceViaSelector(
-        address token,
-        address account,
-        bytes4 balanceOfSelector
-    ) internal view returns (uint256 balance) {
-        (bool success, bytes memory returnData) = token.staticcall(abi.encodeWithSelector(balanceOfSelector, account));
-        require(success);
-        (balance) = abi.decode(returnData, (uint256));
-    }
+    using SafeUint256 for uint256;
 
     function transferNativeTokenOut(
         address account,

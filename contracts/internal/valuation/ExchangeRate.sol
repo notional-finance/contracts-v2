@@ -2,9 +2,11 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../balances/TokenHandler.sol";
-import "../../math/SafeInt256.sol";
-import "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
+import {LibStorage} from "../../global/LibStorage.sol";
+import {Constants} from "../../global/Constants.sol";
+import {ETHRate, ETHRateStorage} from "../../global/Types.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {AggregatorV2V3Interface} from "../../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 library ExchangeRate {
     using SafeInt256 for int256;
