@@ -43,7 +43,6 @@ library FreeCollateral {
         bool updateContext;
         uint256 portfolioIndex;
         CashGroupParameters cashGroup;
-        MarketParameters market;
         PortfolioAsset[] portfolio;
         PrimeRate primeRate;
         nTokenPortfolio nToken;
@@ -127,7 +126,6 @@ library FreeCollateral {
             (netPortfolioValue, factors.portfolioIndex) = AssetHandler.getNetCashGroupValue(
                 factors.portfolio,
                 factors.cashGroup,
-                factors.market,
                 blockTime,
                 factors.portfolioIndex
             );

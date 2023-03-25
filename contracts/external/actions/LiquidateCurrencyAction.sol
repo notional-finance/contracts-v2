@@ -57,7 +57,6 @@ contract LiquidateCurrencyAction is ActionGuards {
         (
             int256 localPrimeCashFromLiquidator,
             BalanceState memory localBalanceState,
-            /* PortfolioState memory portfolio */,
             /* AccountContext memory accountContext */
         ) = _localCurrencyLiquidation(
             liquidateAccount,
@@ -89,7 +88,6 @@ contract LiquidateCurrencyAction is ActionGuards {
         (
             int256 localPrimeCashFromLiquidator,
             BalanceState memory localBalanceState,
-            PortfolioState memory portfolio,
             AccountContext memory accountContext
         ) = _localCurrencyLiquidation(
             liquidateAccount,
@@ -148,20 +146,12 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint16 collateralCurrency,
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation
-    )
-        external nonReentrant
-        returns (
-            int256,
-            int256,
-            int256
-        )
-    {
+    ) external nonReentrant returns (int256, int256, int256) {
         // prettier-ignore
         (
             int256 localPrimeCashFromLiquidator,
             BalanceState memory collateralBalanceState,
-            /* PortfolioState memory portfolio */,
-            /* AccountContext memory accountContext */
+            /* */
         ) = _collateralCurrencyLiquidation(
                 liquidateAccount,
                 localCurrency,
@@ -173,7 +163,7 @@ contract LiquidateCurrencyAction is ActionGuards {
 
         return (
             localPrimeCashFromLiquidator,
-            _collateralPrimeCashToLiquidator(collateralBalanceState),
+            collateralBalanceState.netCashChange.neg(),
             collateralBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -205,10 +195,8 @@ contract LiquidateCurrencyAction is ActionGuards {
         (
             int256 localPrimeCashFromLiquidator,
             BalanceState memory collateralBalanceState,
-            PortfolioState memory portfolio,
             AccountContext memory accountContext
-        ) =
-            _collateralCurrencyLiquidation(
+        ) = _collateralCurrencyLiquidation(
                 liquidateAccount,
                 localCurrency,
                 collateralCurrency,
@@ -259,7 +247,7 @@ contract LiquidateCurrencyAction is ActionGuards {
 
         return (
             localPrimeCashFromLiquidator,
-            _collateralPrimeCashToLiquidator(collateralBalanceState),
+            collateralBalanceState.netCashChange.neg(),
             collateralBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -276,7 +264,7 @@ contract LiquidateCurrencyAction is ActionGuards {
             localCurrency,
             uint16(collateralBalanceState.currencyId),
             localPrimeCashFromLiquidator,
-            _collateralPrimeCashToLiquidator(collateralBalanceState),
+            collateralBalanceState.netCashChange.neg(),
             collateralBalanceState.netNTokenTransfer.neg()
         );
     }
@@ -286,39 +274,23 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint16 localCurrency,
         uint96 maxNTokenLiquidation,
         bool isCalculation
-    )
-        internal
-        returns (
-            int256,
-            BalanceState memory,
-            PortfolioState memory,
-            AccountContext memory
-        )
-    {
-        (
-            AccountContext memory accountContext,
-            LiquidationFactors memory factors,
-            PortfolioState memory portfolio
-        ) = LiquidationHelpers.preLiquidationActions(liquidateAccount, localCurrency, 0);
-        BalanceState memory localBalanceState;
+    ) internal returns (
+        int256 localPrimeCashFromLiquidator,
+        BalanceState memory localBalanceState,
+        AccountContext memory accountContext
+    ) {
+        LiquidationFactors memory factors;
+        (accountContext, factors, /* */) = LiquidationHelpers.preLiquidationActions(
+            liquidateAccount, localCurrency, 0
+        );
+
         localBalanceState.loadBalanceState(liquidateAccount, localCurrency, accountContext);
         factors.isCalculation = isCalculation;
 
-        int256 localPrimeCashFromLiquidator =
-            LiquidateCurrency.liquidateLocalCurrency(
-                localCurrency,
+        localPrimeCashFromLiquidator = LiquidateCurrency.liquidateLocalCurrency(
                 maxNTokenLiquidation,
-                block.timestamp,
                 localBalanceState,
-                factors,
-                portfolio
-            );
-
-        return (
-            localPrimeCashFromLiquidator,
-            localBalanceState,
-            portfolio,
-            accountContext
+            factors
         );
     }
 
@@ -329,50 +301,24 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation,
         bool isCalculation
-    )
-        private
-        returns (
-            int256,
-            BalanceState memory,
-            PortfolioState memory,
-            AccountContext memory
-        )
-    {
-        uint256 blockTime = block.timestamp;
-        (
-            AccountContext memory accountContext,
-            LiquidationFactors memory factors,
-            PortfolioState memory portfolio
-        ) =
-            LiquidationHelpers.preLiquidationActions(
-                liquidateAccount,
-                localCurrency,
-                collateralCurrency
+    ) private returns (
+        int256 localPrimeCashFromLiquidator,
+        BalanceState memory collateralBalanceState,
+        AccountContext memory accountContext
+    ) {
+        LiquidationFactors memory factors;
+        (accountContext, factors, /* */) = LiquidationHelpers.preLiquidationActions(
+            liquidateAccount, localCurrency, collateralCurrency
             );
 
-        BalanceState memory collateralBalanceState;
-        collateralBalanceState.loadBalanceState(
-            liquidateAccount,
-            collateralCurrency,
-            accountContext
-        );
+        collateralBalanceState.loadBalanceState(liquidateAccount, collateralCurrency, accountContext);
         factors.isCalculation = isCalculation;
 
-        int256 localPrimeCashFromLiquidator =
-            LiquidateCurrency.liquidateCollateralCurrency(
+        localPrimeCashFromLiquidator = LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
-                blockTime,
                 collateralBalanceState,
-                factors,
-                portfolio
-            );
-
-        return (
-            localPrimeCashFromLiquidator,
-            collateralBalanceState,
-            portfolio,
-            accountContext
+            factors
         );
     }
 
@@ -399,26 +345,13 @@ contract LiquidateCurrencyAction is ActionGuards {
             msg.sender,
             liquidatorContext,
             collateralCurrency,
-            _collateralPrimeCashToLiquidator(collateralBalanceState),
+            collateralBalanceState.netCashChange.neg(),
             collateralBalanceState.netNTokenTransfer.neg(),
             withdrawCollateral,
             redeemToUnderlying
         );
 
         liquidatorContext.setAccountContext(msg.sender);
-    }
-
-    function _collateralPrimeCashToLiquidator(BalanceState memory collateralBalanceState)
-        private
-        pure
-        returns (int256)
-    {
-        // netPrimeTransfer is the cash claim withdrawn from collateral
-        // liquidity tokens.
-        return
-            collateralBalanceState.netCashChange.neg().add(
-                collateralBalanceState.netPrimeTransfer
-            );
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)

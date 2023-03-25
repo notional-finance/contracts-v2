@@ -152,21 +152,7 @@ library TradingAction {
                 tradeType == TradeActionType.AddLiquidity ||
                 tradeType == TradeActionType.RemoveLiquidity
             ) {
-                revert("Disabled");
-                /**
-                 * Manual adding and removing of liquidity is currently disabled.
-                 *
-                 *  // Liquidity tokens can only be added by array portfolio
-                 *  c.cash = _executeLiquidityTrade(
-                 *      account,
-                 *      cashGroup,
-                 *      market,
-                 *      tradeType,
-                 *      trades[i],
-                 *      portfolioState,
-                 *      c.netCash
-                 *  );
-                 */
+                revert();
             } else {
                 uint256 maturity;
                 (maturity, c.cash, c.fCashAmount) = _executeTrade(
@@ -245,89 +231,8 @@ library TradingAction {
                 fCashAmount
             );
         } else {
-            revert("Invalid trade type");
-        }
+            revert();
     }
-
-    /// @notice Executes a liquidity token trade, no fees incurred and only array portfolios may hold
-    /// liquidity tokens.
-    /// @param account the initiator of the trade
-    /// @param cashGroup parameters for the trade
-    /// @param market market memory location to use
-    /// @param tradeType whether this is add or remove liquidity
-    /// @param trade bytes32 encoding of the particular trade
-    /// @param portfolioState the current account's portfolio state
-    /// @param netCash the current net cash accrued in this batch of trades, can be
-    //  used for adding liquidity
-    /// @return cashAmount: a positive or negative cash amount accrued to the account
-    function _executeLiquidityTrade(
-        address account,
-        CashGroupParameters memory cashGroup,
-        MarketParameters memory market,
-        TradeActionType tradeType,
-        bytes32 trade,
-        PortfolioState memory portfolioState,
-        int256 netCash
-    ) private returns (int256) {
-        uint256 marketIndex = uint8(bytes1(trade << 8));
-        // NOTE: this loads the market in memory
-        cashGroup.loadMarket(market, marketIndex, true, block.timestamp);
-
-        int256 cashAmount;
-        int256 fCashAmount;
-        int256 tokens;
-        if (tradeType == TradeActionType.AddLiquidity) {
-            cashAmount = int256((uint256(trade) >> 152) & type(uint88).max);
-            // Setting cash amount to zero will deposit all net cash accumulated in this trade into
-            // liquidity. This feature allows accounts to borrow in one maturity to provide liquidity
-            // in another in a single transaction without dust. It also allows liquidity providers to
-            // sell off the net cash residuals and use the cash amount in the new market without dust
-            if (cashAmount == 0) cashAmount = netCash;
-
-            // Add liquidity will check cash amount is positive
-            (tokens, fCashAmount) = market.addLiquidity(cashAmount);
-            cashAmount = cashAmount.neg(); // Report a negative cash amount in the event
-        } else {
-            tokens = int256((uint256(trade) >> 152) & type(uint88).max);
-            (cashAmount, fCashAmount) = market.removeLiquidity(tokens);
-            tokens = tokens.neg(); // Report a negative amount tokens in the event
-        }
-
-        {
-            uint256 minImpliedRate = uint32(uint256(trade) >> 120);
-            uint256 maxImpliedRate = uint32(uint256(trade) >> 88);
-            // If minImpliedRate is not set then it will be zero
-            require(market.lastImpliedRate >= minImpliedRate, "Trade failed, slippage");
-            if (maxImpliedRate != 0)
-                require(market.lastImpliedRate <= maxImpliedRate, "Trade failed, slippage");
-        }
-
-        // Add the assets in this order so they are sorted
-        portfolioState.addAsset(
-            cashGroup.currencyId,
-            market.maturity,
-            Constants.FCASH_ASSET_TYPE,
-            fCashAmount
-        );
-        // Adds the liquidity token asset
-        portfolioState.addAsset(
-            cashGroup.currencyId,
-            market.maturity,
-            marketIndex + 1,
-            tokens
-        );
-
-        emit AddRemoveLiquidity(
-            account,
-            cashGroup.currencyId,
-            // This will not overflow for a long time
-            uint40(market.maturity),
-            cashAmount,
-            fCashAmount,
-            tokens
-        );
-
-        return cashAmount;
     }
 
     /// @notice Executes a lend or borrow trade

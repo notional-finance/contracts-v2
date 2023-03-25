@@ -312,12 +312,7 @@ library AccountContextHandler {
         accountContext.nextSettleTime = nextSettleTime;
         require(mustSettleAssets(accountContext) == false); // dev: cannot store matured assets
         accountContext.assetArrayLength = assetArrayLength;
-
-        // During liquidation it is possible for an array to go over the max amount of assets allowed due to
-        // liquidity tokens being withdrawn into fCash.
-        if (!isLiquidation) {
-            require(assetArrayLength <= uint8(Constants.MAX_TRADED_MARKET_INDEX)); // dev: max assets allowed
-        }
+        require(assetArrayLength <= uint8(LibStorage.MAX_PORTFOLIO_ASSETS)); // dev: max assets allowed
 
         // Sets the hasDebt flag properly based on whether or not portfolio has asset debt, meaning
         // a negative fCash balance.

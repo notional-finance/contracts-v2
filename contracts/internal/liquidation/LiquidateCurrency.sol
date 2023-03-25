@@ -30,13 +30,10 @@ library LiquidateCurrency {
     /// on the part of the liquidator, this is pure arbitrage. It's highly unlikely that an account will
     /// encounter this scenario but this method is here for completeness.
     function liquidateLocalCurrency(
-        uint256 localCurrency,
         uint96 maxNTokenLiquidation,
-        uint256 blockTime,
         BalanceState memory balanceState,
-        LiquidationFactors memory factors,
-        PortfolioState memory portfolio
-    ) internal returns (int256 netPrimeCashFromLiquidator) {
+        LiquidationFactors memory factors
+    ) internal pure returns (int256 netPrimeCashFromLiquidator) {
         // If local asset available == 0 then there is nothing that this liquidation can do.
         require(factors.localPrimeAvailable != 0);
         int256 primeBenefitRequired;
@@ -63,22 +60,6 @@ library LiquidateCurrency {
                         factors.localETHRate
                     )
                 );
-        }
-
-        {
-            WithdrawFactors memory w;
-            // Will check if the account actually has liquidity tokens
-            (w, primeBenefitRequired) = _withdrawLocalLiquidityTokens(
-                portfolio,
-                factors,
-                blockTime,
-                primeBenefitRequired
-            );
-            // The liquidator will be paid this amount of incentive, it is deducted from what they
-            // owe the liquidated account.
-            netPrimeCashFromLiquidator = w.totalIncentivePaid.neg();
-            // The liquidity tokens have been withdrawn to cash.
-            balanceState.netCashChange = w.totalCashClaim.sub(w.totalIncentivePaid);
         }
 
         if (factors.nTokenHaircutPrimeValue > 0) {
@@ -170,11 +151,9 @@ library LiquidateCurrency {
     function liquidateCollateralCurrency(
         uint128 maxCollateralLiquidation,
         uint96 maxNTokenLiquidation,
-        uint256 blockTime,
         BalanceState memory balanceState,
-        LiquidationFactors memory factors,
-        PortfolioState memory portfolio
-    ) internal returns (int256) {
+        LiquidationFactors memory factors
+    ) internal pure returns (int256) {
         require(factors.localPrimeAvailable < 0, "No local debt");
         require(factors.collateralAssetAvailable > 0, "No collateral");
 
@@ -197,28 +176,6 @@ library LiquidateCurrency {
                     balanceState.storedCashBalance
                 );
             }
-        }
-
-        if (collateralPrimeRemaining > 0) {
-            // Will check inside if the account actually has liquidity token
-            int256 newCollateralAssetRemaining =
-                _withdrawCollateralLiquidityTokens(
-                    portfolio,
-                    factors,
-                    blockTime,
-                    collateralPrimeRemaining
-                );
-
-            // This is a hack and ugly but there are stack issues in `LiquidateCurrencyAction.liquidateCollateralCurrency`
-            // and this is a way to deal with it with the fewest contortions. There are no asset cash transfers within liquidation
-            // so we overload the meaning of the field here to hold the net liquidity token cash change. Will zero this out before
-            // going into finalize for the liquidated account's cash balances. This value is not simply added to the netCashChange field
-            // because the cashClaim value is not stored in the balances and therefore the liquidated account will have too much cash
-            // debited from their stored cash value.
-            balanceState.netPrimeTransfer = collateralPrimeRemaining.sub(
-                newCollateralAssetRemaining
-            );
-            collateralPrimeRemaining = newCollateralAssetRemaining;
         }
 
         if (collateralPrimeRemaining > 0 && factors.nTokenHaircutPrimeValue > 0) {
@@ -365,229 +322,5 @@ library LiquidateCurrency {
         );
 
         return collateralPrimeRemaining;
-    }
-
-    struct WithdrawFactors {
-        int256 netCashIncrease;
-        int256 fCash;
-        int256 primeCash;
-        int256 totalIncentivePaid;
-        int256 totalCashClaim;
-        int256 incentivePaid;
-    }
-
-    /// @notice Withdraws local liquidity tokens from a portfolio and pays an incentive to the liquidator.
-    /// @return withdraw factors to update liquidator and liquidated cash balances, the asset amount remaining
-    function _withdrawLocalLiquidityTokens(
-        PortfolioState memory portfolioState,
-        LiquidationFactors memory factors,
-        uint256 blockTime,
-        int256 primeAmountRemaining
-    ) internal returns (WithdrawFactors memory, int256) {
-        require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
-        MarketParameters memory market;
-        // Do this to deal with stack issues
-        WithdrawFactors memory w;
-
-        // Loop through the stored assets in reverse order. This ensures that we withdraw the longest dated
-        // liquidity tokens first. Longer dated liquidity tokens will generally have larger haircuts and therefore
-        // provide more benefit when withdrawn.
-        for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            // NOTE: during local liquidation, if the account has assets in local currency then
-            // collateral cash group will be set to the local cash group
-            if (!_isValidWithdrawToken(asset, factors.collateralCashGroup.currencyId)) continue;
-
-            (w.primeCash, w.fCash) = _loadMarketAndGetClaims(
-                asset,
-                factors.collateralCashGroup,
-                market,
-                blockTime
-            );
-
-            (w.netCashIncrease, w.incentivePaid) = _calculateNetCashIncreaseAndIncentivePaid(
-                factors, w.primeCash, asset.assetType);
-
-            // (netCashToAccount <= primeAmountRemaining)
-            if (w.netCashIncrease.subNoNeg(w.incentivePaid) <= primeAmountRemaining) {
-                // The additional cash is insufficient to cover asset amount required so we just remove all of it.
-                portfolioState.deleteAsset(i);
-                if (!factors.isCalculation) market.removeLiquidity(asset.notional);
-
-                // primeAmountRemaining = primeAmountRemaining - netCashToAccount
-                // netCashToAccount = netCashIncrease - incentivePaid
-                // overflow checked above
-                primeAmountRemaining = primeAmountRemaining - w.netCashIncrease.sub(w.incentivePaid);
-            } else {
-                // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
-                int256 tokensToRemove = asset.notional
-                    .mul(primeAmountRemaining)
-                    .div(w.netCashIncrease.subNoNeg(w.incentivePaid));
-
-                if (!factors.isCalculation) {
-                    (w.primeCash, w.fCash) = market.removeLiquidity(tokensToRemove);
-                } else {
-                    w.primeCash = market.totalPrimeCash.mul(tokensToRemove).div(market.totalLiquidity);
-                    w.fCash = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
-                }
-                // Recalculate net cash increase and incentive paid. w.primeCash is different because we partially
-                // remove asset cash
-                (w.netCashIncrease, w.incentivePaid) = _calculateNetCashIncreaseAndIncentivePaid(
-                    factors, w.primeCash, asset.assetType);
-
-                // Remove liquidity token balance
-                asset.notional = asset.notional.subNoNeg(tokensToRemove);
-                asset.storageState = AssetStorageState.Update;
-                primeAmountRemaining = 0;
-            }
-
-            w.totalIncentivePaid = w.totalIncentivePaid.add(w.incentivePaid);
-            w.totalCashClaim = w.totalCashClaim.add(w.primeCash);
-
-            // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
-            portfolioState.addAsset(
-                factors.collateralCashGroup.currencyId,
-                asset.maturity,
-                Constants.FCASH_ASSET_TYPE,
-                w.fCash
-            );
-
-            if (primeAmountRemaining == 0) break;
-        }
-
-        return (w, primeAmountRemaining);
-    }
-
-    function _calculateNetCashIncreaseAndIncentivePaid(
-        LiquidationFactors memory factors,
-        int256 primeCash,
-        uint256 assetType
-    ) private pure returns (int256 netCashIncrease, int256 incentivePaid) {
-        // We can only recollateralize the local currency using the part of the liquidity token that
-        // between the pre-haircut cash claim and the post-haircut cash claim. Part of the cash raised
-        // is paid out as an incentive so that must be accounted for.
-        // netCashIncrease = cashClaim * (1 - haircut)
-        // netCashIncrease = netCashToAccount + incentivePaid
-        // incentivePaid = netCashIncrease * incentivePercentage
-        int256 haircut = factors.collateralCashGroup.getLiquidityHaircut(assetType);
-        netCashIncrease = primeCash.mul(Constants.PERCENTAGE_DECIMALS.sub(haircut)).div(
-            Constants.PERCENTAGE_DECIMALS
-        );
-        incentivePaid = netCashIncrease.mul(Constants.TOKEN_REPO_INCENTIVE_PERCENT).div(
-            Constants.PERCENTAGE_DECIMALS
-        );
-    }
-
-    /// @dev Similar to withdraw liquidity tokens, except there is no incentive paid and we do not worry about
-    /// haircut amounts, we simply withdraw as much collateral as needed.
-    /// @return the new collateral amount required in the liquidation
-    function _withdrawCollateralLiquidityTokens(
-        PortfolioState memory portfolioState,
-        LiquidationFactors memory factors,
-        uint256 blockTime,
-        int256 collateralToWithdraw
-    ) internal returns (int256) {
-        require(portfolioState.newAssets.length == 0); // dev: new assets in portfolio
-        MarketParameters memory market;
-
-        // Loop through the stored assets in reverse order. This ensures that we withdraw the longest dated
-        // liquidity tokens first. Longer dated liquidity tokens will generally have larger haircuts and therefore
-        // provide more benefit when withdrawn.
-        for (uint256 i = portfolioState.storedAssets.length; (i--) > 0;) {
-            PortfolioAsset memory asset = portfolioState.storedAssets[i];
-            if (!_isValidWithdrawToken(asset, factors.collateralCashGroup.currencyId)) continue;
-
-            (int256 cashClaim, int256 fCashClaim) = _loadMarketAndGetClaims(
-                asset,
-                factors.collateralCashGroup,
-                market,
-                blockTime
-            );
-
-            if (cashClaim <= collateralToWithdraw) {
-                // The additional cash is insufficient to cover asset amount required so we just remove all of it.
-                portfolioState.deleteAsset(i);
-                if (!factors.isCalculation) market.removeLiquidity(asset.notional);
-
-                // overflow checked above
-                collateralToWithdraw = collateralToWithdraw - cashClaim;
-            } else {
-                // Otherwise remove a proportional amount of liquidity tokens to cover the amount remaining.
-                // NOTE: dust can accrue when withdrawing liquidity at this point
-                int256 tokensToRemove = asset.notional.mul(collateralToWithdraw).div(cashClaim);
-                if (!factors.isCalculation) {
-                    (cashClaim, fCashClaim) = market.removeLiquidity(tokensToRemove);
-                } else {
-                    cashClaim = market.totalPrimeCash.mul(tokensToRemove).div(market.totalLiquidity);
-                    fCashClaim = market.totalfCash.mul(tokensToRemove).div(market.totalLiquidity);
-                }
-
-                // Remove liquidity token balance
-                asset.notional = asset.notional.subNoNeg(tokensToRemove);
-                asset.storageState = AssetStorageState.Update;
-                collateralToWithdraw = 0;
-            }
-
-            // Add the netfCash asset to the portfolio since we've withdrawn the liquidity tokens
-            portfolioState.addAsset(
-                factors.collateralCashGroup.currencyId,
-                asset.maturity,
-                Constants.FCASH_ASSET_TYPE,
-                fCashClaim
-            );
-
-            if (collateralToWithdraw == 0) return 0;
-        }
-
-        return collateralToWithdraw;
-    }
-
-    function _isValidWithdrawToken(PortfolioAsset memory asset, uint256 currencyId) private pure returns (bool) {
-        return (
-            asset.currencyId == currencyId &&
-            AssetHandler.isLiquidityToken(asset.assetType) &&
-            // Defensive check to ensure that we only operate on unmodified assets
-            asset.storageState == AssetStorageState.NoChange
-        );
-    }
-
-    function _loadMarketAndGetClaims(
-        PortfolioAsset memory asset,
-        CashGroupParameters memory cashGroup,
-        MarketParameters memory market,
-        uint256 blockTime
-    ) private view returns (int256 cashClaim, int256 fCashClaim) {
-        uint256 marketIndex = asset.assetType - 1;
-        cashGroup.loadMarket(market, marketIndex, true, blockTime);
-        (cashClaim, fCashClaim) = asset.getCashClaims(market);
-    }
-
-    function finalizeLiquidatedCollateralAndPortfolio(
-        address liquidateAccount,
-        BalanceState memory collateralBalanceState,
-        AccountContext memory accountContext,
-        PortfolioState memory portfolio
-    ) internal {
-        // Asset transfer value is set to record liquidity token withdraw balances and should not be
-        // finalized inside the liquidated collateral. See comment inside liquidateCollateralCurrency
-        // for more details
-        int256 tmpPrimeTransferAmount = collateralBalanceState.netPrimeTransfer;
-        collateralBalanceState.netPrimeTransfer = 0;
-
-        // Finalize liquidated account balance
-        collateralBalanceState.finalize(liquidateAccount, accountContext, false);
-
-        if (!accountContext.isBitmapEnabled()) {
-            // Portfolio updates only happen if the account has liquidity tokens, which can only be the
-            // case in a non-bitmapped portfolio.
-            accountContext.storeAssetsAndUpdateContext(
-                liquidateAccount,
-                portfolio,
-                true // is liquidation
-            );
-        }
-
-        accountContext.setAccountContext(liquidateAccount);
-        collateralBalanceState.netPrimeTransfer = tmpPrimeTransferAmount;
     }
 }
