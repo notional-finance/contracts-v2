@@ -41,37 +41,103 @@ library VaultAccountLib {
         uint256 remainingStrategyTokens
     );
 
+    event VaultAccountLendAtZeroInterest(
+        address indexed vault,
+        uint256 indexed maturity,
+        address indexed account,
+        uint16 currencyId,
+        int256 fCashRepaid,
+        int256 primeCashCostToLend
+    );
+
     /// @notice Returns a single account's vault position
     function getVaultAccount(
-        address account, address vault
+        address account, VaultConfig memory vaultConfig
     ) internal view returns (VaultAccount memory vaultAccount) {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage.getVaultAccount();
-        VaultAccountStorage storage s = store[account][vault];
+        VaultAccountStorage storage s = store[account][vaultConfig.vault];
 
-        // fCash is negative on the stack
-        vaultAccount.fCash = -int256(uint256(s.fCash));
         vaultAccount.maturity = s.maturity;
         vaultAccount.vaultShares = s.vaultShares;
         vaultAccount.account = account;
+        // Read any temporary cash balance onto the stack to be applied
+        vaultAccount.tempCashBalance = int256(uint256(s.primaryCash));
+        vaultAccount.lastUpdateBlockTime = s.lastUpdateBlockTime;
+
+        vaultAccount.accountDebtUnderlying = VaultStateLib.readDebtStorageToUnderlying(
+            vaultConfig.primeRate, vaultAccount.maturity, s.accountDebt
+        );
+    }
+
+    /// @notice Called when a vault account is liquidated and cash is deposited into its account and held
+    /// as collateral against fCash
+    function setVaultAccountForLiquidation(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        uint256 currencyIndex,
+        int256 netCashBalanceChange,
+        bool checkMinBorrow
+    ) internal {
+        mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
+            .getVaultAccount();
+        VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
+        
+        if (currencyIndex == 0) {
+            s.primaryCash = int256(uint256(s.primaryCash)).add(netCashBalanceChange).toUint().toUint80();
+        } else if (currencyIndex == 1) {
+            s.secondaryCashOne = int256(uint256(s.secondaryCashOne)).add(netCashBalanceChange).toUint().toUint80();
+        } else if (currencyIndex == 2) {
+            s.secondaryCashTwo = int256(uint256(s.secondaryCashTwo)).add(netCashBalanceChange).toUint().toUint80();
+        } else {
+            // This should never occur
+            revert();
+        }
+
+        // Clear temp cash balance, it is not updated during liquidation
         vaultAccount.tempCashBalance = 0;
-        vaultAccount.lastEntryBlockHeight = s.lastEntryBlockHeight;
+
+        _setVaultAccount(vaultAccount, vaultConfig, s, checkMinBorrow, true);
     }
 
     /// @notice Sets a single account's vault position in storage
-    function setVaultAccount(VaultAccount memory vaultAccount, VaultConfig memory vaultConfig) internal {
+    function setVaultAccount(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        bool checkMinBorrow 
+    ) internal {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
             .getVaultAccount();
         VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
 
+        _setVaultAccount(vaultAccount, vaultConfig, s, checkMinBorrow, false);
+
+        // Cash balances should never be preserved after a non-liquidation transaction,
+        // during enter, exit, roll and settle any cash balances should be applied to
+        // the transaction. These cash balances are only set after liquidation.
+        s.primaryCash = 0;
+        require(s.secondaryCashOne == 0 && s.secondaryCashTwo == 0); // dev: secondary cash
+    }
+
+    function _setVaultAccount(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        VaultAccountStorage storage s,
+        bool checkMinBorrow,
+        bool isLiquidation
+    ) private {
         // The temporary cash balance must be cleared to zero by the end of the transaction
         require(vaultAccount.tempCashBalance == 0); // dev: cash balance not cleared
         // An account must maintain a minimum borrow size in order to enter the vault. If the account
         // wants to exit under the minimum borrow size it must fully exit so that we do not have dust
         // accounts that become insolvent.
-        if (vaultAccount.fCash.neg() < vaultConfig.minAccountBorrowSize) {
+        if (
+            vaultAccount.accountDebtUnderlying.neg() < vaultConfig.minAccountBorrowSize &&
+            // During local currency liquidation and settlement, the min borrow check is skipped
+            checkMinBorrow
+        ) {
             // NOTE: use 1 to represent the minimum amount of vault shares due to rounding in the
             // vaultSharesToLiquidator calculation
-            require(vaultAccount.fCash == 0 || vaultAccount.vaultShares <= 1, "Min Borrow");
+            require(vaultAccount.accountDebtUnderlying == 0 || vaultAccount.vaultShares <= 1, "Min Borrow");
         }
 
         if (vaultConfig.hasSecondaryBorrows()) {
@@ -81,37 +147,89 @@ library VaultAccountLib {
             require(vaultAccount.maturity == secondaryMaturity || secondaryMaturity == 0); // dev: invalid maturity
         }
 
-        s.fCash = vaultAccount.fCash.neg().toUint().toUint80();
+        uint256 newDebtStorageValue = VaultStateLib.calculateDebtStorage(
+            vaultConfig.primeRate,
+            vaultAccount.maturity,
+            vaultAccount.accountDebtUnderlying
+        ).neg().toUint();
+
+        if (!isLiquidation) {
+            // Liquidation will emit its own custom events
+            Emitter.emitVaultAccountChanges(vaultAccount, vaultConfig, s, newDebtStorageValue);
+        }
+
         s.vaultShares = vaultAccount.vaultShares.toUint80();
         s.maturity = vaultAccount.maturity.toUint40();
-        s.lastEntryBlockHeight = vaultAccount.lastEntryBlockHeight.toUint32();
+        s.lastUpdateBlockTime = vaultAccount.lastUpdateBlockTime.toUint32();
+        s.accountDebt = newDebtStorageValue.toUint80();
+    }
+
+    /// @notice Updates the secondary cash held by the account, should only be updated in two places:
+    ///   - During liquidation of a secondary borrow
+    ///   - On vault exit when the secondary borrow currency is holding cash
+    /// In setVaultAccount, a vault account cannot end up with a secondary cash balance at the end of a
+    /// user initiated (non-liquidation) transaction. The vault must clearVaultAccountSecondaryCash during
+    /// the redemption of strategy tokens.
+    function setVaultAccountSecondaryCash(
+        address account,
+        address vault,
+        int256 netSecondaryPrimeCashOne,
+        int256 netSecondaryPrimeCashTwo
+    ) internal {
+        VaultAccountStorage storage s = LibStorage.getVaultAccount()[account][vault];
+        s.secondaryCashOne = int256(uint256(s.secondaryCashOne)).add(netSecondaryPrimeCashOne).toUint().toUint80();
+        s.secondaryCashTwo = int256(uint256(s.secondaryCashTwo)).add(netSecondaryPrimeCashTwo).toUint().toUint80();
+    }
+
+    function checkVaultAccountSecondaryCash(
+        address account,
+        address vault
+    ) internal view {
+        VaultAccountStorage storage s = LibStorage.getVaultAccount()[account][vault];
+        require(s.secondaryCashOne == 0);
+        require(s.secondaryCashTwo == 0);
+    }
+    
+    function clearVaultAccountSecondaryCash(
+        address account,
+        address vault
+    ) internal returns (int256 secondaryCashOne, int256 secondaryCashTwo) {
+        VaultAccountStorage storage s = LibStorage.getVaultAccount()[account][vault];
+        secondaryCashOne = int256(uint256(s.secondaryCashOne));
+        secondaryCashTwo = int256(uint256(s.secondaryCashTwo));
+
+        s.secondaryCashOne = 0;
+        s.secondaryCashTwo = 0;
     }
 
     /// @notice Updates an account's fCash position and the current vault state at the same time. Also updates
     /// and checks the total borrow capacity
     /// @param vaultAccount vault account
-    /// @param vaultConfig vault configuration
     /// @param vaultState vault state matching the maturity
-    /// @param netfCash fCash change to the account, (borrowing < 0, lending > 0)
-    /// @param netPrimeCash amount of asset cash to charge or credit to the account, must be the oppositely
+    /// @param netUnderlyingDebt underlying debt change to the account, (borrowing < 0, lending > 0)
+    /// @param netPrimeCash amount of prime cash to charge or credit to the account, must be the oppositely
     /// signed compared to the netfCash sign
-    function updateAccountfCash(
+    function updateAccountDebt(
         VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
         VaultState memory vaultState,
-        int256 netfCash,
+        int256 netUnderlyingDebt,
         int256 netPrimeCash
-    ) internal {
+    ) internal pure {
+        if (vaultAccount.maturity != vaultState.maturity) {
+            // If borrowing across maturities, ensure that the account does not have any
+            // debt in the old maturity remaining in their account.
+            require(vaultAccount.accountDebtUnderlying == 0);
+        }
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(netPrimeCash);
 
-        // Update fCash state on the account and the vault
-        vaultAccount.fCash = vaultAccount.fCash.add(netfCash);
-        require(vaultAccount.fCash <= 0);
-        vaultState.totalfCash = vaultState.totalfCash.add(netfCash);
-        require(vaultState.totalfCash <= 0);
+        // Update debt state on the account and the vault
+        vaultAccount.accountDebtUnderlying = vaultAccount.accountDebtUnderlying.add(netUnderlyingDebt);
+        require(vaultAccount.accountDebtUnderlying <= 0);
+        vaultState.totalDebtUnderlying = vaultState.totalDebtUnderlying.add(netUnderlyingDebt);
 
-        // Updates the total borrow capacity
-        VaultConfiguration.updateUsedBorrowCapacity(vaultConfig.vault, vaultConfig.borrowCurrencyId, netfCash);
+        // Truncate dust balances towards zero
+        if (0 < vaultState.totalDebtUnderlying && vaultState.totalDebtUnderlying < 10) vaultState.totalDebtUnderlying = 0;
+        require(vaultState.totalDebtUnderlying <= 0);
     }
 
 
@@ -119,43 +237,40 @@ library VaultAccountLib {
     /// @param vaultAccount vault account entering the position
     /// @param vaultConfig vault configuration
     /// @param maturity maturity to enter into
-    /// @param fCashToBorrow a positive amount of fCash to borrow, will be converted to a negative
+    /// @param underlyingToBorrow a positive amount of underlying to borrow, will be converted to a negative
     /// amount inside the method
     /// @param maxBorrowRate the maximum annualized interest rate to borrow at, a zero signifies no
     /// slippage limit applied
     /// @param vaultData arbitrary data to be passed to the vault
     /// @param strategyTokenDeposit some amount of strategy tokens from a previous maturity that will
     /// be carried over into the current maturity
-    /// @param additionalUnderlyingExternal some amount of underlying tokens that have been deposited
-    /// during enterVault as additional collateral.
-    /// @return strategyTokensAdded the total strategy tokens added to the maturity for the account,
+    /// @return vaultSharesAdded the total vault shares added to the maturity for the account,
     /// including any strategy tokens transferred during a roll or settle
     function borrowAndEnterVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         uint256 maturity,
-        uint256 fCashToBorrow,
+        uint256 underlyingToBorrow,
         uint32 maxBorrowRate,
         bytes calldata vaultData,
-        uint256 strategyTokenDeposit,
-        uint256 additionalUnderlyingExternal
-    ) internal returns (uint256 strategyTokensAdded) {
+        uint256 strategyTokenDeposit
+    ) internal returns (uint256 vaultSharesAdded) {
         // The vault account can only be increasing their borrow position or not have one set. If they
         // are increasing their position they must be borrowing from the same maturity.
-        require(vaultAccount.maturity == maturity || vaultAccount.fCash == 0);
-        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, maturity);
+        require(vaultAccount.maturity == maturity || vaultAccount.accountDebtUnderlying == 0);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig, maturity);
 
         // Borrows fCash and puts the cash balance into the vault account's temporary cash balance
-        if (fCashToBorrow > 0) {
+        if (underlyingToBorrow > 0) {
             _borrowIntoVault(
                 vaultAccount,
                 vaultConfig,
                 vaultState,
                 maturity,
-                fCashToBorrow.toInt().neg(),
+                underlyingToBorrow.toInt().neg(),
                 maxBorrowRate
             );
-        } else {
+        } else if (maturity != Constants.PRIME_CASH_VAULT_MATURITY) {
             // Ensure that the maturity is a valid one if we are not borrowing (borrowing will fail)
             // against an invalid market.
             VaultConfiguration.checkValidMaturity(
@@ -167,13 +282,9 @@ library VaultAccountLib {
         }
 
         // Sets the maturity on the vault account, deposits tokens into the vault, and updates the vault state 
-        strategyTokensAdded = vaultState.enterMaturity(
-            vaultAccount, vaultConfig, strategyTokenDeposit, additionalUnderlyingExternal, vaultData
-        );
-        vaultAccount.lastEntryBlockHeight = block.number;
-        setVaultAccount(vaultAccount, vaultConfig);
-
-        vaultConfig.checkCollateralRatio(vaultState, vaultAccount);
+        vaultSharesAdded = vaultState.enterMaturity(vaultAccount, vaultConfig, strategyTokenDeposit, vaultData);
+        vaultAccount.lastUpdateBlockTime = block.timestamp;
+        setVaultAccount({vaultAccount: vaultAccount, vaultConfig: vaultConfig, checkMinBorrow: true});
     }
 
     ///  @notice Borrows fCash to enter a vault and pays fees
@@ -181,42 +292,48 @@ library VaultAccountLib {
     ///  @param vaultAccount the account's position in the vault
     ///  @param vaultConfig configuration for the given vault
     ///  @param maturity the maturity to enter for the vault
-    ///  @param fCash amount of fCash to borrow from the market, must be negative
+    ///  @param underlyingToBorrow amount of underlying to borrow from the market, must be negative
     ///  @param maxBorrowRate maximum annualized rate to pay for the borrow
     function _borrowIntoVault(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         uint256 maturity,
-        int256 fCash,
+        int256 underlyingToBorrow,
         uint32 maxBorrowRate
     ) private {
-        require(fCash < 0); // dev: fcash must be negative
+        require(underlyingToBorrow < 0); // dev: fcash must be negative
 
-        int256 primeCashBorrowed = VaultConfiguration.executeTrade(
-            vaultConfig.borrowCurrencyId,
-            maturity,
-            fCash,
-            maxBorrowRate,
-            vaultConfig.maxBorrowMarketIndex,
-            block.timestamp
-        );
+        int256 primeCashBorrowed;
+        if (maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
+            primeCashBorrowed = vaultConfig.primeRate.convertFromUnderlying(underlyingToBorrow).neg();
+        } else {
+            // fCash fees are assessed on the amount of cash borrowed after execution of the trade
+            primeCashBorrowed = VaultConfiguration.executeTrade(
+                vaultConfig.borrowCurrencyId,
+                vaultConfig.vault,
+                maturity,
+                underlyingToBorrow,
+                maxBorrowRate,
+                vaultConfig.maxBorrowMarketIndex,
+                block.timestamp
+            );
+            // Only assess fCash fees here, Prime Cash fees are assessed in a separate method
+            vaultConfig.assessVaultFees(vaultAccount, primeCashBorrowed, maturity, block.timestamp);
+        }
         require(primeCashBorrowed > 0, "Borrow failed");
 
-        updateAccountfCash(vaultAccount, vaultConfig, vaultState, fCash, primeCashBorrowed);
+        updateAccountDebt(vaultAccount, vaultState, underlyingToBorrow, primeCashBorrowed);
 
         // Ensure that we are above the minimum borrow size. Accounts smaller than this are not profitable
         // to unwind if we need to liquidate.
-        require(vaultConfig.minAccountBorrowSize <= vaultAccount.fCash.neg(), "Min Borrow");
-
-        // Will reduce the tempCashBalance based on the assessed vault fee
-        vaultConfig.assessVaultFees(vaultAccount, primeCashBorrowed, maturity, block.timestamp);
+        require(vaultConfig.minAccountBorrowSize <= vaultAccount.accountDebtUnderlying.neg(), "Min Borrow");
     }
 
     /// @notice Allows an account to exit a vault term prematurely by lending fCash.
     /// @param vaultAccount the account's position in the vault
     /// @param vaultConfig configuration for the given vault
-    /// @param fCash amount of fCash to lend from the market, must be positive and cannot
+    /// @param underlyingToRepay amount of underlying to lend must be positive and cannot
     /// lend more than the account's debt
     /// @param minLendRate minimum rate to lend at
     /// @param blockTime current block time
@@ -224,394 +341,257 @@ library VaultAccountLib {
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
-        int256 fCash,
+        int256 underlyingToRepay,
         uint32 minLendRate,
         uint256 blockTime
     ) internal {
-        // Don't allow the vault to lend to positive fCash
-        require(vaultAccount.fCash.add(fCash) <= 0); // dev: cannot lend to positive fCash
+        if (underlyingToRepay == 0) return;
+
+        // Don't allow the vault to lend to positive
+        require(vaultAccount.accountDebtUnderlying.add(underlyingToRepay) <= 0); // dev: positive debt
         
         // Check that the account is in an active vault
         require(blockTime < vaultAccount.maturity);
         
-        // Returns the cost in asset cash terms as a negative value to lend an offsetting fCash position
+        // Returns the cost in prime cash terms as a negative value to lend an offsetting fCash position
         // so that the account can exit.
-        int256 primeCashCostToLend = VaultConfiguration.executeTrade(
-            vaultConfig.borrowCurrencyId,
-            vaultAccount.maturity,
-            fCash,
-            minLendRate,
-            vaultConfig.maxBorrowMarketIndex,
-            blockTime
-        );
+        int256 primeCashCostToLend;
+        if (vaultAccount.maturity != Constants.PRIME_CASH_VAULT_MATURITY) {
+            primeCashCostToLend = VaultConfiguration.executeTrade(
+                vaultConfig.borrowCurrencyId,
+                vaultConfig.vault,
+                vaultAccount.maturity,
+                underlyingToRepay,
+                minLendRate,
+                vaultConfig.maxBorrowMarketIndex,
+                blockTime
+            );
+        }
 
         if (primeCashCostToLend == 0) {
-            // In this case, the lending has failed due to a lack of liquidity or negative interest rates. In this
-            // case just just net off the the asset cash balance and the account will forgo any money market interest
-            // accrued between now and maturity.
-            
-            // If this scenario were to occur, it is most likely that interest rates are near zero suggesting that
-            // money market interest rates are also near zero (therefore the account is really not giving up much
-            // by forgoing money market interest).
-            // NOTE: fCash is positive here so primeCashToLend will be negative
-            primeCashCostToLend = vaultConfig.assetRate.convertFromUnderlying(fCash).neg();
+            // There are two possibilities we reach this condition:
+            //  - The account is borrowing in variable prime cash
+            //  - Lending fCash has failed due to a lack of liquidity or negative interest rates. In this
+            //    case just just net off the the prime cash balance and the account will forgo any money
+            //    market interest accrued between now and maturity.
+            //    If this scenario were to occur, it is most likely that interest rates are near zero suggesting
+            //    that money market interest rates are also near zero (therefore the account is really not giving
+            //    up much by forgoing money market interest).
+            // NOTE: underlyingToRepay is positive here so primeCashToLend will be negative
+            primeCashCostToLend = vaultConfig.primeRate.convertFromUnderlying(underlyingToRepay).neg();
+
+            if (vaultAccount.maturity != Constants.PRIME_CASH_VAULT_MATURITY) {
+                // Updates some state to track lending at zero for off chain accounting.
+                PrimeCashExchangeRate.updateSettlementReserveForVaultsLendingAtZero(
+                    vaultConfig.vault,
+                    vaultConfig.borrowCurrencyId,
+                    vaultAccount.maturity,
+                    primeCashCostToLend.neg(),
+                    underlyingToRepay
+                );
+            }
         }
         require(primeCashCostToLend <= 0);
 
-        updateAccountfCash(vaultAccount, vaultConfig, vaultState, fCash, primeCashCostToLend);
+        updateAccountDebt(vaultAccount, vaultState, underlyingToRepay, primeCashCostToLend);
         // NOTE: vault account and vault state are not set into storage in this method.
-    }
-    
-    function depositForRollPosition(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        uint256 depositAmountExternal
-    ) internal {
-        (Token memory assetToken, Token memory underlyingToken) = vaultConfig.getTokens();
-        uint256 amountTransferred;
-        if (underlyingToken.tokenType == TokenType.Ether) {
-            require(depositAmountExternal == msg.value, "Invalid ETH");
-            amountTransferred = msg.value;
-        } else {
-            amountTransferred = underlyingToken.transfer(
-                vaultAccount.account, vaultConfig.borrowCurrencyId, depositAmountExternal.toInt()
-            ).toUint();
-        }
-
-        int256 primeCashExternal;
-        if (assetToken.tokenType == TokenType.NonMintable) {
-            primeCashExternal = amountTransferred.toInt();
-        } else if (amountTransferred > 0) {
-            primeCashExternal = assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred);
-        }
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-            assetToken.convertToInternal(primeCashExternal)
-        );
-    }
-
-    /// @notice Calculates the amount a liquidator can deposit in asset cash terms to deleverage an account.
-    /// @param vaultAccount the vault account to deleverage
-    /// @param vaultConfig the vault configuration
-    /// @param vaultShareValue value of the vault account's vault shares
-    /// @return maxLiquidatorDepositPrimeCash the maximum a liquidator can deposit in asset cash internal denomination
-    /// @return debtOutstandingAboveMinBorrow used to determine the threshold at which a liquidator must liquidate an account
-    /// to zero to account for minimum borrow sizes
-    function calculateDeleverageAmount(
-        VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        int256 vaultShareValue
-    ) internal pure returns (
-        int256 maxLiquidatorDepositPrimeCash,
-        int256 debtOutstandingAboveMinBorrow
-    ) {
-        // In the base case, the liquidator can deleverage an account up to maxDeleverageCollateralRatio, this
-        // assures that a liquidator cannot over-purchase assets on an account.
-        int256 maxCollateralRatioPlusOne = vaultConfig.maxDeleverageCollateralRatio.add(Constants.RATE_PRECISION);
-
-        // All calculations in this method are done in asset cash denomination
-        int256 debtOutstanding = vaultConfig.assetRate.convertFromUnderlying(vaultAccount.fCash.neg());
-
-        // The post liquidation collateral ratio is calculated as:
-        //                          (shareValue - (debtOutstanding - deposit * (1 - liquidationRate)))
-        //   postLiquidationRatio = ----------------------------------------------------------------
-        //                                          (debtOutstanding - deposit)
-        //
-        //   if we rearrange terms to put the deposit on one side we get:
-        //
-        //              (postLiquidationRatio + 1) * debtOutstanding - shareValue
-        //   deposit =  ---------------------------------------------------------- 
-        //                  (postLiquidationRatio + 1) - liquidationRate
-
-        maxLiquidatorDepositPrimeCash = (
-            debtOutstanding.mulInRatePrecision(maxCollateralRatioPlusOne).sub(vaultShareValue)
-        // Both denominators are in 1e9 precision
-        ).divInRatePrecision(maxCollateralRatioPlusOne.sub(vaultConfig.liquidationRate));
-
-        // If an account's (debtOutstanding - maxLiquidatorDeposit) < minAccountBorrowSize it may not be profitable
-        // to liquidate a second time due to gas costs. If this occurs the liquidator must liquidate the account
-        // such that it has no fCash debt.
-        int256 postLiquidationDebtRemaining = debtOutstanding.sub(maxLiquidatorDepositPrimeCash);
-        int256 minAccountBorrowSizePrimeCash = vaultConfig.assetRate.convertFromUnderlying(
-            vaultConfig.minAccountBorrowSize
-        );
-        debtOutstandingAboveMinBorrow = debtOutstanding.sub(minAccountBorrowSizePrimeCash);
-
-        // All terms here are in asset cash
-        if (postLiquidationDebtRemaining < minAccountBorrowSizePrimeCash) {
-            // If the postLiquidationDebtRemaining is negative (over liquidation) or below the minAccountBorrowSize
-            // set the max deposit amount to set the fCash debt to zero.
-            maxLiquidatorDepositPrimeCash = debtOutstanding;
-        }
-
-        // Check that the maxLiquidatorDepositPrimeCash does not exceed the total vault shares owned by
-        // the account:
-        //      vaultSharesToLiquidator = vaultShares * [(deposit * liquidationRate) / (vaultShareValue * RATE_PRECISION)]
-        //
-        // if (deposit * liquidationRate) / vaultShareValue > RATE_PRECISION then the account may be insolvent (or unable
-        // to reach the maxDeleverageCollateralRatio) and we are over liquidating. In this case the liquidator's max deposit is
-        //      (deposit * liquidationRate) / vaultShareValue == RATE_PRECISION, therefore:
-        //      deposit = (RATE_PRECISION * vaultShareValue / liquidationRate)
-        int256 depositRatio = maxLiquidatorDepositPrimeCash.mul(vaultConfig.liquidationRate).div(vaultShareValue);
-
-        // Use equal to so we catch potential off by one issues, the deposit amount calculated inside the if statement
-        // below will round the maxLiquidatorDepositPrimeCash down
-        if (depositRatio >= Constants.RATE_PRECISION) {
-            maxLiquidatorDepositPrimeCash = vaultShareValue.divInRatePrecision(vaultConfig.liquidationRate);
-        }
     }
 
     /// @notice Settles a vault account that has a position in a matured vault.
     /// @param vaultAccount the account's position in the vault
     /// @param vaultConfig configuration for the given vault
-    /// @param blockTime current block time
-    /// @return strategyTokenClaim the amount of strategy tokens the account has left over
+    /// @return didSettle true if the account did settle, false if it did not
+    /// @return didTransfer true if the account did a transfer, false if it did not
     function settleVaultAccount(
         VaultAccount memory vaultAccount,
-        VaultConfig memory vaultConfig,
-        uint256 blockTime
-    ) internal returns (uint256 strategyTokenClaim) {
-        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig.vault, vaultAccount.maturity);
-        require(vaultState.isSettled, "Not Settled");
+        VaultConfig memory vaultConfig
+    ) internal returns (bool didSettle, bool didTransfer) {
+        // PRIME_CASH_VAULT_MATURITY will always be greater than block time and will not settle,
+        // fCash settles exactly on block time. This exit will prevent any invalid maturities.
+        if (vaultAccount.maturity == 0 || block.timestamp < vaultAccount.maturity) return (false, false);
+        VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig, vaultAccount.maturity);
 
-        AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
+        VaultStateStorage storage primeVaultState = LibStorage.getVaultState()
+            [vaultConfig.vault][Constants.PRIME_CASH_VAULT_MATURITY];
+        if (!vaultState.isSettled) {
+            // Settles and updates the total prime debt so that max vault capacity
+            // accounting is correct.
+            VaultStateLib.settleTotalDebtToPrimeCash(
+                primeVaultState,
+                vaultConfig.vault,
+                vaultConfig.borrowCurrencyId,
+                vaultState.maturity,
+                vaultState.totalDebtUnderlying
+            );
+
+            // This should only ever happen once, clear the total debt
+            // underlying since it has transferred to the prime cash vault
+            vaultState.totalDebtUnderlying = 0;
+            vaultState.isSettled = true;
+            // Set the fCash vault state to settled.
+            vaultState.setVaultState(vaultConfig);
+        }
+
+        // Reduces vault shares in the fcash vault state in storage. Adds prime cash vault
+        // shares to the account in memory.
+        vaultState.settleVaultSharesToPrimeVault(vaultAccount, vaultConfig, primeVaultState);
+
+        // Settle any secondary borrows if they exist into prime cash borrows.
+        bool didTransferSecondary = false;
+        if (vaultConfig.hasSecondaryBorrows()) {
+            didTransferSecondary = IVaultAction(address(this)).settleSecondaryBorrowForAccount(
+                vaultConfig.vault, vaultAccount.account
+            );
+        }
+
+        int256 accountPrimeStorageValue = PrimeRateLib.convertSettledfCashInVault(
             vaultConfig.borrowCurrencyId,
             vaultAccount.maturity,
-            blockTime
+            vaultAccount.accountDebtUnderlying,
+            address(0)
         );
 
-        // Value of all strategy tokens at a snapshot price from settlement. The current spot price may be
-        // different but the spot price will be irrelevant post settlement. Settlement prices should be oracle
-        // prices and should not be manipulate-able via flash loans. This is a requirement in strategy vault design.
-        // Even if the settlement price was manipulated, it's not clear how it would be used to anyone's advantage
-        // here since all accounts in the pool will face the same price.
-        int256 totalStrategyTokenValueAtSettlement = vaultState.totalStrategyTokens.toInt()
-            .mul(vaultState.settlementStrategyTokenValue)
-            .div(Constants.INTERNAL_TOKEN_PRECISION);
-
-        int256 totalAccountValue = _getTotalAccountValueAtSettlement(
-            vaultAccount,
-            vaultState,
-            vaultConfig,
-            settlementRate,
-            totalStrategyTokenValueAtSettlement
-        );
-
-        // Returns the asset cash and strategy token claims the account has on the settled maturity
-        int256 primeCashClaim;
-        (primeCashClaim, strategyTokenClaim) = _getAccountClaimsOnSettledMaturity(
-            vaultConfig,
-            vaultState,
-            settlementRate,
-            totalAccountValue,
-            totalStrategyTokenValueAtSettlement
-        );
-
-        // Update the vault account in memory
-        vaultAccount.fCash = 0;
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(primeCashClaim);
-        vaultAccount.vaultShares = 0;
-        vaultAccount.maturity = 0;
-    }
-
-    /// @notice Returns the total account value at settlement
-    function _getTotalAccountValueAtSettlement(
-        VaultAccount memory vaultAccount, 
-        VaultState memory vaultState, 
-        VaultConfig memory vaultConfig,
-        AssetRateParameters memory settlementRate,
-        int256 totalStrategyTokenValueAtSettlement
-    ) private returns (int256 totalAccountValue) {
-        // This is the total value of all vault shares at settlement as the sum of cash and strategy token
-        // assets held in the vault maturity using prices snapshot at settlement. Any future prices changes
-        // on these assets will not be relevant in our calculations so there is no incentive to "game" when
-        // users settle their positions.
-        int256 totalVaultShareValueAtSettlement = totalStrategyTokenValueAtSettlement
-            .add(settlementRate.convertToUnderlying(vaultState.totalPrimeCash.toInt()));
-
-        // If there are secondary borrow currencies, adjust the totalVaultShareValue and the totalAccountValue
-        // accordingly. vaultShareValue will increase as a function of the totalfCashBorrowed prior to settlement
-        // and each account's value will decrease in accordance with the secondary fCash they owed.
-        if (vaultConfig.hasSecondaryBorrows()) {
-            VaultAccountSecondaryDebtShareStorage storage s = 
-                LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
-            
-            int256 vaultShareValueAdjustment;
-            int256 accountValueAdjustment;
-            (vaultShareValueAdjustment, accountValueAdjustment) = _getSecondaryBorrowAdjustment(
-                vaultConfig.vault,
-                vaultState.maturity,
-                vaultConfig.secondaryBorrowCurrencies[0],
-                s.accountDebtSharesOne
-            );
-            totalVaultShareValueAtSettlement = totalVaultShareValueAtSettlement.add(vaultShareValueAdjustment);
-            totalAccountValue = totalAccountValue.sub(accountValueAdjustment);
-            
-            (vaultShareValueAdjustment, accountValueAdjustment) = _getSecondaryBorrowAdjustment(
-                vaultConfig.vault,
-                vaultState.maturity,
-                vaultConfig.secondaryBorrowCurrencies[1],
-                s.accountDebtSharesTwo
-            );
-            totalVaultShareValueAtSettlement = totalVaultShareValueAtSettlement.add(vaultShareValueAdjustment);
-            totalAccountValue = totalAccountValue.sub(accountValueAdjustment);
-
-            // Clear secondary all secondary borrow storage , these debt counters are no longer relevant
-            // after accounting for the adjustment
-            delete LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
-        }
-
-        // The account's value at settlement is used to determine how much resulting shares of cash and
-        // strategy tokens it is allowed to withdraw from the pool of assets.
-        // totalAccountValue = vaultShares * settlementVaultShareValue + fCash (fCash is negative)
-        //      + secondaryBorrowAdjustments (negative)
-        totalAccountValue = 
-            totalAccountValue.add(
-                vaultAccount.vaultShares.toInt().mul(totalVaultShareValueAtSettlement)
-                    .div(vaultState.totalVaultShares.toInt())
-                .add(vaultAccount.fCash)
-            );
-
-        // If the total account value is negative than it is insolvent at settlement. This can happen if
-        // the vault as a whole has repaid its debts but one of the accounts in the vault does not have
-        // sufficient assets to repay its share of debts. If that account is attempting to settle (unlikely),
-        // then clear its claims on the pool and attempt to recover the cash balance from the account by marking
-        // it on the temporary cash balance. If the account is attempting to exit, it will be unable to redeem
-        // any strategy tokens (there would be no claim) and then the protocol would attempt to transfer tokens
-        // from the account. If the account is attempting to enter, this insolvency would be net off against any
-        // borrowing or deposits. An account cannot roll with a matured position.
-        if (totalAccountValue < 0) {
-            vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(
-                settlementRate.convertFromUnderlying(totalAccountValue)
-            );
-            totalAccountValue = 0;
-        }
-    }
-    
-    function _getSecondaryBorrowAdjustment(
-        address vault,
-        uint256 maturity,
-        uint16 currencyId,
-        uint256 accountDebtShares
-    ) internal view returns (
-        int256 vaultShareValueAdjustment,
-        int256 accountValueAdjustment
-    ) {
-        if (currencyId == 0) return (0, 0);
-
-        VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[vault][maturity][currencyId];
-        uint256 totalfCashBorrowedInPrimary = balance.totalfCashBorrowedInPrimarySnapshot;
-        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
-        
-        if (accountDebtShares > 0)  {
-            // If accountDebtShares > 0 then totalAccountDebt shares cannot be zero so we
-            // will not encounter a div by zero here.
-            accountValueAdjustment = accountDebtShares
-                .mul(totalfCashBorrowedInPrimary)
-                .div(totalAccountDebtShares).toInt();
-        }
-
-        vaultShareValueAdjustment = int256(totalfCashBorrowedInPrimary);
-    }
-
-
-    /// @notice Returns the account's claims on a settled maturity. Resolves any shortfalls due to insolvent
-    /// accounts within the same maturity.
-    function _getAccountClaimsOnSettledMaturity(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        AssetRateParameters memory settlementRate,
-        int256 totalAccountValue,
-        int256 totalStrategyTokenValueAtSettlement
-    ) private returns (int256 primeCashClaim, uint256 strategyTokenClaim) {
-        {
-            // Represents any asset cash in surplus of what is required to repay total fCash debt
-            int256 residualPrimeCashBalance = vaultState.totalPrimeCash.toInt()
-                .add(settlementRate.convertFromUnderlying(vaultState.totalfCash));
-                
-            // Represents the total value of the vault at settlement after repaying fCash debt
-            int256 settledVaultValue = settlementRate.convertToUnderlying(residualPrimeCashBalance)
-                .add(totalStrategyTokenValueAtSettlement);
-            
-            // If the vault is insolvent (meaning residualPrimeCashBalance < 0), it is necessarily
-            // true that totalStrategyTokens == 0 (meaning all tokens were sold in an attempt to
-            // repay the debt). That means settledVaultValue == residualPrimeCashBalance, strategyTokenClaim == 0
-            // and primeCashClaim == totalAccountValue. Accounts that are still solvent will be paid from the
-            // reserve, accounts that are insolvent will have a totalAccountValue == 0.
-            if (settledVaultValue != 0) {
-                strategyTokenClaim = totalAccountValue.mul(vaultState.totalStrategyTokens.toInt())
-                    .div(settledVaultValue).toUint();
-
-                primeCashClaim = totalAccountValue.mul(residualPrimeCashBalance)
-                    .div(settledVaultValue);
-            }
-        } 
-
-        // Decrement counters for settled assets that have been distributed, resolving any shortfalls
-        // if the counters decrease to zero.
-        VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
-            [vaultConfig.vault][vaultState.maturity];
-        uint256 remainingStrategyTokens = settledAssets.remainingStrategyTokens;
-        int256 remainingPrimeCash = settledAssets.remainingPrimeCash;
-        
-        if (remainingStrategyTokens < strategyTokenClaim) {
-            // If there are insufficient strategy tokens to repay the account, we convert it to a cash claim at the
-            // settlement value. This is an unfortunate consequence that solvent accounts face if there is a single
-            // account insolvency. The initial accounts to settle will be ok but the last account to settle will have to
-            // take their profits in cash, not strategy tokens.
-            primeCashClaim = primeCashClaim.add(settlementRate.convertFromUnderlying(
-                (strategyTokenClaim - remainingStrategyTokens).toInt() // overflow checked above
-                    .mul(vaultState.settlementStrategyTokenValue)
-                    .div(Constants.INTERNAL_TOKEN_PRECISION)
-            ));
-            strategyTokenClaim = remainingStrategyTokens;
-
-            // Clear the remaining strategy tokens
-            remainingStrategyTokens = 0;
-        } else {
-            // Underflow checked above
-            remainingStrategyTokens = remainingStrategyTokens - strategyTokenClaim;
-        }
-        // based on the logic above, we cannot underflow or overflow uint80
-        settledAssets.remainingStrategyTokens = uint80(remainingStrategyTokens);
-        
-        // This is purely a defensive check, this should always be true based on the logic above
-        require(primeCashClaim >= 0);
-        // Since the primeCashClaim calculation above rounds down, there should never be a situation where the
-        // primeCashClaim goes into shortfall due to a rounding error.
-        if (remainingPrimeCash < primeCashClaim) {
-            // If remaining asset cash < 0 then we don't try to pull more cash from the reserve to cover it
-            // in whole, we just pull the portion to cover what's required for this account to exit.
-            int256 shortfall = remainingPrimeCash > 0 ? primeCashClaim - remainingPrimeCash : primeCashClaim;
-            
-            // It is possible that asset cash raised is not sufficient to cover the cash claim, there's nothing
-            // we can do about that at this point. If there is a governance action to recover the rest of the cash
-            // than the account could wait until that is completed. However, we don't revert here to allow solvent
-            // accounts to withdraw whatever they can if they want to.
-            int256 primeCashRaised = VaultConfiguration.resolveShortfallWithReserve(
-                vaultConfig.vault, vaultConfig.borrowCurrencyId, shortfall, vaultState.maturity
-            );
-
-            if (remainingPrimeCash > 0) {
-                // Here the account gets what is left in the cash pool and what was raised
-                primeCashClaim = remainingPrimeCash.add(primeCashRaised);
-                remainingPrimeCash = 0;
-                settledAssets.remainingPrimeCash = 0;
-            } else {
-                // If remaining asset cash is negative then the account only gets what is raised
-                primeCashClaim = primeCashRaised;
-            }
-        } else {
-            // remainingPrimeCash and primeCashClaim are always positive in this branch
-            remainingPrimeCash = remainingPrimeCash.sub(primeCashClaim);
-            settledAssets.remainingPrimeCash = remainingPrimeCash.toInt80();
-        }
-
-        emit VaultSettledAssetsRemaining(
+        // Calculates the net settled cash if there is any temp cash balance that is net off
+        // against the settled prime debt.
+        bool didTransferPrimary;
+        (accountPrimeStorageValue, didTransferPrimary) = repayAccountPrimeDebtAtSettlement(
+            vaultConfig.primeRate,
+            primeVaultState,
+            vaultConfig.borrowCurrencyId,
             vaultConfig.vault,
-            vaultState.maturity,
-            remainingPrimeCash,
-            remainingStrategyTokens
+            vaultAccount.account,
+            vaultAccount.tempCashBalance,
+            accountPrimeStorageValue
         );
+        // Clear any temp cash balance, it has been applied to the debt
+        vaultAccount.tempCashBalance = 0;
+
+        // Assess prime cash vault fees into the temp cash balance. The account has accrued prime cash
+        // fees on the time since the fCash matured to the current block time. Setting lastUpdateBlockTime
+        // to the fCash maturity, will calculate the fees accrued since that time.
+        vaultAccount.lastUpdateBlockTime = vaultAccount.maturity;
+        vaultAccount.maturity = Constants.PRIME_CASH_VAULT_MATURITY;
+        vaultAccount.accountDebtUnderlying = vaultConfig.primeRate.convertDebtStorageToUnderlying(accountPrimeStorageValue);
+        vaultConfig.assessVaultFees(
+            vaultAccount,
+            vaultConfig.primeRate.convertFromUnderlying(vaultAccount.accountDebtUnderlying).neg(),
+            Constants.PRIME_CASH_VAULT_MATURITY,
+            block.timestamp
+        );
+
+        return (true, didTransferPrimary || didTransferSecondary);
+    }
+
+    /// @notice Called at the beginning of all vault actions (enterVault, exitVault, rollVaultPosition,
+    /// deleverageVault) to ensure that certain actions occur prior to any other account actions.
+    function settleAccountOrAccruePrimeCashFees(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig
+    ) internal returns (bool didSettle) {
+        // If the vault has matured, it will exit this settlement call in the prime cash maturity with
+        // fees assessed up to the current time. Transfers may occur but they are not relevant in this
+        // context since a collateral check will always be done on non-settlement methods.
+        (didSettle, /* */) = settleVaultAccount(vaultAccount, vaultConfig);
+
+        // If the account did not settle but is in the prime cash maturity, assess a fee.
+        if (!didSettle && vaultAccount.maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
+            // The prime cash fee is deducted from the tempCashBalance
+            vaultConfig.assessVaultFees(
+                vaultAccount,
+                vaultConfig.primeRate.convertFromUnderlying(vaultAccount.accountDebtUnderlying).neg(),
+                vaultAccount.maturity,
+                block.timestamp
+            );
+        }
+    }
+
+    function accruePrimeCashFeesToDebtInLiquidation(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig
+    ) internal returns (VaultState memory) {
+        vaultConfig.assessVaultFees(
+            vaultAccount,
+            vaultConfig.primeRate.convertFromUnderlying(vaultAccount.accountDebtUnderlying).neg(),
+            vaultAccount.maturity,
+            block.timestamp
+        );
+
+        return accruePrimeCashFeesToDebt(vaultAccount, vaultConfig);
+    }
+
+    /// @notice Accrues prime cash fees directly to debt during settlement and liquidation
+    function accruePrimeCashFeesToDebt(
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig
+    ) internal returns (VaultState memory vaultPrimeState) {
+        require(vaultAccount.maturity == Constants.PRIME_CASH_VAULT_MATURITY);
+
+        // During settle vault account, the prime cash fee is accrued to debt instead
+        // of left in the tempCashBalance.
+        vaultPrimeState = VaultStateLib.getVaultState(vaultConfig, Constants.PRIME_CASH_VAULT_MATURITY);
+
+        // Fees and prime cash claims will be held in temp cash balance. There cannot be a positive cash balance
+        // during this method, any excess positive cash should be sent back to the account during
+        // settleAccountfCashBalance
+        require(vaultAccount.tempCashBalance <= 0);
+        
+        updateAccountDebt(
+            vaultAccount,
+            vaultPrimeState,
+            vaultConfig.primeRate.convertToUnderlying(vaultAccount.tempCashBalance),
+            vaultAccount.tempCashBalance.neg()
+        );
+
+        vaultPrimeState.setVaultState(vaultConfig);
+    }
+
+    function repayAccountPrimeDebtAtSettlement(
+        PrimeRate memory pr,
+        VaultStateStorage storage primeVaultState,
+        uint16 currencyId,
+        address vault,
+        address account,
+        int256 accountPrimeCash,
+        int256 accountPrimeStorageValue
+    ) internal returns (int256 finalPrimeDebtStorageValue, bool didTransfer) {
+        didTransfer = false;
+        finalPrimeDebtStorageValue = accountPrimeStorageValue;
+        
+        if (accountPrimeCash > 0) {
+            // netPrimeDebtRepaid is a negative number
+            int256 netPrimeDebtRepaid = pr.convertUnderlyingToDebtStorage(
+                pr.convertToUnderlying(accountPrimeCash).neg()
+            );
+
+            int256 netPrimeDebtChange;
+            if (netPrimeDebtRepaid < accountPrimeStorageValue) {
+                // If the net debt change is greater than the debt held by the account, then only
+                // decrease the total prime debt by what is held by the account. The residual amount
+                // will be refunded to the account via a direct transfer.
+                netPrimeDebtChange = accountPrimeStorageValue;
+                finalPrimeDebtStorageValue = 0;
+
+                int256 primeCashRefund = pr.convertFromUnderlying(
+                    pr.convertDebtStorageToUnderlying(netPrimeDebtChange.sub(accountPrimeStorageValue))
+                );
+                TokenHandler.withdrawPrimeCash(
+                    account, currencyId, primeCashRefund, pr, false // ETH will be transferred natively
+                );
+                didTransfer = true;
+            } else {
+                // In this case, part of the account's debt is repaid.
+                netPrimeDebtChange = netPrimeDebtRepaid;
+                finalPrimeDebtStorageValue = accountPrimeStorageValue.sub(netPrimeDebtRepaid);
+            }
+
+            // Updates the global prime debt figure and events are emitted via the vault.
+            pr.updateTotalPrimeDebt(vault, currencyId, netPrimeDebtChange);
+
+            // Updates the state on the prime vault storage directly.
+            int256 totalPrimeDebt = int256(uint256(primeVaultState.totalDebt));
+            int256 newTotalDebt = totalPrimeDebt.add(netPrimeDebtChange);
+            // Set the total debt to the storage value
+            primeVaultState.totalDebt = newTotalDebt.toUint().toUint80();
+        }
     }
 }

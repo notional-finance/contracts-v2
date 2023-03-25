@@ -46,21 +46,6 @@ library VaultConfiguration {
     event VaultBorrowCapacityChange(address indexed vault, uint16 indexed currencyId, uint256 totalUsedBorrowCapacity);
     /// @notice Emitted when a vault's status is updated
     event VaultPauseStatus(address indexed vault, bool enabled);
-    /// @notice Emitted when a vault has a shortfall upon settlement
-    event VaultShortfall(
-        address indexed vault,
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 shortfall
-    );
-    /// @notice Emitted when a vault has an insolvency that cannot be covered by the
-    /// cash reserve
-    event ProtocolInsolvency(
-        address indexed vault,
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 shortfall
-    );
 
     uint16 internal constant ENABLED                         = 1 << 0;
     uint16 internal constant ALLOW_ROLL_POSITION             = 1 << 1;
@@ -70,11 +55,18 @@ library VaultConfiguration {
     uint16 internal constant ONLY_VAULT_EXIT                 = 1 << 3;
     uint16 internal constant ONLY_VAULT_ROLL                 = 1 << 4;
     uint16 internal constant ONLY_VAULT_DELEVERAGE           = 1 << 5;
-    uint16 internal constant ONLY_VAULT_SETTLE               = 1 << 6;
+    uint16 internal constant VAULT_MUST_SETTLE               = 1 << 6;
     // External vault methods will have re-entrancy protection on by default, however, some
     // vaults may need to call back into Notional so we can whitelist them for re-entrancy.
     uint16 internal constant ALLOW_REENTRANCY                = 1 << 7;
     uint16 internal constant DISABLE_DELEVERAGE              = 1 << 8;
+    // Enables fCash discounting during vault valuation. While this allows more leverage for
+    // accounts in the vault, it also exposes accounts to potential liquidation due to interest
+    // rate changes on Notional. While this is desireable in some vaults that explicitly target
+    // interest rate arbitrage, it may create UX issues for other vaults that are more passive.
+    // When this flag is set to false, fCash is not discounted to present value so that it holds
+    // zero interest rate risk.
+    uint16 internal constant ENABLE_FCASH_DISCOUNT           = 1 << 9;
 
     function _getVaultConfig(
         address vaultAddress
@@ -95,9 +87,11 @@ library VaultConfiguration {
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
         vaultConfig.maxBorrowMarketIndex = s.maxBorrowMarketIndex;
         vaultConfig.secondaryBorrowCurrencies = s.secondaryBorrowCurrencies;
+        vaultConfig.minAccountSecondaryBorrow[0] = int256(uint256(s.minAccountSecondaryBorrow[0])).mul(Constants.INTERNAL_TOKEN_PRECISION);
+        vaultConfig.minAccountSecondaryBorrow[1] = int256(uint256(s.minAccountSecondaryBorrow[1])).mul(Constants.INTERNAL_TOKEN_PRECISION);
     }
 
-    function getVaultConfigNoAssetRate(
+    function getVaultConfigNoPrimeRate(
         address vaultAddress
     ) internal view returns (VaultConfig memory vaultConfig) {
         vaultConfig = _getVaultConfig(vaultAddress);
@@ -107,14 +101,16 @@ library VaultConfiguration {
         address vaultAddress
     ) internal returns (VaultConfig memory vaultConfig) {
         vaultConfig = _getVaultConfig(vaultAddress);
-        vaultConfig.assetRate = AssetRate.buildAssetRateStateful(vaultConfig.borrowCurrencyId);
+        vaultConfig.primeRate = PrimeRateLib.buildPrimeRateStateful(vaultConfig.borrowCurrencyId);
     }
 
     function getVaultConfigView(
         address vaultAddress
     ) internal view returns (VaultConfig memory vaultConfig) {
         vaultConfig = _getVaultConfig(vaultAddress);
-        vaultConfig.assetRate = AssetRate.buildAssetRateView(vaultConfig.borrowCurrencyId);
+        (vaultConfig.primeRate, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(
+            vaultConfig.borrowCurrencyId, block.timestamp
+        );
     }
 
     function setVaultEnabledStatus(address vaultAddress, bool enable) internal {
@@ -176,7 +172,6 @@ library VaultConfiguration {
 
         // Reserve fee share must be less than or equal to 100
         require(vaultConfig.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
-        require(vaultConfig.maxBorrowMarketIndex != 0);
 
         // Secondary borrow currencies cannot change once set
         require(
@@ -198,9 +193,8 @@ library VaultConfiguration {
 
         // Tokens with transfer fees create lots of issues with vault mechanics, we prevent them
         // from being listed here.
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
-        require(!assetToken.hasTransferFee && !underlyingToken.hasTransferFee); 
+        require(!underlyingToken.hasTransferFee); 
 
         store[vaultAddress] = vaultConfig;
     }
@@ -212,10 +206,6 @@ library VaultConfiguration {
     ) internal {
         VaultBorrowCapacityStorage storage cap = LibStorage.getVaultBorrowCapacity()[vault][currencyId];
         cap.maxBorrowCapacity = maxBorrowCapacity;
-    }
-
-    function hasSecondaryBorrows(VaultConfig memory vaultConfig) internal pure returns (bool) {
-        return vaultConfig.secondaryBorrowCurrencies[0] != 0 || vaultConfig.secondaryBorrowCurrencies[1] != 0;
     }
 
     /// @notice Authorizes callers based on the vault flags set in the confiuration
@@ -238,6 +228,45 @@ library VaultConfiguration {
         return (vaultConfig.flags & flagID) == flagID;
     }
 
+    /// @notice Returns true if a vault config has secondary borrows
+    function hasSecondaryBorrows(VaultConfig memory vaultConfig) internal pure returns (bool) {
+        return vaultConfig.secondaryBorrowCurrencies[0] != 0 || vaultConfig.secondaryBorrowCurrencies[1] != 0;
+    }
+
+    function calculateVaultFees(
+        VaultConfig memory vaultConfig,
+        VaultAccount memory vaultAccount,
+        int256 primeCashBorrowed,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal pure returns (int256 netTotalFee) {
+        int256 proratedFeeTime;
+        if (maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
+            // vaultAccount.maturity is set after assessVaultFees on the initial entry
+            // to the prime cash maturity, so if it is not set here then we do not
+            // assess a fee on the vault account. The fee for its initial period will
+            // be assessed on the next time it borrows more or exits the vaults.
+            if (vaultAccount.maturity != Constants.PRIME_CASH_VAULT_MATURITY) return 0;
+
+            // Prime cash vaults do not have a maturity, so accounts are assessed
+            // a fee based on how long they have borrowed from the vault.
+            // proratedFeeTime = (blockTime - lastUpdateBlockTime)
+            // NOTE: this means fees must be assessed on exit and entry
+            proratedFeeTime = blockTime.sub(vaultAccount.lastUpdateBlockTime).toInt();
+            // Set the timer here so that we do not double assess fees later
+            vaultAccount.lastUpdateBlockTime = blockTime;
+        } else {
+            proratedFeeTime = maturity.sub(blockTime).toInt();
+        }
+
+        // The fee rate is annualized, we prorate it linearly based on the time to maturity here
+        int256 proratedFeeRate = vaultConfig.feeRate
+            .mul(proratedFeeTime)
+            .div(int256(Constants.YEAR));
+
+        netTotalFee = primeCashBorrowed.mulInRatePrecision(proratedFeeRate);
+    }
+
     /// @notice Assess fees to the vault account. The fee based on time to maturity and the amount of fCash. Fees
     /// will be accrued to the nToken cash balance and the protocol cash reserve.
     /// @param vaultConfig vault configuration
@@ -251,13 +280,8 @@ library VaultConfiguration {
         int256 primeCashBorrowed,
         uint256 maturity,
         uint256 blockTime
-    ) internal {
-        // The fee rate is annualized, we prorate it linearly based on the time to maturity here
-        int256 proratedFeeRate = vaultConfig.feeRate
-            .mul(maturity.sub(blockTime).toInt())
-            .div(int256(Constants.YEAR));
-
-        int256 netTotalFee = primeCashBorrowed.mulInRatePrecision(proratedFeeRate);
+    ) internal returns (int256 netTotalFee) {
+        netTotalFee = calculateVaultFees(vaultConfig, vaultAccount, primeCashBorrowed, maturity, blockTime);
 
         // Reserve fee share is restricted to less than 100
         int256 reserveFee = netTotalFee.mul(vaultConfig.reserveFeeShare).div(Constants.PERCENTAGE_DECIMALS);
@@ -266,196 +290,53 @@ library VaultConfiguration {
         BalanceHandler.incrementFeeToReserve(vaultConfig.borrowCurrencyId, reserveFee);
         BalanceHandler.incrementVaultFeeToNToken(vaultConfig.borrowCurrencyId, nTokenFee);
 
+        if (maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
+            // When a prime cash fee is accrued, the vault is "borrowing" more and then transferring the cash
+            // side to the nToken and reserve.
+            Emitter.emitBorrowOrRepayPrimeDebt(
+                vaultConfig.vault, vaultConfig.borrowCurrencyId, netTotalFee, vaultConfig.primeRate.convertToStorageValue(netTotalFee)
+            );
+        }
+        Emitter.emitVaultFeeTransfers(vaultConfig.vault, vaultConfig.borrowCurrencyId, nTokenFee, reserveFee);
+
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.sub(netTotalFee);
-        emit VaultFeeAccrued(vaultConfig.vault, vaultConfig.borrowCurrencyId, maturity, reserveFee, nTokenFee);
     }
 
-    /// @notice Updates the total borrow capacity for a vault and a currency. Reverts if borrowing goes above
-    /// the maximum allowed, always allows the total used to decrease. Called when borrowing, lending and settling
-    /// a vault. Tracks all fCash usage across all maturities as a single number even though they are not strictly
-    /// fungible with each other, this is just used as a heuristic for the total vault risk exposure.
+    /// @notice Updates the total fcash debt usage across all maturities as a single number even though
+    /// they are not strictly fungible with each other, this is just used as a heuristic for the total
+    /// vault risk exposure.
     /// @param vault address of vault
     /// @param currencyId relevant currency id, all vaults will borrow in a primary currency, some vaults also borrow
     /// in secondary or perhaps even tertiary currencies.
     /// @param netfCash the net amount of fCash change (borrowing < 0, lending > 0)
-    /// @return totalUsedBorrowCapacity is the positively valued debt outstanding
-    function updateUsedBorrowCapacity(
+    function updatefCashBorrowCapacity(
         address vault,
         uint16 currencyId,
         int256 netfCash
-    ) internal returns (int256 totalUsedBorrowCapacity) {
+    ) internal {
         VaultBorrowCapacityStorage storage cap = LibStorage.getVaultBorrowCapacity()[vault][currencyId];
 
-        // Update the total used borrow capacity, when borrowing this number will increase (netfCash < 0),
+        // Update the total fcash debt, when borrowing this number will increase (netfCash < 0),
         // when lending this number will decrease (netfCash > 0). 
-        totalUsedBorrowCapacity = int256(uint256(cap.totalUsedBorrowCapacity)).sub(netfCash);
-        if (netfCash < 0) {
-            // Always allow lending to reduce the total used borrow capacity to satisfy the case when the max borrow
-            // capacity has been reduced by governance below the totalUsedBorrowCapacity. When borrowing, it cannot
-            // go past the limit.
-            require(totalUsedBorrowCapacity <= int256(uint256(cap.maxBorrowCapacity)), "Max Capacity");
-        }
+        int256 totalfCashDebt = int256(uint256(cap.totalfCashDebt)).sub(netfCash);
 
-        // Total used borrow capacity can never go negative, this would suggest that we've lent past repayment
+        // Total fcash debt can never go negative, this would suggest that we've lent past repayment
         // of the total fCash borrowed.
-        cap.totalUsedBorrowCapacity = totalUsedBorrowCapacity.toUint().toUint80();
+        cap.totalfCashDebt = totalfCashDebt.toUint().toUint80();
         // overflow already checked above
-        emit VaultBorrowCapacityChange(vault, currencyId, uint256(totalUsedBorrowCapacity));
+        emit VaultBorrowCapacityChange(vault, currencyId, uint256(totalfCashDebt));
     }
 
-    /// @notice Calculates the collateral ratio of an account: (valueOfAssets - debtOutstanding) / debtOutstanding
-    /// All values in this method are calculated using asset cash denomination. Lower collateral ratio equates to
-    /// greater risk.
-    /// @param vaultConfig vault config
-    /// @param vaultState vault state, used to get the value of vault shares
-    /// @param account address of the account holding the vault shares, sometimes the value of strategy tokens varies
-    /// based on the holder (notably in the case of secondary borrows)
-    /// @param vaultShares vault shares held by the account
-    /// @param fCash debt held by the account
-    /// @return collateralRatio for an account, expressed in 1e9 "RATE_PRECISION"
-    /// @return vaultShareValue value of vault shares denominated in asset cash
-    function calculateCollateralRatio(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        address account,
-        uint256 vaultShares,
-        int256 fCash
-    ) internal view returns (int256 collateralRatio, int256 vaultShareValue) {
-        vaultShareValue = vaultState.getCashValueOfShare(vaultConfig, account, vaultShares);
-
-        // This value is the total amount of fCash borrowed in secondary currencies denominated in the
-        // primary borrow currency as a positive integer.
-        int256 secondaryDebtOutstanding = _getSecondaryDebtOutstanding(vaultConfig, account, vaultState.maturity);
-
-        // We do not discount fCash to present value so that we do not introduce interest
-        // rate risk in this calculation. The economic benefit of discounting will be very
-        // minor relative to the added complexity of accounting for interest rate risk.
-
-        // Convert fCash to a positive amount of asset cash
-        int256 debtOutstanding = vaultConfig.assetRate.convertFromUnderlying(fCash.neg().add(secondaryDebtOutstanding));
-
-        // netAssetValue includes the value held in vaultShares (strategyTokenValue + primeCashHeld) net
-        // off against the outstanding debt. netAssetValue can be either positive or negative here. If it
-        // is positive (normal condition) then the account has more value than debt, if it is negative then
-        // the account is insolvent (it cannot repay its debt if we sold all of its strategy tokens).
-        int256 netAssetValue = vaultShareValue.sub(debtOutstanding);
-
-        // We calculate the collateral ratio (netAssetValue to debt ratio):
-        //  if netAssetValue > 0 and debtOutstanding > 0: collateralRatio > 0, closer to zero means more risk
-        //  if netAssetValue < 0 and debtOutstanding > 0: collateralRatio < 0, the account is insolvent
-        //  if debtOutstanding == 0: collateralRatio is infinity, there is no risk at all (no debt left)
-        if (debtOutstanding == 0)  {
-            // When there is no debt outstanding then we use a maximal collateral ratio to represent "infinity"
-            collateralRatio = type(int256).max;
-        } else {
-            collateralRatio = netAssetValue.divInRatePrecision(debtOutstanding);
-        }
-    }
-
-    /**
-     * @notice Returns the total fCash borrowed in primary currency terms between both secondary
-     * borrow currencies (if they are configured).
-     */
-    function _getSecondaryDebtOutstanding(
-        VaultConfig memory vaultConfig,
-        address account,
-        uint256 maturity
-    ) private view returns (int256 totalfCashBorrowedInPrimary) {
-        if (hasSecondaryBorrows(vaultConfig)) {
-            VaultAccountSecondaryDebtShareStorage storage s = 
-                LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
-            ETHRate memory primaryER = ExchangeRate.buildExchangeRate(vaultConfig.borrowCurrencyId);
-            uint256 accountDebtSharesOne = s.accountDebtSharesOne;
-            uint256 accountDebtSharesTwo = s.accountDebtSharesTwo;
-
-            if (accountDebtSharesOne > 0) {
-                totalfCashBorrowedInPrimary = totalfCashBorrowedInPrimary.add(_calculateSecondaryDebt(
-                    primaryER, vaultConfig.secondaryBorrowCurrencies[0], vaultConfig.vault, maturity, accountDebtSharesOne
-                ));
-            }
-
-            if (accountDebtSharesTwo > 0) {
-                totalfCashBorrowedInPrimary = totalfCashBorrowedInPrimary.add(_calculateSecondaryDebt(
-                    primaryER, vaultConfig.secondaryBorrowCurrencies[1], vaultConfig.vault, maturity, accountDebtSharesTwo
-                ));
-            }
-        }
-    }
-
-    /**
-     * @notice Calculates the amount of secondary debt borrowed by an account in primary currency terms.
-     */
-    function _calculateSecondaryDebt(
-        ETHRate memory primaryER,
-        uint16 currencyId,
+    /// @notice Checks the sum of the fcash and prime cash debt usage and reverts if it is above maximum
+    /// capacity. Must be called any time the total vault debt increases.
+    function checkBorrowCapacity(
         address vault,
-        uint256 maturity,
-        uint256 accountDebtShares
-    ) private view returns (int256 fCashBorrowedInPrimary) {
-        VaultSecondaryBorrowStorage storage balance = LibStorage.getVaultSecondaryBorrow()
-            [vault][maturity][currencyId];
-        uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
-        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
-        
-        int256 fCashBorrowed = accountDebtShares.mul(totalfCashBorrowed).div(totalAccountDebtShares).toInt();
-        ETHRate memory secondaryER = ExchangeRate.buildExchangeRate(currencyId);
-        int256 exchangeRate = ExchangeRate.exchangeRate(primaryER, secondaryER);
-        fCashBorrowedInPrimary = fCashBorrowed.mul(primaryER.rateDecimals).div(exchangeRate);
-    }
-
-
-    /// @notice Convenience method for checking that a collateral ratio remains above the configured minimum
-    function checkCollateralRatio(
-        VaultConfig memory vaultConfig,
-        VaultState memory vaultState,
-        VaultAccount memory vaultAccount
+        uint16 currencyId,
+        int256 totalPrimeDebtInUnderlying
     ) internal view {
-        (int256 collateralRatio, /* */) = calculateCollateralRatio(
-            vaultConfig, vaultState, vaultAccount.account, vaultAccount.vaultShares, vaultAccount.fCash
-        );
-
-        // Enforce a maximum account collateral ratio that must be satisfied for vault entry and vault exit,
-        // to ensure that accounts are not "free riding" on vaults by entering without incurring borrowing
-        // costs. We only enforce this if the account has any assets remaining in the vault (so that they
-        // may exit in full at any time.)
-        if (vaultAccount.vaultShares > 0) {
-            require(collateralRatio <= vaultConfig.maxRequiredAccountCollateralRatio, "Above Max Collateral");
-        }
-
-        require(vaultConfig.minCollateralRatio <= collateralRatio, "Insufficient Collateral");
-    }
-
-    /// @notice Transfers underlying tokens directly from the account into the vault, used in enterVault
-    /// to deposit collateral from the account into the vault directly to skip additional ERC20 transfers.
-    /// @param vaultConfig the vault configuration
-    /// @param transferFrom the address to transfer from
-    /// @param depositAmountExternal the amount to transfer from the account to the vault
-    /// @return the amount of underlying external transferred to the vault
-    function transferUnderlyingToVaultDirect(
-        VaultConfig memory vaultConfig,
-        address transferFrom,
-        uint256 depositAmountExternal
-    ) internal returns (uint256) {
-        if (depositAmountExternal == 0) return 0;
-
-        Token memory assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        Token memory underlyingToken = assetToken.tokenType == TokenType.NonMintable ? 
-            assetToken :
-            TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
-
-        address vault = vaultConfig.vault;
-        // Tokens with transfer fees are not allowed in vaults
-        require(!underlyingToken.hasTransferFee);
-        if (underlyingToken.tokenType == TokenType.Ether) {
-            require(msg.value == depositAmountExternal, "Invalid ETH");
-            // Forward all the ETH to the vault
-            GenericToken.transferNativeTokenOut(vault, msg.value);
-
-            return msg.value;
-        } else {
-            GenericToken.safeTransferFrom(underlyingToken.tokenAddress, transferFrom, vault, depositAmountExternal);
-            return depositAmountExternal;
-        }
+        VaultBorrowCapacityStorage storage cap = LibStorage.getVaultBorrowCapacity()[vault][currencyId];
+        int256 totalUsedBorrowCapacity = int256(uint256(cap.totalfCashDebt)).sub(totalPrimeDebtInUnderlying);
+        require(totalUsedBorrowCapacity <= int256(uint256(cap.maxBorrowCapacity)), "Max Capacity");
     }
 
     /// @notice This will transfer borrowed asset tokens to the strategy vault and mint strategy tokens
@@ -464,72 +345,66 @@ library VaultConfiguration {
     /// @param account account to pass to the vault
     /// @param cashToTransferInternal amount of asset cash to  transfer in internal precision
     /// @param maturity the maturity of the vault shares
-    /// @param additionalUnderlyingExternal amount of additional underlying tokens already transferred to
     /// the vault in enterVault
     /// @param data arbitrary data to pass to the vault
-    /// @return strategyTokensMinted the amount of strategy tokens minted
+    /// @return vaultSharesMinted the amount of strategy tokens minted
     function deposit(
         VaultConfig memory vaultConfig,
         address account,
         int256 cashToTransferInternal,
         uint256 maturity,
-        uint256 additionalUnderlyingExternal,
         bytes calldata data
-    ) internal returns (uint256 strategyTokensMinted) {
+    ) internal returns (uint256 vaultSharesMinted) {
+        // ETH transfers to the vault will be native ETH, not wrapped
         uint256 underlyingTokensTransferred = transferFromNotional(
-            vaultConfig.vault, vaultConfig.borrowCurrencyId, cashToTransferInternal
+            vaultConfig.vault, vaultConfig.borrowCurrencyId, cashToTransferInternal, vaultConfig.primeRate, false
         );
-        strategyTokensMinted = IStrategyVault(vaultConfig.vault).depositFromNotional(
-            account, underlyingTokensTransferred.add(additionalUnderlyingExternal), maturity, data
+        vaultSharesMinted = IStrategyVault(vaultConfig.vault).depositFromNotional(
+            account, underlyingTokensTransferred, maturity, data
         );
     }
 
-    /// @notice Redeems and transfers asset cash to the vault from Notional
-    /// @param receiver address that receives the token
+    function depositMarginForVault(
+        VaultConfig memory vaultConfig,
+        VaultAccount memory vaultAccount,
+        uint256 depositAmountExternal
+    ) internal {
+        (/* */, int256 primeCashMinted) = TokenHandler.depositUnderlyingExternal(
+            vaultAccount.account,
+            vaultConfig.borrowCurrencyId,
+            depositAmountExternal.toInt(),
+            vaultConfig.primeRate,
+            false // excess ETH is returned natively, no excess ETH in this method
+        );
+        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(primeCashMinted);
+
+        // TokenHandler will emit a mint event and then the account will transfer that to the vault
+        Emitter.emitTransferPrimeCash(
+            vaultAccount.account, vaultConfig.vault, vaultConfig.borrowCurrencyId, primeCashMinted
+        );
+    }
+
+    /// @notice Redeems and transfers prime cash to the vault from Notional
+    /// @param vault address that receives the token
     /// @param currencyId currency id to transfer
-    /// @param cashToTransferInternal amount of asset cash to  transfer in internal precision
+    /// @param cashToTransferInternal amount of prime cash to transfer
     /// @return underlyingTokensTransferred amount of underlying tokens transferred
     function transferFromNotional(
-        address receiver,
+        address vault,
         uint16 currencyId,
-        int256 cashToTransferInternal
-    ) internal returns (uint256 underlyingTokensTransferred) {
-        if (cashToTransferInternal == 0) return 0;
-        require(cashToTransferInternal > 0);
-
-        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-        int256 transferAmountExternal = assetToken.convertToExternal(cashToTransferInternal);
-
-        // Both redeem an transfer return negative values to signify that assets have left the
-        // the protocol. Flip it to a positive integer.
-        if (assetToken.tokenType == TokenType.NonMintable) {
-            // In the case of non-mintable tokens we transfer the asset token instead.
-            underlyingTokensTransferred = assetToken.transfer(
-                receiver, currencyId, transferAmountExternal.neg()
-            ).neg().toUint();
-        } else {
-            // aToken balances are properly handled within redeem
-            underlyingTokensTransferred = assetToken.redeem(
-                currencyId, receiver, transferAmountExternal.toUint()
-            ).neg().toUint();
-        }
-    }
-
-    /// @notice Redeems without any debt repayment and sends tokens back to the account
-    function redeemWithoutDebtRepayment(
-        VaultConfig memory vaultConfig,
-        address account,
-        uint256 strategyTokens,
-        uint256 maturity,
-        bytes calldata data
-    ) internal returns (int256 primeCashInternalRaised, uint256 underlyingToReceiver) {
-        // Asset cash internal raised is only used by the vault, in all other cases it
-        // should return 0
-        (primeCashInternalRaised, underlyingToReceiver) = _redeem(
-            vaultConfig, 
-            RedeemParams(account, account, strategyTokens, maturity, 0),
-            data
+        int256 cashToTransferInternal,
+        PrimeRate memory primeRate,
+        bool withdrawWrapped
+    ) internal returns (uint256) {
+        int256 underlyingExternalTransferred = TokenHandler.withdrawPrimeCash(
+            vault,
+            currencyId,
+            cashToTransferInternal.neg(), // represents a withdraw
+            primeRate,
+            withdrawWrapped
         );
+
+        return underlyingExternalTransferred.neg().toUint();
     }
 
     /// @notice Redeems without any debt repayment and sends profits back to the receiver
@@ -537,67 +412,90 @@ library VaultConfiguration {
         VaultConfig memory vaultConfig,
         VaultAccount memory vaultAccount,
         address receiver,
-        uint256 strategyTokens,
-        uint256 maturity,
+        uint256 vaultShares,
         bytes calldata data
     ) internal returns (uint256 underlyingToReceiver) {
-        require(vaultAccount.tempCashBalance <= 0);
-        // This method will revert if the tempCashBalance is not repaid, although the return value will be greater
-        // than tempCashBalance due to rounding adjustments. Just clear tempCashBalance to remove the dust from
-        // internal accounting (the dust will accrue to the protocol).
-        (/* */, underlyingToReceiver) = _redeem(
-            vaultConfig,
-            RedeemParams(vaultAccount.account, receiver, strategyTokens, maturity, vaultAccount.tempCashBalance),
-            data
-        );
+        uint256 amountTransferred;
+        uint256 underlyingExternalToRepay;
+        {
+            Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+            // Calculates the amount of underlying tokens required to repay the debt, adjusting for potential
+            // dust values.
+            if (vaultAccount.tempCashBalance < 0) {
+                int256 x = vaultConfig.primeRate.convertToUnderlying(vaultAccount.tempCashBalance).neg();
+                underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(x).toUint();
+            } else {
+                // Otherwise require that cash balance is zero. Cannot have a positive cash balance in this method
+                require(vaultAccount.tempCashBalance == 0);
+            }
+
+            // Repayment checks operate entirely on the underlyingExternalToRepay, the amount of
+            // prime cash raised is irrelevant here since tempCashBalance is cleared to zero as
+            // long as sufficient underlying has been returned to the protocol.
+            (amountTransferred, underlyingToReceiver, /* primeCashRaised */) = _redeem(
+                vaultConfig,
+                underlyingToken,
+                vaultAccount.account,
+                receiver,
+                vaultShares,
+                vaultAccount.maturity,
+                underlyingExternalToRepay,
+                data
+            );
+        }
+
+        if (amountTransferred < underlyingExternalToRepay) {
+            // Recover any unpaid debt amount from the account directly
+            uint256 residualRequired = underlyingExternalToRepay - amountTransferred;
+
+            // actualTransferExternal is a positive number here to signify assets have entered
+            // the protocol, excess ETH payments will be returned to the account
+            (int256 actualTransferExternal, int256 primeCashDeposited) = TokenHandler.depositUnderlyingExternal(
+                vaultAccount.account,
+                vaultConfig.borrowCurrencyId,
+                residualRequired.toInt(),
+                vaultConfig.primeRate,
+                false // excess ETH payments returned natively
+            );
+            amountTransferred = amountTransferred.add(actualTransferExternal.toUint());
+
+            // Cash is held by the vault for debt repayment in this case.
+            Emitter.emitTransferPrimeCash(
+                vaultAccount.account, vaultConfig.vault, vaultConfig.borrowCurrencyId, primeCashDeposited
+            );
+        }
+
+        // amountTransferred should never be much more than underlyingExternalToRepay (it should
+        // be exactly equal) as long as the vault behaves according to spec. Any dust amounts will
+        // accrue to the protocol since vaultAccount.tempCashBalance is cleared
+        require(amountTransferred >= underlyingExternalToRepay, "Insufficient repayment");
+
+        // Clear tempCashBalance to remove the dust from internal accounting. tempCashBalance must be
+        // negative in this method (required at the top).
         vaultAccount.tempCashBalance = 0;
     }
 
-    // @param account address of the account to pass to the vault
-    // @param strategyTokens amount of strategy tokens to redeem
-    // @param maturity the maturity of the vault shares
-    // @param assetInternalToRepayDebt amount of asset cash in internal denomination required to repay debts
-    struct RedeemParams {
-        address account;
-        address receiver;
-        uint256 strategyTokens;
-        uint256 maturity;
-        int256 assetInternalToRepayDebt;
-    }
     /// @notice This will call the strategy vault and have it redeem the specified amount of strategy tokens
-    /// for underlying. The amount of underlying required to repay the debt will be transferred back to the protocol
-    /// and any excess will be returned to the account. If the account does not redeem sufficient strategy tokens to repay
-    /// debts then this method will attempt to recover the remaining underlying tokens from the account directly.
-    /// @param vaultConfig vault config
-    /// @param params redemption parameters
-    /// @param data arbitrary data to pass to the vault
-    /// @return primeCashInternalRaised the amount of asset cash (positive) that was returned to repay debts
-    /// @return underlyingToReceiver the amount of underlying that was returned to the receiver from the vault
+    /// for underlying. 
+    /// @return amountTransferred amount of underlying external transferred back to Notional
+    /// @return underlyingToReceiver the amount of underlying that was transferred to the receiver directly
+    /// from the vault. This is only used to emit events.
+    /// @return primeCashRaised the amount of prime cash added to the prime cash supply on Notional (related
+    /// to the amountTransferred figure)
     function _redeem(
         VaultConfig memory vaultConfig,
-        RedeemParams memory params,
+        Token memory underlyingToken,
+        address account,
+        address receiver,
+        uint256 vaultShares,
+        uint256 maturity,
+        uint256 underlyingExternalToRepay,
         bytes calldata data
-    ) internal returns (int256 primeCashInternalRaised, uint256 underlyingToReceiver) {
-        (Token memory assetToken, Token memory underlyingToken) = getTokens(vaultConfig);
-
-        // Calculates the amount of underlying tokens required to repay the debt, adjusting for potential
-        // dust values.
-        uint256 underlyingExternalToRepay;
-        if (params.assetInternalToRepayDebt < 0) {
-            if (assetToken.tokenType == TokenType.NonMintable) {
-                // NonMintable token amounts are exact and don't require any asset rate conversions or adjustments
-                underlyingExternalToRepay = params.assetInternalToRepayDebt.neg().toUint();
-            } else {
-                // Mintable tokens require an off by one adjustment to account for rounding errors between
-                // transfer and minting
-                int256 x = vaultConfig.assetRate.convertToUnderlying(params.assetInternalToRepayDebt).neg();
-                underlyingExternalToRepay = underlyingToken.convertToUnderlyingExternalWithAdjustment(x).toUint();
-            }
-        }
-
-        uint256 amountTransferred;
-        if (params.strategyTokens > 0) {
-            uint256 balanceBefore = underlyingToken.balanceOf(address(this));
+    ) private returns (
+        uint256 amountTransferred,
+        uint256 underlyingToReceiver,
+        int256 primeCashRaised
+    ) {
             // There are four possibilities here during the transfer:
             //   1. If the account == vaultConfig.vault then the strategy vault must always transfer
             //      tokens back to Notional. underlyingToReceiver will equal 0, amountTransferred will
@@ -614,305 +512,45 @@ library VaultConfiguration {
             //      to the liquidator (params.receiver) from the vault (underlyingToReceiver will be the full value
             //      of the redemption) and amountTransferred will equal 0. A similar scenario will occur when
             //      accounts exit post maturity and have no debt associated with their account.
+        {
+            uint256 balanceBefore = underlyingToken.balanceOf(address(this));
             underlyingToReceiver = IStrategyVault(vaultConfig.vault).redeemFromNotional(
-                params.account, params.receiver, params.strategyTokens, params.maturity, underlyingExternalToRepay, data
+                account, receiver, vaultShares, maturity, underlyingExternalToRepay, data
             );
             uint256 balanceAfter = underlyingToken.balanceOf(address(this));
             amountTransferred = balanceAfter.sub(balanceBefore);
+            TokenHandler.updateStoredTokenBalance(underlyingToken.tokenAddress, balanceBefore, balanceAfter);
         }
 
-        if (amountTransferred < underlyingExternalToRepay) {
-            // Recover any unpaid debt amount from the account directly
-            uint256 residualRequired = underlyingExternalToRepay - amountTransferred;
+        // Convert to prime cash amount and update the total supply
+        int256 amountInternal = underlyingToken.convertToInternal(amountTransferred.toInt());
+        primeCashRaised = vaultConfig.primeRate.convertFromUnderlying(amountInternal);
+        PrimeCashExchangeRate.updateTotalPrimeSupply(vaultConfig.borrowCurrencyId, primeCashRaised, amountInternal);
 
-            // Since ETH does not allow pull payment, the account needs to transfer sufficient
-            // ETH to repay the debt. We don't use WETH here since the rest of Notional does not
-            // use WETH. Any residual ETH is transferred back to the account. Vault actions that
-            // do not repay debt during redeem will not enter this code block.
-            if (underlyingToken.tokenType == TokenType.Ether) {
-                require(residualRequired <= msg.value, "Insufficient repayment");
-                // Transfer out the unused part of msg.value, we've received all underlying external required
-                // at this point
-                GenericToken.transferNativeTokenOut(params.account, msg.value - residualRequired);
-                amountTransferred = underlyingExternalToRepay;
-            } else {
-                // actualTransferExternal is a positive number here to signify assets have entered
-                // the protocol
-                int256 actualTransferExternal = underlyingToken.transfer(
-                    params.account, vaultConfig.borrowCurrencyId, residualRequired.toInt()
-                );
-                amountTransferred = amountTransferred.add(actualTransferExternal.toUint());
-            }
-        }
-        // amountTransferred should never be much more than underlyingExternalToRepay (it should
-        // be exactly equal) as long as the vault behaves according to spec.
-        require(amountTransferred >= underlyingExternalToRepay, "Insufficient repayment");
-
-        // NonMintable tokens do not need to be minted, the amount transferred is the amount
-        // of asset cash raised.
-        int256 primeCashExternal;
-        if (assetToken.tokenType == TokenType.NonMintable) {
-            primeCashExternal = amountTransferred.toInt();
-        } else if (amountTransferred > 0) {
-            primeCashExternal = assetToken.mint(vaultConfig.borrowCurrencyId, amountTransferred);
-        }
-
-        // Due to the adjustment in underlyingExternalToRepay, this returns a dust amount more
-        // than the value of assetInternalToRepayDebt. This value is only used when we are
-        // redeeming strategy tokens to the vault.
-        primeCashInternalRaised = assetToken.convertToInternal(primeCashExternal);
+        _emitEvents(vaultConfig, underlyingToken, receiver, underlyingToReceiver, primeCashRaised);
     }
-
-    /// @notice Resolves any shortfalls using the protocol reserve. Pauses the vault so that no
-    /// further vault entries are possible. If the reserve is insufficient to recover the shortfall
-    /// then the shortfall must be resolved via governance action.
-    /// Vaults that borrow in secondary currencies must first attempt to repay secondary currencies
-    /// in their entirety and push the insolvency onto the primary currency as much as possible. If
-    /// there is an insolvency in a secondary currency then it must be resolved via governance action.
-    /// @param vault the vault where the shortfall has occurred
-    /// @param currencyId the primary currency id of the vault
-    /// @param primeCashShortfall amount of asset cash internal for the shortfall
-    /// @return primeCashRaised from the cash reserve, may not be sufficient to cover the shortfall
-    function resolveShortfallWithReserve(
-        address vault,
-        uint16 currencyId,
-        int256 primeCashShortfall,
-        uint256 maturity
-    ) internal returns (int256 primeCashRaised) {
-        // If there is any cash shortfall, we automatically disable the vault. Accounts can still
-        // exit but no one can enter. Governance can re-enable the vault.
-        setVaultEnabledStatus(vault, false);
-        emit VaultPauseStatus(vault, false);
-        emit VaultShortfall(vault, currencyId, maturity, primeCashShortfall);
-
-        // Attempt to resolve the cash balance using the reserve
-        (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(
-            Constants.RESERVE, currencyId
-        );
-
-        if (primeCashShortfall <= reserveInternal) {
-            BalanceHandler.setReserveCashBalance(currencyId, reserveInternal - primeCashShortfall);
-            primeCashRaised = primeCashShortfall;
-        } else {
-            // At this point the protocol needs to raise funds from sNOTE since the reserve is
-            // insufficient to cover
-            BalanceHandler.setReserveCashBalance(currencyId, 0);
-            emit ProtocolInsolvency(vault, currencyId, maturity, primeCashShortfall - reserveInternal);
-            primeCashRaised = reserveInternal;
-        }
-    }
-
-    /// @notice Increases the used capacity on a secondary borrow, tracks the accountDebtShares when individual
-    /// accounts are borrowing so that we can later calculate the proper amount of secondary fCash they need
-    /// to repay.
-    /// @param vaultConfig vault config
-    /// @param account address of account executing the secondary borrow (this may be the vault itself)
-    /// @param currencyId relevant currency id
-    /// @param maturity the maturity of the fCash
-    /// @param fCashToBorrow amount of fCash to borrow
-    /// @param maxBorrowRate maximum annualized rate of fCash to borrow
-    /// @return netPrimeCash a positive amount of asset cash to transfer
-    function increaseSecondaryBorrow(
+    
+    function _emitEvents(
         VaultConfig memory vaultConfig,
-        address account,
-        uint16 currencyId,
-        uint256 maturity,
-        uint256 fCashToBorrow,
-        uint32 maxBorrowRate
-    ) internal returns (int256 netPrimeCash, uint256 accountDebtShares) {
-        // Vaults cannot initiate borrows, only repayments
-        require(account != vaultConfig.vault);
-        // This will revert if we overflow the maximum borrow capacity, expects a negative fCash value when borrowing
-        updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToBorrow.toInt().neg());
-
-        // Updates storage for the specific maturity so we can track this on chain.
-        VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
-        require(!balance.hasSnapshotBeenSet, "In Settlement");
-        uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
-        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
-
-        // After this point, (accountDebtShares * totalfCashBorrowed) / totalDebtShares = fCashToBorrow
-        // therefore: accountfCashShares = (netfCash * totalfCashShares) / totalfCashBorrowed
-        if (totalfCashBorrowed == 0) {
-            accountDebtShares = fCashToBorrow;
-        } else {
-            accountDebtShares = fCashToBorrow.mul(totalAccountDebtShares).div(totalfCashBorrowed);
-        }
-
-        _updateAccountDebtShares(
-            vaultConfig, account, currencyId, maturity, accountDebtShares.toInt()
-        );
-        balance.totalAccountDebtShares = totalAccountDebtShares.add(accountDebtShares).toUint80();
-        balance.totalfCashBorrowed = totalfCashBorrowed.add(fCashToBorrow).toUint80();
-
-        netPrimeCash = _executeSecondaryCurrencyTrade(
-            vaultConfig, currencyId, maturity, fCashToBorrow.toInt().neg(), maxBorrowRate
-        );
-
-        emit VaultSecondaryBorrow(vaultConfig.vault, account, currencyId, maturity, accountDebtShares, fCashToBorrow);
-    }
-
-    /// @notice Decreases the used capacity on a secondary borrow based on debt shares
-    /// @param vaultConfig vault config
-    /// @param account address of account executing the secondary borrow (this may be the vault itself)
-    /// @param currencyId relevant currency id
-    /// @param maturity the maturity of the fCash
-    /// @param debtSharesToRepay amount of debt shares to repay
-    /// @return netPrimeCash a negative amount of asset cash required to repay
-    function repaySecondaryBorrow(
-        VaultConfig memory vaultConfig,
-        address account,
-        uint16 currencyId,
-        uint256 maturity,
-        uint256 debtSharesToRepay,
-        uint32 minLendRate
-    ) internal returns (int256 netPrimeCash, int256 fCashToLend) {
-        // Updates storage for the specific maturity so we can track this on chain.
-        VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
-
-        // Once a secondary borrow is in settlement, only the vault can initiate repayment
-        require(!balance.hasSnapshotBeenSet || account == vaultConfig.vault, "In Settlement");
-        uint256 totalfCashBorrowed = balance.totalfCashBorrowed;
-        uint256 totalAccountDebtShares = balance.totalAccountDebtShares;
-
-        // Debt shares to repay is never zero based on the calling method, so we do not encounter divide
-        // by zero issues here (if we did, it would be a critical accounting issue)
-        fCashToLend = debtSharesToRepay.mul(totalfCashBorrowed).div(totalAccountDebtShares).toInt();
-
-        if (account != vaultConfig.vault) {
-            // We only burn the total debt shares if it is an individual account repaying the debt
-            balance.totalAccountDebtShares = totalAccountDebtShares.sub(debtSharesToRepay).toUint80();
-            _updateAccountDebtShares(
-                vaultConfig, account, currencyId, maturity, debtSharesToRepay.toInt().neg()
-            );
-        }
-
-        // Update the global counters
-        updateUsedBorrowCapacity(vaultConfig.vault, currencyId, fCashToLend);
-        // Will revert if this underflows zero (cannot overflow uint256, known to be positive from above)
-        balance.totalfCashBorrowed = totalfCashBorrowed.sub(uint256(fCashToLend)).toUint80();
-
-        netPrimeCash = _executeSecondaryCurrencyTrade(
-            vaultConfig, currencyId, maturity, fCashToLend, minLendRate
-        );
-
-        emit VaultRepaySecondaryBorrow(vaultConfig.vault, account, currencyId, maturity, debtSharesToRepay, uint256(fCashToLend));
-    }
-
-    /**
-     * @notice Takes a snapshot of the secondary borrow currencies at settlement, can only be initiated by the
-     * vault itself. This is required to get an accurate accounting of vault share value at settlement (since
-     * strategy tokens are also sold to repay accountDebtShares). Once a snapshot has been taken, no secondary
-     * borrows or repayments can occur.
-     * @param vaultConfig vault configuration
-     * @param currencyId secondary currency to snapshot
-     * @param maturity maturity to snapshot
-     * @return totalfCashBorrowedInPrimary the total fCash borrowed in this currency converted to the primary currency
-     * at the current oracle exchange rate
-     */
-    function snapshotSecondaryBorrowAtSettlement(
-        VaultConfig memory vaultConfig,
-        uint16 currencyId,
-        uint256 maturity
-    ) internal returns (int256 totalfCashBorrowedInPrimary) {
-        if (currencyId == 0) return 0;
-
-        // Updates storage for the specific maturity so we can track this on chain.
-        VaultSecondaryBorrowStorage storage balance = 
-            LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][maturity][currencyId];
-        // The snapshot value can only be set once when settlement is initiated
-        require(!balance.hasSnapshotBeenSet, "Cannot Reset Snapshot");
-
-        int256 totalfCashBorrowed = int256(uint256(balance.totalfCashBorrowed));
-        ETHRate memory primaryER = ExchangeRate.buildExchangeRate(vaultConfig.borrowCurrencyId);
-        ETHRate memory secondaryER = ExchangeRate.buildExchangeRate(currencyId);
-        int256 exchangeRate = ExchangeRate.exchangeRate(primaryER, secondaryER);
-        
-        // Converts totafCashBorrowed (in secondary, underlying) to primary underlying via ETH exchange rates
-        totalfCashBorrowedInPrimary = totalfCashBorrowed.mul(primaryER.rateDecimals).div(exchangeRate);
-        balance.totalfCashBorrowedInPrimarySnapshot = totalfCashBorrowedInPrimary.toUint().toUint80();
-        balance.hasSnapshotBeenSet = true;
-
-        emit VaultSecondaryBorrowSnapshot(
-            vaultConfig.vault, currencyId, maturity, totalfCashBorrowedInPrimary, exchangeRate
-        );
-    }
-
-    function _updateAccountDebtShares(
-        VaultConfig memory vaultConfig,
-        address account,
-        uint16 currencyId,
-        uint256 maturity,
-        int256 netAccountDebtShares
+        Token memory underlyingToken,
+        address receiver,
+        uint256 underlyingToReceiver,
+        int256 primeCashRaised
     ) private {
-        VaultAccountSecondaryDebtShareStorage storage s = 
-            LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
-        uint256 accountMaturity = s.maturity;
-        require(accountMaturity == maturity || accountMaturity == 0, "Invalid Secondary Maturity");
-        int256 accountDebtSharesOne = int256(uint256(s.accountDebtSharesOne));
-        int256 accountDebtSharesTwo = int256(uint256(s.accountDebtSharesTwo));
-
-        if (currencyId == vaultConfig.secondaryBorrowCurrencies[0]) {
-            accountDebtSharesOne = accountDebtSharesOne.add(netAccountDebtShares);
-            s.accountDebtSharesOne = accountDebtSharesOne.toUint().toUint80();
-        } else if (currencyId == vaultConfig.secondaryBorrowCurrencies[1]) {
-            accountDebtSharesTwo = accountDebtSharesTwo.add(netAccountDebtShares);
-            s.accountDebtSharesTwo = accountDebtSharesTwo.toUint().toUint80();
-        } else {
-            // This should never occur due to previous validation
-            revert();
-        }
-
-        if (accountDebtSharesOne == 0 && accountDebtSharesTwo == 0) {
-            // If both debt shares are cleared to zero, clear the maturity as well.
-            s.maturity = 0;
-        } else if (accountMaturity == 0) {
-            // Set the maturity if it is cleared
-            s.maturity = maturity.toUint40();
-        }
-    }
-
-    /// @notice Executes a secondary currency lend or borrow
-    function _executeSecondaryCurrencyTrade(
-        VaultConfig memory vaultConfig,
-        uint16 currencyId,
-        uint256 maturity,
-        int256 netfCash,
-        uint32 slippageLimit
-    ) private returns (int256 netPrimeCash) {
-        require(currencyId != vaultConfig.borrowCurrencyId);
-        if (netfCash == 0) return 0;
-
-        if (maturity <= block.timestamp) {
-            // Cannot borrow after maturity
-            require(netfCash >= 0);
-
-            // Post maturity, repayment must be done via the settlement rate
-            AssetRateParameters memory settlementRate = AssetRate.buildSettlementRateStateful(
-                currencyId, maturity, block.timestamp
-            );
-            netPrimeCash = settlementRate.convertFromUnderlying(netfCash).neg();
-        } else {
-            netPrimeCash = executeTrade(
-                currencyId,
-                maturity,
-                netfCash,
-                slippageLimit,
-                vaultConfig.maxBorrowMarketIndex,
-                block.timestamp
-            );
-
-            // If netPrimeCash is zero then the contract must lend at 0% interest using the asset cash
-            // exchange rate. In this case, the vault forgoes any money market interest on asset cash
-            if (netfCash > 0 && netPrimeCash == 0) {
-                netPrimeCash = vaultConfig.assetRate.convertFromUnderlying(netfCash).neg();
-            }
-
-            // Require that borrows always succeed
-            if (netfCash < 0) require(netPrimeCash > 0, "Borrow Failed");
-        }
+        // Will emit:
+        // MINT PRIME (vault, underlyingToReceiver + primeCashRaised)
+        // TRANSFER PRIME (vault, account, underlyingToReceiver)
+        // BURN PRIME (account, underlyingToReceiver)
+        uint256 primeCashToReceiver = vaultConfig.primeRate.convertFromUnderlying(
+            underlyingToken.convertToInternal(underlyingToReceiver.toInt())
+        ).toUint();
+        Emitter.emitVaultMintTransferBurn(
+            vaultConfig.vault,
+            receiver,
+            vaultConfig.borrowCurrencyId,
+            primeCashRaised.toUint().add(primeCashToReceiver),
+            primeCashToReceiver
+        );
     }
 
     /// @notice Executes a trade on the AMM.
@@ -924,6 +562,7 @@ library VaultConfiguration {
     /// @return netPrimeCash amount of cash to credit to the account
     function executeTrade(
         uint16 currencyId,
+        address vault,
         uint256 maturity,
         int256 netfCashToAccount,
         uint32 rateLimit,
@@ -944,7 +583,7 @@ library VaultConfiguration {
         );
 
         // Use the library here to reduce the deployed bytecode size
-        netPrimeCash = TradingAction.executeVaultTrade(currencyId, trade);
+        netPrimeCash = TradingAction.executeVaultTrade(currencyId, vault, trade);
     }
     
     function checkValidMaturity(
@@ -956,18 +595,7 @@ library VaultConfiguration {
         bool isIdiosyncratic;
         uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
         (marketIndex, isIdiosyncratic) = DateTime.getMarketIndex(maxMarketIndex, maturity, blockTime);
-        require(marketIndex <= maxBorrowMarketIndex, "Invalid Maturity");
-        require(!isIdiosyncratic, "Invalid Maturity");
-    }
-
-    function getTokens(VaultConfig memory vaultConfig) internal view returns (
-        Token memory assetToken,
-        Token memory underlyingToken
-    ) {
-        assetToken = TokenHandler.getAssetToken(vaultConfig.borrowCurrencyId);
-        // If the asset token is NonMintable then the underlying is the same object.
-        underlyingToken = assetToken.tokenType == TokenType.NonMintable ? 
-            assetToken :
-            TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
+        require(marketIndex <= maxBorrowMarketIndex); // dev: invalid maturity
+        require(!isIdiosyncratic); // dev: invalid maturity
     }
 }

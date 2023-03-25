@@ -40,307 +40,264 @@ library VaultStateLib {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
-    event VaultStateUpdate(
-        address indexed vault,
-        uint256 indexed maturity,
-        int256 totalfCash,
-        uint256 totalPrimeCash,
-        uint256 totalStrategyTokens,
-        uint256 totalVaultShares
-    );
-
-    event VaultSettled(
-        address indexed vault,
-        uint256 indexed maturity,
-        int256 totalfCash,
-        uint256 totalPrimeCash,
-        uint256 totalStrategyTokens,
-        uint256 totalVaultShares,
-        int256 strategyTokenValue
-    );
-
-    event VaultEnterMaturity(
-        address indexed vault,
-        uint256 indexed maturity,
-        address indexed account,
-        uint256 underlyingTokensDeposited,
-        uint256 cashTransferToVault,
-        uint256 strategyTokenDeposited,
-        uint256 vaultSharesMinted
-    );
-
-    function getVaultState(address vault, uint256 maturity) internal view returns (VaultState memory vaultState) {
-        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vault][maturity];
-
-        vaultState.maturity = maturity;
-        // fCash debts are represented as negative integers on the stack
-        vaultState.totalfCash = -int256(uint256(s.totalfCash));
-        vaultState.isSettled = s.isSettled;
-        vaultState.totalPrimeCash = s.totalPrimeCash;
-        vaultState.totalStrategyTokens = s.totalStrategyTokens;
-        vaultState.totalVaultShares = s.totalVaultShares;
-        vaultState.settlementStrategyTokenValue = s.settlementStrategyTokenValue;
+    function readDebtStorageToUnderlying(
+        PrimeRate memory pr,
+        uint256 maturity,
+        uint80 debtStored
+    ) internal pure returns (int256 debtUnderlying) {
+        return maturity == Constants.PRIME_CASH_VAULT_MATURITY ?
+            pr.convertDebtStorageToUnderlying(-int256(uint256(debtStored))) :
+            -int256(uint256(debtStored));
     }
 
-    /// @notice Sets a vault state before it has been settled
-    function setVaultState(VaultState memory vaultState, address vault) internal {
-        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
-        VaultStateStorage storage s = store[vault][vaultState.maturity];
+    function calculateDebtStorage(
+        PrimeRate memory pr,
+        uint256 maturity,
+        int256 debtUnderlying
+    ) internal pure returns (int256 debtStored) {
+        return maturity == Constants.PRIME_CASH_VAULT_MATURITY ?
+            pr.convertUnderlyingToDebtStorage(debtUnderlying) :
+            debtUnderlying;
+    }
 
-        require(vaultState.isSettled == false); // dev: cannot update vault state after settled
+    /// @notice Convenience method for getting the current prime debt in underlying terms
+    function getCurrentPrimeDebt(
+        VaultConfig memory vaultConfig,
+        PrimeRate memory pr,
+        uint16 currencyId
+    ) internal view returns (int256 totalPrimeDebtInUnderlying) {
+        VaultStateStorage storage s;
+        if (currencyId == vaultConfig.borrowCurrencyId) {
+            s = LibStorage.getVaultState()[vaultConfig.vault][Constants.PRIME_CASH_VAULT_MATURITY];
+        } else {
+            s = LibStorage.getVaultSecondaryBorrow()[vaultConfig.vault][Constants.PRIME_CASH_VAULT_MATURITY][currencyId];
+        }
 
-        s.totalfCash = vaultState.totalfCash.neg().toUint().toUint80();
-        s.totalPrimeCash = vaultState.totalPrimeCash.toUint80();
-        s.totalStrategyTokens = vaultState.totalStrategyTokens.toUint80();
-        s.totalVaultShares = vaultState.totalVaultShares.toUint80();
-
-        emit VaultStateUpdate(
-            vault,
-            vaultState.maturity,
-            vaultState.totalfCash,
-            vaultState.totalPrimeCash,
-            vaultState.totalStrategyTokens,
-            vaultState.totalVaultShares
+        totalPrimeDebtInUnderlying = readDebtStorageToUnderlying(
+            pr, Constants.PRIME_CASH_VAULT_MATURITY, s.totalDebt
         );
     }
 
-    /// @notice Settles a vault state by taking a snapshot of relevant values at settlement. This can only happen once
-    /// per maturity.
-    function setSettledVaultState(
-        VaultState memory vaultState,
+    function getVaultState(
         VaultConfig memory vaultConfig,
-        AssetRateParameters memory settlementRate,
-        uint256 maturity,
-        uint256 blockTime
-    ) internal {
+        uint256 maturity
+    ) internal view returns (VaultState memory vaultState) {
         mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
         VaultStateStorage storage s = store[vaultConfig.vault][maturity];
 
-        require(s.isSettled == false); // dev: cannot update vault state after settled
-        require(maturity <= blockTime); // dev: cannot set settled state before maturity
+        vaultState.maturity = maturity;
+        vaultState.isSettled = s.isSettled;
+        vaultState.totalVaultShares = s.totalVaultShares;
+        vaultState.totalDebtUnderlying = readDebtStorageToUnderlying(
+            vaultConfig.primeRate, maturity, s.totalDebt
+        );
+    }
 
-        // This will work when there are secondary borrowed currencies (each individual account will have
-        // a different secondary borrow amount) because when this is called there cannot be any secondary
-        // borrowed amounts left. At that point all strategy tokens are worth the same.
-        int256 singleTokenValueInternal = _getStrategyTokenValueUnderlyingInternal(
+    /// @notice Sets a vault state before it has been settled
+    function setVaultState(VaultState memory vaultState, VaultConfig memory vaultConfig) internal {
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vaultConfig.vault][vaultState.maturity];
+        s.totalVaultShares = vaultState.totalVaultShares.toUint80();
+        s.isSettled = vaultState.isSettled;
+
+        setTotalDebtStorage(
+            s,
+            vaultConfig.primeRate,
+            vaultConfig,
             vaultConfig.borrowCurrencyId,
-            vaultConfig.vault,
-            vaultConfig.vault, // Use the vault as the account for a globalized value
-            uint256(Constants.INTERNAL_TOKEN_PRECISION),
-            maturity
-        );
-
-        s.isSettled = true;
-        // Save off the value of a single strategy token at settlement. This is possibly negative if a strategy
-        // itself has become insolvent.
-        s.settlementStrategyTokenValue = singleTokenValueInternal.toInt80();
-
-        // Initializes the settled assets counters for individual account settlement. If these are reduced below
-        // zero then they signify an account insolvency within the vault maturity.
-        VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
-            [vaultConfig.vault][maturity];
-        settledAssets.remainingStrategyTokens = s.totalStrategyTokens;
-
-        // This is the amount of residual asset cash left in the vault after repaying the fCash debt,
-        // it can be negative if the entire vault is insolvent.
-        settledAssets.remainingPrimeCash = vaultState.totalPrimeCash.toInt()
-            .add(settlementRate.convertFromUnderlying(vaultState.totalfCash)).toInt80();
-
-        emit VaultSettled(
-            vaultConfig.vault,
             vaultState.maturity,
-            vaultState.totalfCash,
-            vaultState.totalPrimeCash,
-            vaultState.totalStrategyTokens,
-            vaultState.totalVaultShares,
-            singleTokenValueInternal
+            vaultState.totalDebtUnderlying,
+            vaultState.isSettled
         );
     }
 
-    function getRemainingSettledTokens(
-        address vault,
-        uint256 maturity
-    ) internal view returns (uint256 remainingStrategyTokens, int256 remainingPrimeCash) {
-        VaultSettledAssetsStorage storage settledAssets = LibStorage.getVaultSettledAssets()
-            [vault][maturity];
-        remainingStrategyTokens = settledAssets.remainingStrategyTokens;
-        remainingPrimeCash = settledAssets.remainingPrimeCash;
+    function setTotalDebtStorage(
+        VaultStateStorage storage s,
+        PrimeRate memory pr,
+        VaultConfig memory vaultConfig,
+        uint16 currencyId,
+        uint256 maturity,
+        int256 totalDebtUnderlying,
+        bool isSettled
+    ) internal {
+        int256 previousStoredDebtBalance = -int256(uint256(s.totalDebt));
+        int256 newStoredDebtBalance = calculateDebtStorage(pr, maturity, totalDebtUnderlying);
+        s.totalDebt = newStoredDebtBalance.neg().toUint().toUint80();
+        // negChange returns the net change in negative balances. In leveraged vaults, debt balances
+        // are always zero or negative. If more debt is accrued, this will return a negative number.
+        // If debt is reduced, this will return a positive number.
+        int256 netDebtChange = previousStoredDebtBalance.negChange(newStoredDebtBalance);
+
+        int256 totalPrimeDebt;
+        // Need to update either the Prime Cash or fCash debt counters on storage.
+        if (maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
+            // The vault will hold the prime debt from an external event emission viewpoint
+            pr.updateTotalPrimeDebt(vaultConfig.vault, currencyId, netDebtChange);
+            totalPrimeDebt = totalDebtUnderlying;
+        } else if (!isSettled) {
+            // Update total fCash debt outstanding if vault has not been settled yet
+            PrimeCashExchangeRate.updateTotalfCashDebtOutstanding(
+                vaultConfig.vault, currencyId, maturity, previousStoredDebtBalance, newStoredDebtBalance
+            );
+            VaultConfiguration.updatefCashBorrowCapacity(vaultConfig.vault, currencyId, netDebtChange.neg());
+            totalPrimeDebt = VaultStateLib.getCurrentPrimeDebt(vaultConfig, pr, currencyId);
+        }
+
+        if (netDebtChange > 0 && !isSettled) {
+            // Only check borrow capacity if we are increasing the debt position (i.e. netDebtChange
+            // is negative) and the vault is not yet settled (only the case with fCash).
+            VaultConfiguration.checkBorrowCapacity(vaultConfig.vault, currencyId, totalPrimeDebt);
+        }
     }
 
-    /// @notice Exits a maturity for an account given the shares to redeem. Asset cash will be credited
-    /// to tempCashBalance.
+    function _increaseVaultShares(
+        VaultState memory vaultState,
+        VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
+        uint256 vaultSharesMinted
+    ) private {
+        require(vaultAccount.maturity == vaultState.maturity);
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vaultConfig.vault][vaultState.maturity];
+
+        // Update the values in memory
+        vaultState.totalVaultShares = vaultState.totalVaultShares.add(vaultSharesMinted);
+        vaultAccount.vaultShares = vaultAccount.vaultShares.add(vaultSharesMinted);
+
+        // Update the global value in storage
+        s.totalVaultShares = vaultState.totalVaultShares.toUint80();
+    }
+
+    /// @notice Exits a maturity for an account given the shares to redeem.
     /// @param vaultState vault state
     /// @param vaultAccount will use the maturity on the vault account to choose which pool to exit
     /// @param vaultSharesToRedeem amount of shares to redeem
-    /// @return strategyTokensWithdrawn amount of strategy tokens withdrawn from the pool
     function exitMaturity(
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
+        VaultConfig memory vaultConfig,
         uint256 vaultSharesToRedeem
-    ) internal pure returns (uint256 strategyTokensWithdrawn) {
+    ) internal {
         require(vaultAccount.maturity == vaultState.maturity);
-        vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToRedeem);
-        uint256 primeCashWithdrawn;
-        (primeCashWithdrawn, strategyTokensWithdrawn) = exitMaturityDirect(vaultState, vaultSharesToRedeem);
+        mapping(address => mapping(uint256 => VaultStateStorage)) storage store = LibStorage.getVaultState();
+        VaultStateStorage storage s = store[vaultConfig.vault][vaultState.maturity];
 
-        vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(SafeInt256.toInt(primeCashWithdrawn));
-    }
-
-    
-    /// @notice Does the pool math for withdraws, used for the liquidator in deleverage because we redeem
-    /// directly without touching the vault account.
-    /// @param vaultState the current state of the pool
-    /// @param vaultSharesToRedeem amount of shares to redeem
-    /// @return primeCashWithdrawn asset cash withdrawn from the pool
-    /// @return strategyTokensWithdrawn amount of strategy tokens withdrawn from the pool
-    function exitMaturityDirect(
-        VaultState memory vaultState,
-        uint256 vaultSharesToRedeem
-    ) internal pure returns (uint256 primeCashWithdrawn, uint256 strategyTokensWithdrawn) {
-        // Calculate the claim on cash tokens and strategy tokens
-        (primeCashWithdrawn, strategyTokensWithdrawn) = getPoolShare(vaultState, vaultSharesToRedeem);
-
-        // Remove tokens from the pool
-        vaultState.totalPrimeCash = vaultState.totalPrimeCash.sub(primeCashWithdrawn);
-        vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.sub(strategyTokensWithdrawn);
+        // Update the values in memory
         vaultState.totalVaultShares = vaultState.totalVaultShares.sub(vaultSharesToRedeem);
+        vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToRedeem);
+
+        // Update the global value in storage
+        s.totalVaultShares = vaultState.totalVaultShares.toUint80();
     }
 
     /// @notice Enters a maturity pool (including depositing cash and minting vault shares).
     /// @param vaultState vault state for the maturity we are entering
     /// @param vaultAccount will update maturity and vault shares and reduce tempCashBalance to zero
     /// @param vaultConfig vault config
-    /// @param strategyTokenDeposit any existing amount of strategy tokens to deposit from settlement or during
-    /// a roll vault position
-    /// @param additionalUnderlyingExternal any additional tokens pre-deposited to the vault in enterVault
+    /// @param vaultShareDeposit any existing amount of vault shares to deposit from settlement or during a roll vault position
     /// @param vaultData calldata to pass to the vault
     function enterMaturity(
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        uint256 strategyTokenDeposit,
-        uint256 additionalUnderlyingExternal,
+        uint256 vaultShareDeposit,
         bytes calldata vaultData
-    ) internal returns (uint256 strategyTokensAdded) {
-        // If the vault state is holding asset cash this would mean that there is some sort of emergency de-risking
-        // event or the vault is in the process of settling debts. In both cases, we do not allow accounts to enter
-        // the vault.
-        require(vaultState.totalPrimeCash == 0);
-        // An account cannot enter a vault with a negative temp cash balance.  This can happen during roll vault where
+    ) internal returns (uint256 vaultSharesAdded) {
+        // An account cannot enter a vault with a negative temp cash balance. This can happen during roll vault where
         // an insufficient amount is borrowed to repay its previous maturity debt.
         require(vaultAccount.tempCashBalance >= 0);
 
-        if (vaultAccount.maturity < vaultState.maturity) {
+        if (vaultAccount.maturity != vaultState.maturity) {
             // This condition can occur in three scenarios, in all of these scenarios it cannot have any claim on the
-            // previous maturity's assets.
+            // previous maturity's assets:
             //  - when an account is newly established
             //  - when an account is entering a maturity after settlement
-            //  - when an account is rolling forward from a previous maturity
+            //  - when an account is rolling from a different maturity
             require(vaultAccount.vaultShares == 0);
             vaultAccount.maturity = vaultState.maturity;
         } else {
             require(vaultAccount.maturity == vaultState.maturity);
         }
 
-        uint256 vaultSharesMinted;
-        if (strategyTokenDeposit > 0) {
-            // If there is a deposit from a matured position or an account that is rolling
-            // their position forward, then we set the strategy token deposit before we call
-            // deposit so the vault will see the additional strategyTokens in VaultState if
-            // it queries for the vault state.
-            vaultSharesMinted = _setVaultSharesMinted(vaultState, vaultAccount, strategyTokenDeposit, vaultConfig.vault);
-        }
+        // If an account that is rolling their position forward, then we set the vault share
+        // deposit before we call deposit so the vault will see the additional shares if it calls
+        // back into Notional.
+        _increaseVaultShares(vaultState, vaultAccount, vaultConfig, vaultShareDeposit);
 
-        uint256 strategyTokensMinted = vaultConfig.deposit(
-            vaultAccount.account, vaultAccount.tempCashBalance, vaultState.maturity, additionalUnderlyingExternal, vaultData
-        );
-
-        // Update the vault state again for the new tokens that were minted inside deposit.
-        vaultSharesMinted = vaultSharesMinted.add(
-            _setVaultSharesMinted(vaultState, vaultAccount, strategyTokensMinted, vaultConfig.vault)
-        );
-
-        emit VaultEnterMaturity(
-            vaultConfig.vault,
-            vaultState.maturity,
-            vaultAccount.account,
-            additionalUnderlyingExternal,
-            // Overflow checked above
-            uint256(vaultAccount.tempCashBalance),
-            strategyTokenDeposit,
-            vaultSharesMinted
+        uint256 vaultSharesMinted = vaultConfig.deposit(
+            vaultAccount.account, vaultAccount.tempCashBalance, vaultState.maturity, vaultData
         );
 
         // Clear the cash balance after the deposit
         vaultAccount.tempCashBalance = 0;
 
-        // Return this value back to the caller
-        strategyTokensAdded = strategyTokenDeposit.add(strategyTokensMinted);
+        // Update the vault state again for the new tokens that were minted inside deposit.
+        _increaseVaultShares(vaultState, vaultAccount, vaultConfig, vaultSharesMinted);
+
+        // Return the total vault shares added to the maturity
+        vaultSharesAdded = vaultShareDeposit.add(vaultSharesMinted);
+        setVaultState(vaultState, vaultConfig);
     }
 
-    function _setVaultSharesMinted(
+    function settleVaultSharesToPrimeVault(
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
-        uint256 strategyTokens,
-        address vault
-    ) private returns (uint256 vaultSharesMinted) {
-        if (vaultState.totalStrategyTokens == 0) {
-            vaultSharesMinted = strategyTokens;
-        } else {
-            vaultSharesMinted = strategyTokens.mul(vaultState.totalVaultShares).div(vaultState.totalStrategyTokens);
-        }
-
-        vaultState.totalStrategyTokens = vaultState.totalStrategyTokens.add(strategyTokens);
-        vaultState.totalVaultShares = vaultState.totalVaultShares.add(vaultSharesMinted);
-        vaultAccount.vaultShares = vaultAccount.vaultShares.add(vaultSharesMinted);
-        setVaultState(vaultState, vault);
-    }
-
-    /// @notice Returns the component amounts for a given amount of vaultShares
-    function getPoolShare(
-        VaultState memory vaultState,
-        uint256 vaultShares
-    ) internal pure returns (uint256 primeCash, uint256 strategyTokens) {
-        if (vaultState.totalVaultShares > 0) {
-            primeCash = vaultShares.mul(vaultState.totalPrimeCash).div(vaultState.totalVaultShares);
-            strategyTokens = vaultShares.mul(vaultState.totalStrategyTokens).div(vaultState.totalVaultShares);
-        }
-    }
-
-    function _getStrategyTokenValueUnderlyingInternal(
-        uint16 currencyId,
-        address vault,
-        address account,
-        uint256 strategyTokens,
-        uint256 maturity
-    ) private view returns (int256) {
-        Token memory token = TokenHandler.getUnderlyingToken(currencyId);
-        // This will be true if the the token is "NonMintable" meaning that it does not have
-        // an underlying token, only an asset token
-        if (token.decimals == 0) token = TokenHandler.getAssetToken(currencyId);
-
-        return token.convertToInternal(
-            IStrategyVault(vault).convertStrategyToUnderlying(account, strategyTokens, maturity)
-        );
-    }
-
-    /// @notice Returns the value in asset cash of a given amount of pool share
-    function getCashValueOfShare(
-        VaultState memory vaultState,
         VaultConfig memory vaultConfig,
-        address account,
-        uint256 vaultShares
-    ) internal view returns (int256 primeCashValue) {
-        if (vaultShares == 0) return 0;
-        (uint256 primeCash, uint256 strategyTokens) = getPoolShare(vaultState, vaultShares);
-        int256 underlyingInternalStrategyTokenValue = _getStrategyTokenValueUnderlyingInternal(
-            vaultConfig.borrowCurrencyId, vaultConfig.vault, account, strategyTokens, vaultState.maturity
+        VaultStateStorage storage primeVaultState
+    ) internal {
+        uint256 vaultSharesToPrimeMaturity;
+        if (vaultConfig.getFlag(VaultConfiguration.VAULT_MUST_SETTLE)) {
+            // Some vaults must settle their vault shares explicitly if they are not fungible between
+            // maturities. If this is the case, then the vault must convert the vault shares prime maturity
+            // vault share in order for individual vault accounts to settle their individual positions. One
+            // example of this is a vault that holds fCash as its strategy token.
+            vaultSharesToPrimeMaturity = IStrategyVault(vaultConfig.vault).convertVaultSharesToPrimeMaturity(
+                vaultAccount.account,
+                vaultAccount.vaultShares,
+                vaultState.maturity
+            );
+        } else {
+            vaultSharesToPrimeMaturity = vaultAccount.vaultShares;
+        }
+
+        // Clears the account's vault shares in memory
+        exitMaturity(vaultState, vaultAccount, vaultConfig, vaultAccount.vaultShares);
+        
+        // Set the account's new prime vault shares directly
+        vaultAccount.vaultShares = vaultSharesToPrimeMaturity;
+
+        // Update prime vault shares directly
+        primeVaultState.totalVaultShares = uint256(primeVaultState.totalVaultShares)
+            .add(vaultSharesToPrimeMaturity).toUint80();
+    }
+
+    function settleTotalDebtToPrimeCash(
+        VaultStateStorage storage primeVaultState,
+        address vault,
+        uint16 currencyId,
+        uint256 maturity,
+        int256 totalfCashDebt
+    ) internal {
+        // Set the prime cash vault state manually because we should not be updating
+        // the totalPrimeDebt during this method (that has already happened within
+        // the global settlement process). This will emit events that burn the fCash debt
+        // on the vault and transfer prime debt from the settlement reserve.
+        int256 settledPrimeDebtValue = PrimeRateLib.convertSettledfCashInVault(
+            currencyId, maturity, totalfCashDebt, vault
         );
 
-        // Converts underlying strategy token value to asset cash
-        primeCashValue = vaultConfig.assetRate
-            .convertFromUnderlying(underlyingInternalStrategyTokenValue)
-            .add(primeCash.toInt());
+        // We know for sure that the vault has a minimum of "settledPrimeDebtValue" as a result of the
+        // "totalfCashDebt" settlement. However, some vault accounts may be holding "vault cash" as a
+        // result of a liquidation event.  We cannot repay those debts globally because this cash is held
+        // in accounts individually. This method only updates the vault state to ensure that borrow capacity
+        // is properly enforced.  In the absence of any "vault cash", this value represents the total
+        // amount of prime debt owed by all the vault accounts in this maturity.
+        int256 totalPrimeDebt = int256(uint256(primeVaultState.totalDebt));
+        int256 newTotalDebt = totalPrimeDebt.sub(settledPrimeDebtValue);
+        // Set the total debt to the storage value
+        primeVaultState.totalDebt = newTotalDebt.toUint().toUint80();
+
+        // Reduce the total fCash borrow capacity
+        VaultConfiguration.updatefCashBorrowCapacity(vault, currencyId, totalfCashDebt.neg());
     }
 }
