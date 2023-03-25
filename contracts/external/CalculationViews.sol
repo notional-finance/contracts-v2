@@ -189,7 +189,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         uint256 totalIncentivesClaimable;
 
         if (accountContext.isBitmapEnabled()) {
-            balanceState.loadBalanceState(account, accountContext.bitmapCurrencyId, accountContext);
+            balanceState.loadBalanceStateView(account, accountContext.bitmapCurrencyId, accountContext);
             if (balanceState.storedNTokenBalance > 0) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);
                 (
@@ -211,7 +211,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         bytes18 currencies = accountContext.activeCurrencies;
         while (currencies != 0) {
             uint16 currencyId = uint16(bytes2(currencies) & Constants.UNMASK_FLAGS);
-            balanceState.loadBalanceState(account, currencyId, accountContext);
+            balanceState.loadBalanceStateView(account, currencyId, accountContext);
 
             if (balanceState.storedNTokenBalance > 0) {
                 address tokenAddress = nTokenHandler.nTokenAddress(balanceState.currencyId);

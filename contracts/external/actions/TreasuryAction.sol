@@ -148,30 +148,23 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             // Reserve requirement not defined
             if (bufferInternal == 0) continue;
 
-            // prettier-ignore
-            (int256 reserveInternal, /* */, /* */, /* */) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
+            int256 reserveInternal = BalanceHandler.getPositiveCashBalance(Constants.FEE_RESERVE, currencyId);
 
             // Do not withdraw anything if reserve is below or equal to reserve requirement
             if (reserveInternal <= bufferInternal) continue;
 
-            Token memory asset = TokenHandler.getAssetToken(currencyId);
-
             // Actual reserve amount allowed to be redeemed and transferred
             // NOTE: overflow not possible with the check above
-            int256 assetInternalRedeemAmount = reserveInternal - bufferInternal;
+            int256 primeCashRedeemed = reserveInternal - bufferInternal;
 
-            // Redeems cTokens and transfer underlying to treasury manager contract
-            amountsTransferred[i] = _redeemAndTransfer(
-                currencyId,
-                asset,
-                assetInternalRedeemAmount
-            );
+            // Redeems prime cash and transfer underlying to treasury manager contract
+            amountsTransferred[i] = _redeemAndTransfer(currencyId, primeCashRedeemed);
 
             // Updates the reserve balance
             BalanceHandler.harvestExcessReserveBalance(
                 currencyId,
                 reserveInternal,
-                assetInternalRedeemAmount
+                primeCashRedeemed
             );
         }
 

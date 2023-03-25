@@ -344,13 +344,7 @@ contract Views is StorageLayoutV2, NotionalViews {
         returns (int256 reserveBalance)
     {
         _checkValidCurrency(currencyId);
-        // prettier-ignore
-        (
-            reserveBalance,
-            /* */,
-            /* */,
-            /* */
-        ) = BalanceHandler.getBalanceStorage(Constants.RESERVE, currencyId);
+        reserveBalance = BalanceHandler.getPositiveCashBalance(Constants.FEE_RESERVE, currencyId);
     }
 
     function getNTokenPortfolio(address tokenAddress)
@@ -413,7 +407,7 @@ contract Views is StorageLayoutV2, NotionalViews {
             /* */,
             /* */,
             /* */
-        ) = BalanceHandler.getBalanceStorage(tokenAddress, currencyId);
+        ) = BalanceHandler.getBalanceStorageView(tokenAddress, currencyId, block.timestamp);
     }
 
     /** Account Specific View Methods **/
@@ -441,7 +435,7 @@ contract Views is StorageLayoutV2, NotionalViews {
                 b.nTokenBalance,
                 b.lastClaimTime,
                 b.accountIncentiveDebt
-            ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
+            ) = BalanceHandler.getBalanceStorageView(account, accountContext.bitmapCurrencyId, block.timestamp);
             i += 1;
         }
 
@@ -456,7 +450,7 @@ contract Views is StorageLayoutV2, NotionalViews {
                 b.nTokenBalance,
                 b.lastClaimTime,
                 b.accountIncentiveDebt
-            ) = BalanceHandler.getBalanceStorage(account, b.currencyId);
+            ) = BalanceHandler.getBalanceStorageView(account, b.currencyId, block.timestamp);
             i += 1;
             currencies = currencies << 16;
         }
@@ -480,17 +474,23 @@ contract Views is StorageLayoutV2, NotionalViews {
         return AccountContextHandler.getAccountContext(account);
     }
 
+    function getAccountPrimeDebtBalance(uint16 currencyId, address account) external view override returns (
+        int256 debtBalance
+    ) {
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        BalanceStorage storage balanceStorage = store[account][currencyId];
+        int256 cashBalance = balanceStorage.cashBalance;
+
+        // Only return cash balances less than zero
+        debtBalance = cashBalance < 0 ? debtBalance : 0;
+    }
+
     /// @notice Returns account balances for a given currency
-    function getAccountBalance(uint16 currencyId, address account)
-        external
-        view
-        override
-        returns (
+    function getAccountBalance(uint16 currencyId, address account) external view override returns (
             int256 cashBalance,
             int256 nTokenBalance,
             uint256 lastClaimTime
-        )
-    {
+    ) {
         _checkValidCurrency(currencyId);
         // prettier-ignore
         (
@@ -498,7 +498,7 @@ contract Views is StorageLayoutV2, NotionalViews {
             nTokenBalance,
             lastClaimTime,
             /* */
-        ) = BalanceHandler.getBalanceStorage(account, currencyId);
+        ) = BalanceHandler.getBalanceStorageView(account, currencyId, block.timestamp);
     }
 
     /// @notice Returns account portfolio of assets

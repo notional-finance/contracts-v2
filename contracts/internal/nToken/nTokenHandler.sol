@@ -286,13 +286,7 @@ library nTokenHandler {
             0
         );
 
-        // prettier-ignore
-        (
-            nToken.cashBalance,
-            /* nTokenBalance */,
-            /* lastClaimTime */,
-            /* accountIncentiveDebt */
-        ) = BalanceHandler.getBalanceStorage(nToken.tokenAddress, currencyId);
+        nToken.cashBalance = BalanceHandler.getPositiveCashBalance(nToken.tokenAddress, currencyId);
     }
 
     /// @notice Uses buildCashGroupStateful

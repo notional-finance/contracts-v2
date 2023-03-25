@@ -408,29 +408,28 @@ library BalanceHandler {
     /// @notice Special method for setting balance storage for nToken
     function setBalanceStorageForNToken(
         address nTokenAddress,
-        uint256 currencyId,
+        uint16 currencyId,
         int256 cashBalance
     ) internal {
-        require(cashBalance >= 0); // dev: invalid nToken cash balance
-        _setBalanceStorage(nTokenAddress, currencyId, cashBalance, 0, 0, 0);
+        _setPositiveCashBalance(nTokenAddress, currencyId, cashBalance);
     }
 
     /// @notice Asses a fee or a refund to the nToken for leveraged vaults
-    function incrementVaultFeeToNToken(uint256 currencyId, int256 fee) internal {
+    function incrementVaultFeeToNToken(uint16 currencyId, int256 fee) internal {
         require(fee >= 0); // dev: invalid fee
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        (int256 cashBalance, /* */, /* */, /* */) = getBalanceStorage(nTokenAddress, currencyId);
+        int256 cashBalance = getPositiveCashBalance(nTokenAddress, currencyId);
         cashBalance = cashBalance.add(fee);
-        setBalanceStorageForNToken(nTokenAddress, currencyId, cashBalance);
+        _setPositiveCashBalance(nTokenAddress, currencyId, cashBalance);
     }
 
     /// @notice increments fees to the reserve
-    function incrementFeeToReserve(uint256 currencyId, int256 fee) internal {
+    function incrementFeeToReserve(uint16 currencyId, int256 fee) internal {
         require(fee >= 0); // dev: invalid fee
         // prettier-ignore
-        (int256 totalReserve, /* */, /* */, /* */) = getBalanceStorage(Constants.RESERVE, currencyId);
+        int256 totalReserve = getPositiveCashBalance(Constants.FEE_RESERVE, currencyId);
         totalReserve = totalReserve.add(fee);
-        _setBalanceStorage(Constants.RESERVE, currencyId, totalReserve, 0, 0, 0);
+        _setPositiveCashBalance(Constants.FEE_RESERVE, currencyId, totalReserve);
         emit ReserveFeeAccrued(uint16(currencyId), fee);
     }
 
@@ -438,32 +437,50 @@ library BalanceHandler {
     function harvestExcessReserveBalance(uint16 currencyId, int256 reserve, int256 assetInternalRedeemAmount) internal {
         // parameters are validated by the caller
         reserve = reserve.subNoNeg(assetInternalRedeemAmount);
-        _setBalanceStorage(Constants.RESERVE, currencyId, reserve, 0, 0, 0);
+        _setPositiveCashBalance(Constants.FEE_RESERVE, currencyId, reserve);
         emit ExcessReserveBalanceHarvested(currencyId, assetInternalRedeemAmount);
     }
 
     /// @notice sets the reserve balance, see TreasuryAction.setReserveCashBalance
     function setReserveCashBalance(uint16 currencyId, int256 newBalance) internal {
         require(newBalance >= 0); // dev: invalid balance
-        _setBalanceStorage(Constants.RESERVE, currencyId, newBalance, 0, 0, 0);
+        _setPositiveCashBalance(Constants.FEE_RESERVE, currencyId, newBalance);
         emit ReserveBalanceUpdated(currencyId, newBalance);
+    }
+
+    function getPositiveCashBalance(
+        address account,
+        uint16 currencyId
+    ) internal view returns (int256 cashBalance) {
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        BalanceStorage storage balanceStorage = store[account][currencyId];
+        cashBalance = balanceStorage.cashBalance;
+        // Positive cash balances do not require prime rate conversion
+        require(cashBalance >= 0);
+    }
+
+    /// @notice Sets cash balances for special system accounts that can only ever have positive
+    /// cash balances (and nothing else). Because positive prime cash balances do not require any
+    /// adjustments this does not require a PrimeRate object
+    function _setPositiveCashBalance(address account, uint16 currencyId, int256 newCashBalance) internal {
+        require(newCashBalance >= 0); // dev: invalid balance
+        mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
+        BalanceStorage storage balanceStorage = store[account][currencyId];
+        balanceStorage.cashBalance = newCashBalance.toInt88();
     }
 
     /// @notice Sets internal balance storage.
     function _setBalanceStorage(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         int256 cashBalance,
         int256 nTokenBalance,
         uint256 lastClaimTime,
-        uint256 accountIncentiveDebt
-    ) private {
+        uint256 accountIncentiveDebt,
+        PrimeRate memory pr
+    ) internal {
         mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
-
-        require(cashBalance >= type(int88).min && cashBalance <= type(int88).max); // dev: stored cash balance overflow
-        // Allows for 12 quadrillion nToken balance in 1e8 decimals before overflow
-        require(nTokenBalance >= 0 && nTokenBalance <= type(uint80).max); // dev: stored nToken balance overflow
 
         if (lastClaimTime == 0) {
             // In this case the account has migrated and we set the accountIncentiveDebt
@@ -477,22 +494,28 @@ library BalanceHandler {
             require(lastClaimTime == balanceStorage.lastClaimTime);
         }
 
-        balanceStorage.lastClaimTime = uint32(lastClaimTime);
-        balanceStorage.nTokenBalance = uint80(nTokenBalance);
-        balanceStorage.cashBalance = int88(cashBalance);
+        balanceStorage.lastClaimTime = lastClaimTime.toUint32();
+        balanceStorage.nTokenBalance = nTokenBalance.toUint().toUint80();
+
+        balanceStorage.cashBalance = pr.convertToStorageNonSettlementNonVault(
+            account,
+            currencyId,
+            balanceStorage.cashBalance, // previous stored value
+            cashBalance // signed cash balance
+        ).toInt88();
     }
 
     /// @notice Gets internal balance storage, nTokens are stored alongside cash balances
-    function getBalanceStorage(address account, uint256 currencyId)
-        internal
-        view
-        returns (
+    function getBalanceStorage(
+        address account,
+        uint16 currencyId,
+        PrimeRate memory pr
+    ) internal view returns (
             int256 cashBalance,
             int256 nTokenBalance,
             uint256 lastClaimTime,
             uint256 accountIncentiveDebt
-        )
-    {
+    ) {
         mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
 
@@ -501,22 +524,23 @@ library BalanceHandler {
         if (lastClaimTime > 0) {
             // NOTE: this is only necessary to support the deprecated integral supply values, which are stored
             // in the accountIncentiveDebt slot
-            accountIncentiveDebt = FloatingPoint56.unpackFrom56Bits(balanceStorage.accountIncentiveDebt);
+            accountIncentiveDebt = FloatingPoint.unpackFromBits(balanceStorage.accountIncentiveDebt);
         } else {
             accountIncentiveDebt = balanceStorage.accountIncentiveDebt;
         }
-        cashBalance = balanceStorage.cashBalance;
+
+        cashBalance = pr.convertFromStorage(balanceStorage.cashBalance);
     }
 
     /// @notice Loads a balance state memory object
     /// @dev Balance state objects occupy a lot of memory slots, so this method allows
     /// us to reuse them if possible
-    function loadBalanceState(
+    function _loadBalanceState(
         BalanceState memory balanceState,
         address account,
         uint16 currencyId,
         AccountContext memory accountContext
-    ) internal view {
+    ) private view {
         require(0 < currencyId && currencyId <= Constants.MAX_CURRENCIES); // dev: invalid currency id
         balanceState.currencyId = currencyId;
 
@@ -526,7 +550,7 @@ library BalanceHandler {
                 balanceState.storedNTokenBalance,
                 balanceState.lastClaimTime,
                 balanceState.accountIncentiveDebt
-            ) = getBalanceStorage(account, currencyId);
+            ) = getBalanceStorage(account, currencyId, balanceState.primeRate);
         } else {
             balanceState.storedCashBalance = 0;
             balanceState.storedNTokenBalance = 0;
@@ -535,7 +559,7 @@ library BalanceHandler {
         }
 
         balanceState.netCashChange = 0;
-        balanceState.netPrimeTransfer = 0;
+        balanceState.primeCashWithdraw = 0;
         balanceState.netNTokenTransfer = 0;
         balanceState.netNTokenSupplyChange = 0;
     }
@@ -559,7 +583,43 @@ library BalanceHandler {
             balanceState.storedCashBalance,
             balanceState.storedNTokenBalance,
             balanceState.lastClaimTime,
-            balanceState.accountIncentiveDebt
+            balanceState.accountIncentiveDebt,
+            balanceState.primeRate
         );
     }
+
+    function loadBalanceState(
+        BalanceState memory balanceState,
+        address account,
+        uint16 currencyId,
+        AccountContext memory accountContext
+    ) internal {
+        balanceState.primeRate = PrimeRateLib.buildPrimeRateStateful(currencyId);
+        _loadBalanceState(balanceState, account, currencyId, accountContext);
+    }
+
+    function loadBalanceStateView(
+        BalanceState memory balanceState,
+        address account,
+        uint16 currencyId,
+        AccountContext memory accountContext
+    ) internal view {
+        (balanceState.primeRate, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, block.timestamp);
+        _loadBalanceState(balanceState, account, currencyId, accountContext);
+    }
+
+    function getBalanceStorageView(
+        address account,
+        uint16 currencyId,
+        uint256 blockTime
+    ) internal view returns (
+        int256 cashBalance,
+        int256 nTokenBalance,
+        uint256 lastClaimTime,
+        uint256 accountIncentiveDebt
+    ) {
+        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, blockTime);
+        return getBalanceStorage(account, currencyId, pr);
+    }
+
 }

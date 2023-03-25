@@ -56,20 +56,20 @@ library FreeCollateral {
 
     /// @notice Checks if currency balances are active in the account returns them if true
     /// @return cash balance, nTokenBalance
-    function _getCurrencyBalances(address account, bytes2 currencyBytes)
-        private
-        view
-        returns (int256, int256)
-    {
+    function _getCurrencyBalances(
+        address account,
+        bytes2 currencyBytes,
+        PrimeRate memory primeRate
+    ) private view returns (int256, int256) {
         if (currencyBytes & Constants.ACTIVE_IN_BALANCES == Constants.ACTIVE_IN_BALANCES) {
-            uint256 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
+            uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
             // prettier-ignore
             (
                 int256 cashBalance,
                 int256 nTokenBalance,
                 /* lastClaimTime */,
                 /* accountIncentiveDebt */
-            ) = BalanceHandler.getBalanceStorage(account, currencyId);
+            ) = BalanceHandler.getBalanceStorage(account, currencyId, primeRate);
 
             return (cashBalance, nTokenBalance);
         }
@@ -170,7 +170,11 @@ library FreeCollateral {
             nTokenBalance, 
             /* lastClaimTime */,
             /* accountIncentiveDebt */
-        ) = BalanceHandler.getBalanceStorage(account, accountContext.bitmapCurrencyId);
+        ) = BalanceHandler.getBalanceStorage(
+            account,
+            accountContext.bitmapCurrencyId,
+            factors.cashGroup.primeRate
+        );
 
         if (nTokenBalance > 0) {
             (nTokenHaircutPrimeValue, nTokenParameters) = _getNTokenHaircutPrimePV(
@@ -275,8 +279,9 @@ library FreeCollateral {
             require(currencyId != accountContext.bitmapCurrencyId);
 
             factors.primeRate = PrimeRateLib.buildPrimeRateStateful(currencyId);
+            
             (int256 netLocalAssetValue, int256 nTokenBalance) =
-                _getCurrencyBalances(account, currencyBytes);
+                _getCurrencyBalances(account, currencyBytes, factors.primeRate);
             if (netLocalAssetValue < 0) hasCashDebt = true;
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
@@ -364,7 +369,8 @@ library FreeCollateral {
 
             (netLocalAssetValues[netLocalIndex], nTokenBalance) = _getCurrencyBalances(
                 account,
-                currencyBytes
+                currencyBytes,
+                factors.primeRate
             );
 
             if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
@@ -401,7 +407,7 @@ library FreeCollateral {
         uint16 currencyId = uint16(currencyBytes & Constants.UNMASK_FLAGS);
         factors.primeRate = PrimeRateLib.buildPrimeRateStateful(currencyId);
         (int256 netLocalAssetValue, int256 nTokenBalance) =
-            _getCurrencyBalances(liquidationFactors.account, currencyBytes);
+            _getCurrencyBalances(liquidationFactors.account, currencyBytes, factors.primeRate);
 
         if (_isActiveInPortfolio(currencyBytes) || nTokenBalance > 0) {
             factors.cashGroup = CashGroup.buildCashGroupStateful(currencyId);

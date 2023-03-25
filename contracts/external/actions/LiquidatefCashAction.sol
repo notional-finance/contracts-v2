@@ -213,7 +213,7 @@ contract LiquidatefCashAction is ActionGuards {
             /* int256 nTokenBalance */,
             /* uint256 lastClaimTime */,
             /* uint256 accountIncentiveDebt */
-        ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
+        ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency, c.factors.localPrimeRate);
         // Cash balance is used if liquidating negative fCash
         c.localCashBalanceUnderlying = c.factors.localPrimeRate.convertToUnderlying(cashBalance);
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
