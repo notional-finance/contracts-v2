@@ -40,6 +40,19 @@ library SettleAssetsExternal {
         return _settleAccount(account, accountContext);
     }
 
+    /// @notice Stores a portfolio state and returns the updated context
+    /// @dev Called from BatchAction
+    function storeAssetsInPortfolioState(
+        address account,
+        AccountContext memory accountContext,
+        PortfolioState memory state
+    ) external returns (AccountContext memory) {
+        accountContext.storeAssetsAndUpdateContext(account, state);
+        // NOTE: this account context returned is in a different memory location than
+        // the one passed in.
+        return accountContext;
+    }
+
     function _settleAccount(
         address account,
         AccountContext memory accountContext

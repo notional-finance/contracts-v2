@@ -206,8 +206,10 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         // Update the portfolio state if bitmap is not enabled. If bitmap is already enabled
         // then all the assets have already been updated in in storage.
         if (!accountContext.isBitmapEnabled()) {
-            // NOTE: account context is updated in memory inside this method call.
-            accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+            // NOTE: a new account context memory location is returned here
+            accountContext = SettleAssetsExternal.storeAssetsInPortfolioState(
+                account, accountContext, portfolioState
+            );
         }
 
         // This will save the account context and check free collateral
@@ -312,8 +314,10 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         // Update the portfolio state if bitmap is not enabled. If bitmap is already enabled
         // then all the assets have already been updated in in storage.
         if (!accountContext.isBitmapEnabled()) {
-            // NOTE: account context is updated in memory inside this method call.
-            accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+            // NOTE: a new account context memory location is returned here
+            accountContext = SettleAssetsExternal.storeAssetsInPortfolioState(
+                account, accountContext, portfolioState
+            );
         }
 
         // NOTE: free collateral and account context will be set outside of this method call.
