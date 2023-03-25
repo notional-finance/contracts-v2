@@ -102,9 +102,13 @@ library BitmapAssetsHandler {
 
         if (assetsBitmap.isBitSet(bitNum)) {
             // Bit is set so we read and update the notional amount
-            int256 finalNotional = notional.add(fCashSlot.notional);
-            require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
-            fCashSlot.notional = int128(finalNotional);
+            int256 initialNotional = fCashSlot.notional;
+            int256 finalNotional = notional.add(initialNotional);
+            fCashSlot.notional = finalNotional.toInt128();
+
+            PrimeCashExchangeRate.updateTotalfCashDebtOutstanding(
+                account, currencyId, maturity, initialNotional, finalNotional
+            );
 
             // If the new notional is zero then turn off the bit
             if (finalNotional == 0) {
@@ -117,8 +121,15 @@ library BitmapAssetsHandler {
 
         if (notional != 0) {
             // Bit is not set so we turn it on and update the mapping directly, no read required.
-            require(type(int128).min <= notional && notional <= type(int128).max); // dev: bitmap notional overflow
-            fCashSlot.notional = int128(notional);
+            fCashSlot.notional = notional.toInt128();
+
+            PrimeCashExchangeRate.updateTotalfCashDebtOutstanding(
+                account,
+                currencyId,
+                maturity,
+                0, // bit was not set, so initial notional value is zero
+                notional
+            );
 
             assetsBitmap = assetsBitmap.setBit(bitNum, true);
             setAssetsBitmap(account, currencyId, assetsBitmap);

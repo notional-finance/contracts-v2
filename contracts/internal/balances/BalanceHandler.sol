@@ -103,7 +103,7 @@ library BalanceHandler {
             returnExcessWrapped // if true, returns any excess ETH as WETH
         );
         balanceState.netCashChange = balanceState.netCashChange.add(primeCashDeposited);
-        }
+    }
 
     /// @notice Finalize collateral liquidation, checkAllowPrimeBorrow is set to false to force
     /// a negative collateral cash balance if required.
@@ -157,7 +157,7 @@ library BalanceHandler {
             balanceState.primeCashWithdraw,
             balanceState.primeRate,
             withdrawWrapped // if true, withdraws ETH as WETH
-            );
+        );
 
         // No changes to total cash after this point
         int256 totalCashChange = balanceState.netCashChange.add(balanceState.primeCashWithdraw);
@@ -293,41 +293,42 @@ library BalanceHandler {
         AccountContext memory accountContext,
         SettleAmount[] memory settleAmounts
     ) internal {
+        // Mapping from account to its various currency stores
+        mapping(uint256 => BalanceStorage) storage store = LibStorage.getBalanceStorage()[account];
+
         for (uint256 i = 0; i < settleAmounts.length; i++) {
             SettleAmount memory amt = settleAmounts[i];
-            if (amt.netCashChange == 0) continue;
+            if (amt.positiveSettledCash == 0 && amt.negativeSettledCash == 0) continue;
 
-            (
-                int256 cashBalance,
-                int256 nTokenBalance,
-                uint256 lastClaimTime,
-                uint256 accountIncentiveDebt
-            ) = getBalanceStorage(account, amt.currencyId);
+            PrimeRate memory pr = settleAmounts[i].presentPrimeRate;
+            BalanceStorage storage balanceStorage = store[amt.currencyId];
 
-            cashBalance = cashBalance.add(amt.netCashChange);
+            int256 previousCashBalance = pr.convertFromStorage(balanceStorage.cashBalance);
+            int256 nTokenBalance = balanceStorage.nTokenBalance;
+
+            int256 newStoredCashBalance = pr.convertToStorageInSettlement(
+                account,
+                amt.currencyId,
+                previousCashBalance,
+                amt.positiveSettledCash,
+                amt.negativeSettledCash
+            );
+            balanceStorage.cashBalance = newStoredCashBalance.toInt88();
+
             accountContext.setActiveCurrency(
                 amt.currencyId,
-                cashBalance != 0 || nTokenBalance != 0,
+                newStoredCashBalance != 0 || nTokenBalance != 0,
                 Constants.ACTIVE_IN_BALANCES
             );
 
-            if (cashBalance < 0) {
+            if (newStoredCashBalance < 0) {
                 accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
             }
 
             emit CashBalanceChange(
                 account,
                 uint16(amt.currencyId),
-                amt.netCashChange
-            );
-
-            _setBalanceStorage(
-                account,
-                amt.currencyId,
-                cashBalance,
-                nTokenBalance,
-                lastClaimTime,
-                accountIncentiveDebt
+                amt.positiveSettledCash.add(amt.negativeSettledCash)
             );
         }
     }
@@ -438,10 +439,10 @@ library BalanceHandler {
         uint16 currencyId,
         PrimeRate memory pr
     ) internal view returns (
-            int256 cashBalance,
-            int256 nTokenBalance,
-            uint256 lastClaimTime,
-            uint256 accountIncentiveDebt
+        int256 cashBalance,
+        int256 nTokenBalance,
+        uint256 lastClaimTime,
+        uint256 accountIncentiveDebt
     ) {
         mapping(address => mapping(uint256 => BalanceStorage)) storage store = LibStorage.getBalanceStorage();
         BalanceStorage storage balanceStorage = store[account][currencyId];
@@ -458,7 +459,7 @@ library BalanceHandler {
 
         cashBalance = pr.convertFromStorage(balanceStorage.cashBalance);
     }
-
+        
     /// @notice Loads a balance state memory object
     /// @dev Balance state objects occupy a lot of memory slots, so this method allows
     /// us to reuse them if possible

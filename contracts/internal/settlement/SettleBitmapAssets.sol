@@ -29,10 +29,11 @@ library SettleBitmapAssets {
     /// that have matured and remap the bitmap to correspond to the current time.
     function settleBitmappedCashGroup(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 oldSettleTime,
-        uint256 blockTime
-    ) internal returns (int256 totalAssetCash, uint256 newSettleTime) {
+        uint256 blockTime,
+        PrimeRate memory presentPrimeRate
+    ) internal returns (int256 positiveSettledCash, int256 negativeSettledCash, uint256 newSettleTime) {
         bytes32 bitmap = BitmapAssetsHandler.getAssetsBitmap(account, currencyId);
 
         // This newSettleTime will be set to the new `oldSettleTime`. The bits between 1 and
@@ -46,15 +47,20 @@ library SettleBitmapAssets {
         // Do not need to worry about validity, if newSettleTime is not on an exact bit we will settle up until
         // the closest maturity that is less than newSettleTime.
         (uint256 lastSettleBit, /* isValid */) = DateTime.getBitNumFromMaturity(oldSettleTime, newSettleTime);
-        if (lastSettleBit == 0) return (totalAssetCash, newSettleTime);
+        if (lastSettleBit == 0) return (0, 0, newSettleTime);
 
         // Returns the next bit that is set in the bitmap
         uint256 nextBitNum = bitmap.getNextBitNum();
         while (nextBitNum != 0 && nextBitNum <= lastSettleBit) {
             uint256 maturity = DateTime.getMaturityFromBitNum(oldSettleTime, nextBitNum);
-            totalAssetCash = totalAssetCash.add(
-                _settlefCashAsset(account, currencyId, maturity, blockTime)
-            );
+            int256 settledPrimeCash = _settlefCashAsset(account, currencyId, maturity, blockTime, presentPrimeRate);
+
+            // Split up positive and negative amounts so that total prime debt can be properly updated later
+            if (settledPrimeCash > 0) {
+                positiveSettledCash = positiveSettledCash.add(settledPrimeCash);
+            } else {
+                negativeSettledCash = negativeSettledCash.add(settledPrimeCash);
+            }
 
             // Turn the bit off now that it is settled
             bitmap = bitmap.setBit(nextBitNum, false);
@@ -81,22 +87,21 @@ library SettleBitmapAssets {
     /// asset from storage after calculating it.
     function _settlefCashAsset(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
-        uint256 blockTime
-    ) private returns (int256 assetCash) {
+        uint256 blockTime,
+        PrimeRate memory presentPrimeRate
+    ) private returns (int256 signedPrimeSupplyValue) {
         mapping(address => mapping(uint256 =>
             mapping(uint256 => ifCashStorage))) storage store = LibStorage.getifCashBitmapStorage();
         int256 notional = store[account][currencyId][maturity].notional;
         
         // Gets the current settlement rate or will store a new settlement rate if it does not
         // yet exist.
-        AssetRateParameters memory rate =
-            AssetRate.buildSettlementRateStateful(currencyId, maturity, blockTime);
-        assetCash = rate.convertFromUnderlying(notional);
+        signedPrimeSupplyValue = presentPrimeRate.convertSettledfCash(
+            account, currencyId, maturity, notional, blockTime
+        );
 
         delete store[account][currencyId][maturity];
-
-        return assetCash;
     }
 }

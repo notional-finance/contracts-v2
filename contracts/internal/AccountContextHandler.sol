@@ -210,14 +210,101 @@ library AccountContextHandler {
         return result;
     }
 
-    /// @notice Stores a portfolio array and updates the account context information, this method should
-    /// be used whenever updating a portfolio array except in the case of nTokens
+    function storeAssetsAndUpdateContextForSettlement(
+        AccountContext memory accountContext,
+        address account,
+        PortfolioState memory portfolioState
+    ) internal {
+        // During settlement, we do not update fCash debt outstanding
+        _storeAssetsAndUpdateContext(accountContext, account, portfolioState);
+    }
+
     function storeAssetsAndUpdateContext(
         AccountContext memory accountContext,
         address account,
-        PortfolioState memory portfolioState,
-        bool isLiquidation
+        PortfolioState memory portfolioState
     ) internal {
+        (
+            PortfolioAsset[] memory initialPortfolio,
+            uint256[] memory initialIds
+        ) = PortfolioHandler.getSortedPortfolioWithIds(
+            account,
+            accountContext.assetArrayLength
+        );
+
+        _storeAssetsAndUpdateContext(accountContext, account, portfolioState);
+
+        (
+            PortfolioAsset[] memory finalPortfolio,
+            uint256[] memory finalIds
+        ) = PortfolioHandler.getSortedPortfolioWithIds(
+            account,
+            accountContext.assetArrayLength
+        );
+
+        uint256 i = 0; // initial counter
+        uint256 f = 0; // final counter
+        while (i < initialPortfolio.length || f < finalPortfolio.length) {
+            // Use uint256.max to signify that the end of the array has been reached. The max
+            // id space is much less than this, so any elements in the other array will trigger
+            // the proper if condition. Based on the while condition above, one of iID or fID
+            // will be a valid portfolio id.
+            uint256 iID = i < initialIds.length ? initialIds[i] : type(uint256).max;
+            uint256 fID = f < finalIds.length ? finalIds[f] : type(uint256).max;
+
+            // Inside this loop, it is guaranteed that there are no duplicate ids within
+            // initialIds and finalIds. Therefore, we are looking for one of three possibilities:
+            //  - iID == fID
+            //  - iID is not in finalIds (deleted)
+            //  - fID is not in initialIds (added)
+            if (iID == fID) {
+                // if id[i] == id[j] and both fCash, compare debt
+                if (initialPortfolio[i].assetType == Constants.FCASH_ASSET_TYPE) {
+                    PrimeCashExchangeRate.updateTotalfCashDebtOutstanding(
+                        account,
+                        initialPortfolio[i].currencyId,
+                        initialPortfolio[i].maturity,
+                        initialPortfolio[i].notional,
+                        finalPortfolio[f].notional
+                    );
+                }
+                i = i == initialIds.length ? i : i + 1;
+                f = f == finalIds.length ? f : f + 1;
+            } else if (iID < fID) {
+                // Initial asset deleted
+                if (initialPortfolio[i].assetType == Constants.FCASH_ASSET_TYPE) {
+                    PrimeCashExchangeRate.updateTotalfCashDebtOutstanding(
+                        account,
+                        initialPortfolio[i].currencyId,
+                        initialPortfolio[i].maturity,
+                        initialPortfolio[i].notional,
+                        0 // asset deleted, final notional is zero
+                    );
+                }
+                i = i == initialIds.length ? i : i + 1;
+            } else if (fID < iID) {
+                // Final asset added
+                if (finalPortfolio[f].assetType == Constants.FCASH_ASSET_TYPE) {
+                    PrimeCashExchangeRate.updateTotalfCashDebtOutstanding(
+                        account,
+                        finalPortfolio[f].currencyId,
+                        finalPortfolio[f].maturity,
+                        0, // asset added, initial notional is zero
+                        finalPortfolio[f].notional
+                    );
+                }
+                f = f == finalIds.length ? f : f + 1;
+            }
+        }
+    }
+
+    /// @notice Stores a portfolio array and updates the account context information, this method should
+    /// be used whenever updating a portfolio array except in the case of nTokens
+    function _storeAssetsAndUpdateContext(
+        AccountContext memory accountContext,
+        address account,
+        PortfolioState memory portfolioState
+    ) private {
         // Each of these parameters is recalculated based on the entire array of assets in store assets,
         // regardless of whether or not they have been updated.
         (bool hasDebt, bytes32 portfolioCurrencies, uint8 assetArrayLength, uint40 nextSettleTime) =

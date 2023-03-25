@@ -37,30 +37,46 @@ library SettleAssetsExternal {
     ) external returns (AccountContext memory) {
         // Defensive check to ensure that this is a valid settlement
         require(accountContext.mustSettleAssets());
+        return _settleAccount(account, accountContext);
+    }
+
+    function _settleAccount(
+        address account,
+        AccountContext memory accountContext
+    ) private returns (AccountContext memory) {
         SettleAmount[] memory settleAmounts;
         PortfolioState memory portfolioState;
 
         if (accountContext.isBitmapEnabled()) {
-            (int256 settledCash, uint256 blockTimeUTC0) =
+            PrimeRate memory presentPrimeRate = PrimeRateLib
+                .buildPrimeRateStateful(accountContext.bitmapCurrencyId);
+
+            (int256 positiveSettledCash, int256 negativeSettledCash, uint256 blockTimeUTC0) =
                 SettleBitmapAssets.settleBitmappedCashGroup(
                     account,
                     accountContext.bitmapCurrencyId,
                     accountContext.nextSettleTime,
-                    block.timestamp
+                    block.timestamp,
+                    presentPrimeRate
                 );
             require(blockTimeUTC0 < type(uint40).max); // dev: block time utc0 overflow
             accountContext.nextSettleTime = uint40(blockTimeUTC0);
 
             settleAmounts = new SettleAmount[](1);
-            settleAmounts[0] = SettleAmount(accountContext.bitmapCurrencyId, settledCash);
+            settleAmounts[0] = SettleAmount({
+                currencyId: accountContext.bitmapCurrencyId,
+                positiveSettledCash: positiveSettledCash,
+                negativeSettledCash: negativeSettledCash,
+                presentPrimeRate: presentPrimeRate
+            });
         } else {
             portfolioState = PortfolioHandler.buildPortfolioState(
-                account,
-                accountContext.assetArrayLength,
-                0
+                account, accountContext.assetArrayLength, 0
             );
-            settleAmounts = SettlePortfolioAssets.settlePortfolio(portfolioState, block.timestamp);
-            accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+            settleAmounts = SettlePortfolioAssets.settlePortfolio(account, portfolioState, block.timestamp);
+            accountContext.storeAssetsAndUpdateContextForSettlement(
+                account, portfolioState
+            );
         }
 
         BalanceHandler.finalizeSettleAmounts(account, accountContext, settleAmounts);

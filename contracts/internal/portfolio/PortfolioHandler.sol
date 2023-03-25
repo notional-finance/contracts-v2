@@ -21,7 +21,7 @@ library PortfolioHandler {
     using AssetHandler for PortfolioAsset;
 
     // Mirror of LibStorage.MAX_PORTFOLIO_ASSETS
-    uint256 private constant MAX_PORTFOLIO_ASSETS = 16;
+    uint256 private constant MAX_PORTFOLIO_ASSETS = 8;
 
     /// @notice Primarily used by the TransferAssets library
     function addMultipleAssets(PortfolioState memory portfolioState, PortfolioAsset[] memory assets)
@@ -44,7 +44,7 @@ library PortfolioHandler {
 
     function _mergeAssetIntoArray(
         PortfolioAsset[] memory assetArray,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
         uint256 assetType,
         int256 notional
@@ -248,9 +248,10 @@ library PortfolioHandler {
             assetStorageLength += 1;
         }
 
-        // 16 is the maximum number of assets or portfolio active currencies will overflow at 32 bytes with
-        // 2 bytes per currency
-        require(assetStorageLength <= 16 && nextSettleTime <= type(uint40).max); // dev: portfolio return value overflow
+        // 16 is the maximum number of assets or portfolio active currencies will overflow its
+        // 32 bytes size given 2 bytes per currency
+        require(assetStorageLength <= 16); // dev: active currencies bytes32 overflow
+        require(nextSettleTime <= type(uint40).max); // dev: portfolio return value overflow
         return (
             hasDebt,
             portfolioActiveCurrencies,
@@ -282,7 +283,9 @@ library PortfolioHandler {
         hasDebt = hasDebt || asset.notional < 0;
 
         require(uint16(uint256(portfolioActiveCurrencies)) == 0); // dev: portfolio active currencies overflow
-        portfolioActiveCurrencies = (portfolioActiveCurrencies >> 16) | (bytes32(asset.currencyId) << 240);
+        portfolioActiveCurrencies = 
+            (portfolioActiveCurrencies >> 16) | 
+            (bytes32(uint256(asset.currencyId)) << 240);
 
         return (hasDebt, portfolioActiveCurrencies, nextSettleTime);
     }
@@ -351,16 +354,14 @@ library PortfolioHandler {
 
     /// @notice Returns a portfolio array, will be sorted
     function getSortedPortfolio(address account, uint8 assetArrayLength)
-        internal
-        view
-        returns (PortfolioAsset[] memory)
-    {
-        PortfolioAsset[] memory assets = _loadAssetArray(account, assetArrayLength);
-        // No sorting required for length of 1
-        if (assets.length <= 1) return assets;
+        internal view returns (PortfolioAsset[] memory assets) {
+        (assets, /* */) = getSortedPortfolioWithIds(account, assetArrayLength);
+    }
 
-        _sortInPlace(assets);
-        return assets;
+    function getSortedPortfolioWithIds(address account, uint8 assetArrayLength)
+        internal view returns (PortfolioAsset[] memory assets, uint256[] memory ids) {
+        assets = _loadAssetArray(account, assetArrayLength);
+        ids = _sortInPlace(assets);
     }
 
     /// @notice Builds a portfolio array from storage. The new assets hint parameter will
@@ -381,13 +382,23 @@ library PortfolioHandler {
         return state;
     }
 
-    function _sortInPlace(PortfolioAsset[] memory assets) private pure {
+    function _sortId(uint16 currencyId, uint256 maturity, uint256 assetType) private pure returns (uint256) {
+        return uint256(
+            (bytes32(uint256(currencyId)) << 48) |
+                (bytes32(uint256(uint40(maturity))) << 8) |
+                bytes32(uint256(uint8(assetType)))
+        );
+    }
+
+    function _sortInPlace(
+        PortfolioAsset[] memory assets
+    ) private pure returns (uint256[] memory ids) {
         uint256 length = assets.length;
-        uint256[] memory ids = new uint256[](length);
+        ids = new uint256[](length);
         for (uint256 k; k < length; k++) {
             PortfolioAsset memory asset = assets[k];
             // Prepopulate the ids to calculate just once
-            ids[k] = TransferAssets.encodeAssetId(asset.currencyId, asset.maturity, asset.assetType);
+            ids[k] = _sortId(asset.currencyId, asset.maturity, asset.assetType);
         }
 
         // Uses insertion sort 

@@ -347,8 +347,8 @@ library nTokenRedeemAction {
     /// @notice Used to reduce an nToken ifCash assets portfolio proportionately when redeeming
     /// nTokens to its underlying assets.
     function _reduceifCashAssetsProportional(
-        address account,
-        uint256 currencyId,
+        address nTokenAddress,
+        uint16 currencyId,
         uint256 lastInitializedTime,
         int256 tokensToRedeem,
         int256 totalSupply,
@@ -364,14 +364,12 @@ library nTokenRedeemAction {
         uint256 bitNum = assetsBitmap.getNextBitNum();
         while (bitNum != 0) {
             uint256 maturity = DateTime.getMaturityFromBitNum(lastInitializedTime, bitNum);
-            ifCashStorage storage fCashSlot = store[account][currencyId][maturity];
+            ifCashStorage storage fCashSlot = store[nTokenAddress][currencyId][maturity];
             int256 notional = fCashSlot.notional;
+            int256 finalNotional;
 
+            {
             int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
-            int256 finalNotional = notional.sub(notionalToTransfer);
-
-            require(type(int128).min <= finalNotional && finalNotional <= type(int128).max); // dev: bitmap notional overflow
-            fCashSlot.notional = int128(finalNotional);
 
             PortfolioAsset memory asset = assets[index];
             asset.currencyId = currencyId;
@@ -379,6 +377,16 @@ library nTokenRedeemAction {
             asset.assetType = Constants.FCASH_ASSET_TYPE;
             asset.notional = notionalToTransfer;
             index += 1;
+            
+                finalNotional = notional.sub(notionalToTransfer);
+            }
+
+            // Store the new fCash amount
+            fCashSlot.notional = finalNotional.toInt128();
+
+            PrimeCashExchangeRate.updateTotalfCashDebtOutstanding(
+                nTokenAddress, currencyId, maturity, notional, finalNotional
+            );
 
             // Turn off the bit and look for the next one
             assetsBitmap = assetsBitmap.setBit(bitNum, false);

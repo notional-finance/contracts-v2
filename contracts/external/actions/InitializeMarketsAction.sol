@@ -90,12 +90,61 @@ library InitializeMarketsAction {
         // maxMarketIndex is 1-indexed
         for (uint256 i = 1; i <= maxMarketIndex; i++) {
             params.interestRateParams[i - 1] = InterestRateCurve.getActiveInterestRateParameters(
-            currencyId,
+                currencyId,
                 i
-        );
+            );
         }
 
         return params;
+    }
+
+    function _settleNTokenLiquidityTokens(
+        nTokenPortfolio memory nToken,
+        uint256 blockTime
+    ) internal returns (int256 withdrawnCash, int256 settledCashFromfCash) {
+        MarketParameters memory market;
+        PortfolioAsset[] memory storedAssets = nToken.portfolioState.storedAssets;
+
+        // The nToken portfolio only ever has liquidity tokens sorted in ascending order
+        for (uint256 i; i < storedAssets.length; i++) {
+            PortfolioAsset memory asset = storedAssets[i];
+            // Must be liquidity token type
+            require(AssetHandler.isLiquidityToken(asset.assetType));
+            {
+                uint256 settleDate = AssetHandler.getSettlementDate(asset);
+                // Settlement date is on block time exactly
+                require(settleDate <= blockTime);
+                Market.loadSettlementMarket(market, asset.currencyId, asset.maturity, settleDate);
+            }
+
+            int256 fCash;
+            {
+                int256 primeCash;
+                (primeCash, fCash) = market.removeLiquidity(asset.notional);
+                withdrawnCash = withdrawnCash.add(primeCash);
+            }
+
+            // If the fCash has matured (as it will for the 3 month market), then convert it
+            // to a settled prime cash (positive) balance and return it. We do not net it off
+            // against the portfolio because that would cause an improper totalDebtSupply update
+            if (asset.maturity <= blockTime) {
+                // NOTE: convertSettledfCash will set the prime settlement rate
+                int256 settledPrimeCash = nToken.cashGroup.primeRate.convertSettledfCash(
+                    nToken.tokenAddress, asset.currencyId, asset.maturity, fCash, blockTime
+                );
+                settledCashFromfCash = settledCashFromfCash.add(settledPrimeCash);
+            } else {
+                BitmapAssetsHandler.addifCashAsset(
+                    nToken.tokenAddress,
+                    asset.currencyId,
+                    asset.maturity,
+                    nToken.lastInitializedTime,
+                    fCash
+                );
+            }
+
+            nToken.portfolioState.deleteAsset(i);
+        }
     }
 
     function _settleNTokenPortfolio(nTokenPortfolio memory nToken, uint256 blockTime) private {
@@ -110,27 +159,45 @@ library InitializeMarketsAction {
         // lastInitializedTime >= reference time then the markets have already been initialized
         // for the quarter.
         uint256 referenceTime = DateTime.getReferenceTime(blockTime);
-        require(nToken.lastInitializedTime < referenceTime, "IM: invalid time");
+        require(nToken.lastInitializedTime < referenceTime);
 
-        {
-            // Settles liquidity token balances and portfolio state now contains the net fCash amounts
-            SettleAmount[] memory settleAmount =
-                SettlePortfolioAssets.settlePortfolio(nToken.portfolioState, blockTime);
-            nToken.cashBalance = nToken.cashBalance.add(settleAmount[0].netCashChange);
-        }
+        // All liquidity tokens are removed during initialize markets, the nToken will receive
+        // cash and fCash positions as a result. The three month fCash position will settle and
+        // the value from that will be in settledCashFromfCash.
+        (int256 withdrawnCash, int256 settledCashFromfCash) = _settleNTokenLiquidityTokens(nToken, blockTime);
 
-        (int256 settledPrimeCash, uint256 blockTimeUTC0) =
+        // Settles any fCash positions in the nToken. Generally speaking, this will result in the
+        // nToken's negative 3 month fCash position being settled.
+        (int256 settledPositiveCash, int256 settledNegativeCash, uint256 blockTimeUTC0) =
             SettleBitmapAssets.settleBitmappedCashGroup(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
                 nToken.lastInitializedTime,
-                blockTime
+                blockTime,
+                nToken.cashGroup.primeRate
             );
-        nToken.cashBalance = nToken.cashBalance.add(settledPrimeCash);
+
+        // Both of these will be greater than or equal to zero
+        settledPositiveCash = settledPositiveCash.add(settledCashFromfCash);
+
+        // Add all the cash withdrawn from the market first
+        nToken.cashBalance = nToken.cashBalance.add(withdrawnCash);
+
+        // convertToStorageInSettlement will return the final stored balance after all the
+        // settled balances are applied.
+        nToken.cashBalance = nToken.cashGroup.primeRate.convertToStorageInSettlement(
+            nToken.tokenAddress,
+            nToken.cashGroup.currencyId,
+            nToken.cashBalance, // previous cash balance
+            settledPositiveCash,
+            settledNegativeCash
+        );
+
+        // The nToken must always have a strictly positive cash balance
+        require(nToken.cashBalance > 0);
 
         // The ifCashBitmap has been updated to reference this new settlement time
-        require(blockTimeUTC0 <= type(uint40).max);
-        nToken.lastInitializedTime = uint40(blockTimeUTC0);
+        nToken.lastInitializedTime = blockTimeUTC0.toUint40();
     }
 
     /// @notice Special method to get previous markets, normal usage would not reference previous markets
@@ -386,7 +453,7 @@ library InitializeMarketsAction {
         );
 
         // fCashAmount is calculated using the underlying amount
-        return nToken.cashGroup.assetRate.convertToUnderlying(primeCashToMarket);
+        return nToken.cashGroup.primeRate.convertToUnderlying(primeCashToMarket);
     }
 
     /// @notice Calculates the fCash amount given the cash and utilization:

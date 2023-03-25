@@ -52,14 +52,6 @@ library TradingAction {
         int256 netLiquidityTokens
     );
 
-    event SettledCashDebt(
-        address indexed settledAccount,
-        uint16 indexed currencyId,
-        address indexed settler,
-        int256 amountToSettleAsset,
-        int256 fCashAmount
-    );
-
     event nTokenResidualPurchase(
         uint16 indexed currencyId,
         uint40 indexed maturity,
@@ -384,111 +376,6 @@ library TradingAction {
                 require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
             }
         }
-    }
-
-    /// @notice If an account has a negative cash balance we allow anyone to lend to to that account at a penalty
-    /// rate to the 3 month market.
-    /// @param account the account initiating the trade, used to check that self settlement is not possible
-    /// @param cashGroup parameters for the trade
-    /// @param blockTime the current block time
-    /// @param trade bytes32 encoding of the particular trade
-    /// @return maturity: the date of the three month maturity where fCash will be exchanged
-    /// @return cashAmount: a negative cash amount that the account must pay to the settled account
-    /// @return fCashAmount: a positive fCash amount that the account will receive
-    function _settleCashDebt(
-        address account,
-        CashGroupParameters memory cashGroup,
-        uint256 blockTime,
-        bytes32 trade
-    )
-        internal
-        returns (
-            uint256,
-            int256,
-            int256
-        )
-    {
-        address counterparty = address(uint256(trade) >> 88);
-        // Allowing an account to settle itself would result in strange outcomes
-        require(account != counterparty, "Cannot settle self");
-        int256 amountToSettleAsset = int256(uint88(uint256(trade)));
-
-        AccountContext memory counterpartyContext =
-            AccountContextHandler.getAccountContext(counterparty);
-
-        if (counterpartyContext.mustSettleAssets()) {
-            counterpartyContext = SettleAssetsExternal.settleAccount(counterparty, counterpartyContext);
-        }
-
-        // This will check if the amountToSettleAsset is valid and revert if it is not. Amount to settle is a positive
-        // number denominated in asset terms. If amountToSettleAsset is set equal to zero on the input, will return the
-        // max amount to settle. This will update the balance storage on the counterparty.
-        amountToSettleAsset = BalanceHandler.setBalanceStorageForSettleCashDebt(
-            counterparty,
-            cashGroup,
-            amountToSettleAsset,
-            counterpartyContext
-        );
-
-        // Settled account must borrow from the 3 month market at a penalty rate. This will fail if the market
-        // is not initialized.
-        uint256 threeMonthMaturity = DateTime.getReferenceTime(blockTime) + Constants.QUARTER;
-        int256 fCashAmount =
-            _getfCashSettleAmount(cashGroup, threeMonthMaturity, blockTime, amountToSettleAsset);
-        // Defensive check to ensure that we can't inadvertently cause the settler to lose fCash.
-        require(fCashAmount >= 0);
-
-        // It's possible that this action will put an account into negative free collateral. In this case they
-        // will immediately become eligible for liquidation and the account settling the debt can also liquidate
-        // them in the same transaction. Do not run a free collateral check here to allow this to happen.
-        {
-            PortfolioAsset[] memory assets = new PortfolioAsset[](1);
-            assets[0].currencyId = cashGroup.currencyId;
-            assets[0].maturity = threeMonthMaturity;
-            assets[0].notional = fCashAmount.neg(); // This is the debt the settled account will incur
-            assets[0].assetType = Constants.FCASH_ASSET_TYPE;
-            // Can transfer assets, we have settled above
-            counterpartyContext = TransferAssets.placeAssetsInAccount(
-                counterparty,
-                counterpartyContext,
-                assets
-            );
-        }
-        counterpartyContext.setAccountContext(counterparty);
-
-        emit SettledCashDebt(
-            counterparty,
-            uint16(cashGroup.currencyId),
-            account,
-            amountToSettleAsset,
-            fCashAmount.neg()
-        );
-
-        return (threeMonthMaturity, amountToSettleAsset.neg(), fCashAmount);
-    }
-
-    /// @dev Helper method to calculate the fCashAmount from the penalty settlement rate
-    function _getfCashSettleAmount(
-        CashGroupParameters memory cashGroup,
-        uint256 threeMonthMaturity,
-        uint256 blockTime,
-        int256 amountToSettleAsset
-    ) private view returns (int256) {
-        uint256 oracleRate = cashGroup.calculateOracleRate(threeMonthMaturity, blockTime);
-
-        int256 exchangeRate =
-            Market.getExchangeRateFromImpliedRate(
-                oracleRate.add(cashGroup.getSettlementPenalty()),
-                threeMonthMaturity.sub(blockTime)
-            );
-
-        // Amount to settle is positive, this returns the fCashAmount that the settler will
-        // receive as a positive number
-        return
-            cashGroup.assetRate
-                .convertToUnderlying(amountToSettleAsset)
-                // Exchange rate converts from cash to fCash when multiplying
-                .mulInRatePrecision(exchangeRate);
     }
 
     /// @notice Allows an account to purchase ntoken residuals
