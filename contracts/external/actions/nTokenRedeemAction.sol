@@ -45,19 +45,16 @@ library nTokenRedeemAction {
     /// @param currencyId the currency associated the nToken
     /// @param tokensToRedeem the amount of nTokens to convert to cash
     /// @return amount of asset cash to return to the account, denominated in internal token decimals
-    function nTokenRedeemViaBatch(uint16 currencyId, int256 tokensToRedeem)
+    function nTokenRedeemViaBatch(address account, uint16 currencyId, int256 tokensToRedeem)
         external
         returns (int256)
     {
-        uint256 blockTime = block.timestamp;
-        // prettier-ignore
-        (
-            int256 totalPrimeCash,
-            bool hasResidual,
-            /* PortfolioAssets[] memory newfCashAssets */
-        ) = _redeem(currencyId, tokensToRedeem, true, false, blockTime);
+        (int256 totalPrimeCash, PortfolioAsset[] memory newifCashAssets) = _redeem(
+            account, currencyId, tokensToRedeem, true, false
+        );
 
-        require(!hasResidual, "Cannot redeem via batch, residual");
+        require(newifCashAssets.length == 0, "Cannot redeem via batch, residual");
+        Emitter.emitNTokenBurn(account, currencyId, totalPrimeCash, tokensToRedeem);
         return totalPrimeCash;
     }
 
@@ -68,36 +65,33 @@ library nTokenRedeemAction {
     /// back into the account's portfolio
     /// @param acceptResidualAssets if true, then ifCash residuals will be placed into the account and there will
     /// be no penalty assessed
-    /// @return primeCash positive amount of asset cash to the account
-    /// @return hasResidual true if there are fCash residuals left
-    /// @return assets an array of fCash asset residuals to place into the account
+    /// @return totalPrimeCash positive amount of asset cash to the account
+    /// @return newifCashAssets an array of fCash asset residuals to place into the account
     function redeem(
+        address account,
         uint16 currencyId,
         int256 tokensToRedeem,
         bool sellTokenAssets,
         bool acceptResidualAssets
-    ) external returns (int256, bool, PortfolioAsset[] memory) {
-        return _redeem(
-            currencyId,
-            tokensToRedeem,
-            sellTokenAssets,
-            acceptResidualAssets,
-            block.timestamp
+    ) external returns (int256 totalPrimeCash, PortfolioAsset[] memory newifCashAssets) {
+        (totalPrimeCash, newifCashAssets) = _redeem(
+            account, currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets
         );
+        Emitter.emitNTokenBurn(account, currencyId, totalPrimeCash, tokensToRedeem);
     }
 
     function _redeem(
+        address account,
         uint16 currencyId,
         int256 tokensToRedeem,
         bool sellTokenAssets,
-        bool acceptResidualAssets,
-        uint256 blockTime
-    ) internal returns (int256, bool, PortfolioAsset[] memory) {
+        bool acceptResidualAssets
+    ) internal returns (int256, PortfolioAsset[] memory) {
         require(tokensToRedeem > 0);
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioStateful(currencyId);
         // nTokens cannot be redeemed during the period of time where they require settlement.
-        require(nToken.getNextSettleTime() > blockTime, "Requires settlement");
+        require(nToken.getNextSettleTime() > block.timestamp, "Requires settlement");
         require(tokensToRedeem < nToken.totalSupply, "Cannot redeem");
         PortfolioAsset[] memory newifCashAssets;
 
@@ -106,7 +100,7 @@ library nTokenRedeemAction {
             nToken.tokenAddress,
             currencyId,
             nToken.lastInitializedTime,
-            blockTime,
+            block.timestamp,
             nToken.cashGroup.maxMarketIndex
         );
 
@@ -129,28 +123,41 @@ library nTokenRedeemAction {
         // Returns the liquidity tokens to withdraw per market and the netfCash amounts. Net fCash amounts are only
         // set when ifCashBits != 0. Otherwise they must be calculated in _withdrawLiquidityTokens
         (int256[] memory tokensToWithdraw, int256[] memory netfCash) = nTokenCalculations.getLiquidityTokenWithdraw(
-            nToken,
-            tokensToRedeem,
-            blockTime,
-            ifCashBits
+            nToken, tokensToRedeem, block.timestamp, ifCashBits
         );
 
         // Returns the totalPrimeCash as a result of withdrawing liquidity tokens and cash. netfCash will be updated
         // in memory if required and will contain the fCash to be sold or returned to the portfolio
         int256 totalPrimeCash = _reduceLiquidAssets(
-           nToken,
-           tokensToRedeem,
-           tokensToWithdraw,
-           netfCash,
-           ifCashBits == 0, // If there are no residuals then we need to populate netfCash amounts
-           blockTime
+            nToken,
+            tokensToRedeem,
+            tokensToWithdraw,
+            netfCash,
+            ifCashBits == 0, // If there are no residuals then we need to populate netfCash amounts
+            block.timestamp
         );
 
+        (totalPrimeCash, newifCashAssets) = _resolveResidualAssets(
+            nToken, account, sellTokenAssets, acceptResidualAssets, totalPrimeCash, netfCash, newifCashAssets
+        );
+
+        return (totalPrimeCash, newifCashAssets);
+    }
+
+    function _resolveResidualAssets(
+        nTokenPortfolio memory nToken,
+        address account,
+        bool sellTokenAssets,
+        bool acceptResidualAssets,
+        int256 totalPrimeCash,
+        int256[] memory netfCash,
+        PortfolioAsset[] memory newifCashAssets
+    ) internal returns (int256, PortfolioAsset[] memory) {
         bool netfCashRemaining = true;
         if (sellTokenAssets) {
             int256 primeCash;
             // NOTE: netfCash is modified in place and set to zero if the fCash is sold
-            (primeCash, netfCashRemaining) = _sellfCashAssets(nToken, netfCash, blockTime);
+            (primeCash, netfCashRemaining) = _sellfCashAssets(nToken, netfCash, account);
             totalPrimeCash = totalPrimeCash.add(primeCash);
         }
 
@@ -160,7 +167,7 @@ library nTokenRedeemAction {
             require(acceptResidualAssets || newifCashAssets.length == 0, "Residuals");
         }
 
-        return (totalPrimeCash, netfCashRemaining, newifCashAssets);
+        return (totalPrimeCash, newifCashAssets);
     }
 
     /// @notice Removes liquidity tokens and cash from the nToken
@@ -263,7 +270,7 @@ library nTokenRedeemAction {
                 fCashToNToken = fCashClaim.sub(netfCash[i]);
             }
 
-            // Removes the account's fCash position from the nToken
+            // Removes the account's fCash position from the nToken, will burn negative fCash
             BitmapAssetsHandler.addifCashAsset(
                 nToken.tokenAddress,
                 asset.currencyId,
@@ -282,7 +289,7 @@ library nTokenRedeemAction {
     function _sellfCashAssets(
         nTokenPortfolio memory nToken,
         int256[] memory netfCash,
-        uint256 blockTime
+        address account
     ) private returns (int256 totalPrimeCash, bool hasResidual) {
         MarketParameters memory market;
         hasResidual = false;
@@ -290,12 +297,13 @@ library nTokenRedeemAction {
         for (uint256 i = 0; i < netfCash.length; i++) {
             if (netfCash[i] == 0) continue;
 
-            nToken.cashGroup.loadMarket(market, i + 1, false, blockTime);
+            nToken.cashGroup.loadMarket(market, i + 1, false, block.timestamp);
             int256 netPrimeCash = market.executeTrade(
+                account,
                 nToken.cashGroup,
                 // Use the negative of fCash notional here since we want to net it out
                 netfCash[i].neg(),
-                nToken.portfolioState.storedAssets[i].maturity.sub(blockTime),
+                nToken.portfolioState.storedAssets[i].maturity.sub(block.timestamp),
                 i + 1
             );
 
@@ -303,6 +311,12 @@ library nTokenRedeemAction {
                 // This means that the trade failed
                 hasResidual = true;
             } else {
+                // If the sale of the fCash is successful, then emit the transfer here to complete the accounting,
+                // otherwise the account will accept residuals and transfers will be emitted there.
+                Emitter.emitTransferfCash(
+                    nToken.tokenAddress, account, nToken.cashGroup.currencyId, market.maturity, netfCash[i]
+                );
+
                 totalPrimeCash = totalPrimeCash.add(netPrimeCash);
                 netfCash[i] = 0;
             }
@@ -369,14 +383,14 @@ library nTokenRedeemAction {
             int256 finalNotional;
 
             {
-            int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
+                int256 notionalToTransfer = notional.mul(tokensToRedeem).div(totalSupply);
 
-            PortfolioAsset memory asset = assets[index];
-            asset.currencyId = currencyId;
-            asset.maturity = maturity;
-            asset.assetType = Constants.FCASH_ASSET_TYPE;
-            asset.notional = notionalToTransfer;
-            index += 1;
+                PortfolioAsset memory asset = assets[index];
+                asset.currencyId = currencyId;
+                asset.maturity = maturity;
+                asset.assetType = Constants.FCASH_ASSET_TYPE;
+                asset.notional = notionalToTransfer;
+                index += 1;
             
                 finalNotional = notional.sub(notionalToTransfer);
             }

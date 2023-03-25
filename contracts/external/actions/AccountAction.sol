@@ -189,7 +189,7 @@ contract AccountAction is ActionGuards {
             require(balanceState.storedCashBalance > 0);
             balanceState.primeCashWithdraw = balanceState.storedCashBalance.neg();
         } else {
-        // Overflow is not possible due to uint88
+            // Overflow is not possible due to uint88
             balanceState.primeCashWithdraw = int256(amountInternalPrecision).neg();
         }
 
@@ -240,8 +240,9 @@ contract AccountAction is ActionGuards {
         require(balance.storedNTokenBalance >= tokensToRedeem, "Insufficient tokens");
         balance.netNTokenSupplyChange = tokensToRedeem.neg();
 
-        (int256 totalPrimeCash, /* bool hasResidual */, PortfolioAsset[] memory assets) =
-            nTokenRedeemAction.redeem(currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets);
+        (int256 totalPrimeCash, PortfolioAsset[] memory assets) = nTokenRedeemAction.redeem(
+            redeemer, currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets
+        );
 
         // Set balances before transferring assets
         balance.netCashChange = totalPrimeCash;

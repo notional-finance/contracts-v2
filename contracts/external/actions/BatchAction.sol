@@ -166,10 +166,10 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             int256 requiredCash = balanceState.storedCashBalance.add(balanceState.netCashChange).neg();
             if (requiredCash > 0) {
                 int256 primeCashDeposited;
-                    Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
-                    int256 underlyingExternalAmount = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
+                int256 underlyingExternalAmount = underlyingToken.convertToUnderlyingExternalWithAdjustment(
                     balanceState.primeRate.convertToUnderlying(requiredCash)
-                    );
+                );
 
                 if (action.depositUnderlying) {
                     // If depositing underlying, get the current asset rate and convert the required cash
@@ -364,10 +364,11 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
 
     /// @dev Executes nToken actions
     function _executeNTokenAction(
+        address account,
         BalanceState memory balanceState,
         DepositActionType depositType,
         int256 depositActionAmount,
-        int256 assetInternalAmount
+        int256 primeCashDeposited
     ) private {
         // After deposits have occurred, check if we are minting nTokens
         if (
@@ -375,14 +376,11 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             depositType == DepositActionType.DepositUnderlyingAndMintNToken ||
             depositType == DepositActionType.ConvertCashToNToken
         ) {
-            // Will revert if trying to mint ntokens and results in a negative cash balance
-            _checkSufficientCash(balanceState, assetInternalAmount);
-            balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
+            balanceState.netCashChange = balanceState.netCashChange.sub(primeCashDeposited);
 
             // Converts a given amount of cash (denominated in internal precision) into nTokens
             int256 tokensMinted = nTokenMintAction.nTokenMint(
-                balanceState.currencyId,
-                assetInternalAmount
+                account, balanceState.currencyId, primeCashDeposited
             );
 
             balanceState.netNTokenSupplyChange = balanceState.netNTokenSupplyChange.add(
@@ -403,8 +401,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             );
 
             int256 primeCash = nTokenRedeemAction.nTokenRedeemViaBatch(
-                balanceState.currencyId,
-                depositActionAmount
+                account, balanceState.currencyId, depositActionAmount
             );
 
             balanceState.netCashChange = balanceState.netCashChange.add(primeCash);

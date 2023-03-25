@@ -70,6 +70,12 @@ library nTokenMintAction {
             _depositIntoPortfolio(nToken, primeCashToDeposit, blockTime);
         }
 
+        if (account != nToken.tokenAddress) {
+            // If account == nToken.tokenAddress, this is due to a call to sweepCashIntoMarkets
+            // and there will be no net nToken supply change.
+            Emitter.emitNTokenMint(account, nToken.tokenAddress, currencyId, primeCashToDeposit, tokensToMint);
+        }
+
         // NOTE: token supply does not change here, it will change after incentives have been claimed
         // during BalanceHandler.finalize
         return tokensToMint;
@@ -211,7 +217,8 @@ library nTokenMintAction {
                 market,
                 perMarketDeposit,
                 blockTime,
-                marketIndex
+                marketIndex,
+                nToken.tokenAddress
             );
 
             // Recalculate this after lending into the market, if it is still over leveraged then
@@ -276,7 +283,6 @@ library nTokenMintAction {
         (int256 liquidityTokens, int256 fCashAmount) = market.addLiquidity(perMarketDeposit);
         asset.notional = asset.notional.add(liquidityTokens);
         asset.storageState = AssetStorageState.Update;
-
         return fCashAmount;
     }
 
@@ -287,32 +293,35 @@ library nTokenMintAction {
         MarketParameters memory market,
         int256 perMarketDeposit,
         uint256 blockTime,
-        uint256 marketIndex
+        uint256 marketIndex,
+        address tokenAddress
     ) private returns (int256, int256) {
         uint256 timeToMaturity = market.maturity.sub(blockTime);
-
-        // Shift the last implied rate by some buffer and calculate the exchange rate to fCash. Hope that this
-        // is sufficient to cover all potential slippage. We don't use the `getfCashGivenCashAmount` method here
-        // because it is very gas inefficient.
-        int256 assumedExchangeRate;
-        if (market.lastImpliedRate < Constants.DELEVERAGE_BUFFER) {
-            // Floor the exchange rate at zero interest rate
-            assumedExchangeRate = Constants.RATE_PRECISION;
-        } else {
-                assumedExchangeRate = InterestRateCurve.getfCashExchangeRate(
-                market.lastImpliedRate.sub(Constants.DELEVERAGE_BUFFER),
-                timeToMaturity
-            );
-        }
-
         int256 fCashAmount;
         {
+            // Shift the last implied rate by some buffer and calculate the exchange rate to fCash. Hope that this
+            // is sufficient to cover all potential slippage. We don't use the `getfCashGivenCashAmount` method here
+            // because it is very gas inefficient.
+            int256 assumedExchangeRate;
+            if (market.lastImpliedRate < Constants.DELEVERAGE_BUFFER) {
+                // Floor the exchange rate at zero interest rate
+                assumedExchangeRate = Constants.RATE_PRECISION;
+            } else {
+                assumedExchangeRate = InterestRateCurve.getfCashExchangeRate(
+                    market.lastImpliedRate.sub(Constants.DELEVERAGE_BUFFER),
+                    timeToMaturity
+                );
+            }
+
             int256 perMarketDepositUnderlying =
                 cashGroup.primeRate.convertToUnderlying(perMarketDeposit);
             // NOTE: cash * exchangeRate = fCash
             fCashAmount = perMarketDepositUnderlying.mulInRatePrecision(assumedExchangeRate);
         }
-        int256 netPrimeCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
+
+        int256 netPrimeCash = market.executeTrade(
+            tokenAddress, cashGroup, fCashAmount, timeToMaturity, marketIndex
+        );
 
         // This means that the trade failed
         if (netPrimeCash == 0) {
