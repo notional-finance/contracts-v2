@@ -514,40 +514,26 @@ library LiquidatefCash {
         address liquidateAccount,
         address liquidator,
         AccountContext memory liquidatorContext,
-        uint256 fCashCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         fCashContext memory c
     ) private returns (bool, AccountContext memory) {
         (PortfolioAsset[] memory assets, bool liquidatorIncursDebt) =
             _makeAssetArray(fCashCurrency, fCashMaturities, c.fCashNotionalTransfers);
 
-        // NOTE: if the liquidator has assets that need to be settled this will fail, automatic
-        // settlement is not done here due to the bytecode limit
-        liquidatorContext = TransferAssets.placeAssetsInAccount(
+        (c.accountContext, liquidatorContext) = SettleAssetsExternal.transferAssets(
+            liquidateAccount,
             liquidator,
+            c.accountContext,
             liquidatorContext,
             assets
         );
-        TransferAssets.invertNotionalAmountsInPlace(assets);
-
-        if (c.accountContext.isBitmapEnabled()) {
-            BitmapAssetsHandler.addMultipleifCashAssets(liquidateAccount, c.accountContext, assets);
-        } else {
-            // Don't use the placeAssetsInAccount method here since we already have the
-            // portfolio state.
-            c.portfolio.addMultipleAssets(assets);
-            c.accountContext.storeAssetsAndUpdateContext(
-                liquidateAccount,
-                c.portfolio,
-                false // Although this is liquidation, we should not allow past max assets here
-            );
-        }
 
         return (liquidatorIncursDebt, liquidatorContext);
     }
 
     function _makeAssetArray(
-        uint256 fCashCurrency,
+        uint16 fCashCurrency,
         uint256[] calldata fCashMaturities,
         int256[] memory fCashNotionalTransfers
     ) private pure returns (PortfolioAsset[] memory, bool) {

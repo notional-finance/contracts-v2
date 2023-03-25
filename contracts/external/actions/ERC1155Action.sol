@@ -342,25 +342,16 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         address to,
         PortfolioAsset[] memory assets
     ) internal returns (AccountContext memory, AccountContext memory) {
-        // Finalize all parts of a transfer for each account separately. Settlement must happen
-        // before the call to placeAssetsInAccount so that we load the proper portfolio state.
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
-        if (toContext.mustSettleAssets()) {
-            toContext = SettleAssetsExternal.settleAccount(to, toContext);
-        }
-        toContext = TransferAssets.placeAssetsInAccount(to, toContext, assets);
-        toContext.setAccountContext(to);
-
-        // Will flip the sign of notional in the assets array in memory
-        TransferAssets.invertNotionalAmountsInPlace(assets);
-
-        // Now finalize the from account
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
-        if (fromContext.mustSettleAssets()) {
-            fromContext = SettleAssetsExternal.settleAccount(from, fromContext);
-        }
-        fromContext = TransferAssets.placeAssetsInAccount(from, fromContext, assets);
+
+        // NOTE: context returned are in different memory locations
+        (fromContext, toContext) = SettleAssetsExternal.transferAssets(
+            from, to, fromContext, toContext, assets
+        );
+
         fromContext.setAccountContext(from);
+        toContext.setAccountContext(to);
 
         return (fromContext, toContext);
     }

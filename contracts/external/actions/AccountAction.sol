@@ -252,8 +252,10 @@ contract AccountAction is ActionGuards {
         // if the length of assets is greater than zero will detect the presence of ifCash
         // assets that have not been sold.
         if (assets.length > 0) {
-            // This method will store assets and update the account context in memory
-            context = TransferAssets.placeAssetsInAccount(redeemer, context, assets);
+            // This method will store assets and return the memory location of the new account
+            // context.
+            address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
+            context = SettleAssetsExternal.placeAssetsInAccount(redeemer, nTokenAddress, context, assets);
         }
 
         context.setAccountContext(redeemer);

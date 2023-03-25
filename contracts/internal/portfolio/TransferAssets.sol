@@ -83,7 +83,7 @@ library TransferAssets {
             // This will add assets in memory
             portfolioState.addMultipleAssets(assets);
             // This will store assets and update the account context in memory
-            accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+            accountContext.storeAssetsAndUpdateContext(account, portfolioState);
         }
 
         return accountContext;
