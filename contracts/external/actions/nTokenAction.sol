@@ -41,12 +41,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     /// @notice Total number of tokens in circulation
     /// @param nTokenAddress The address of the nToken
     /// @return totalSupply number of tokens held
-    function nTokenTotalSupply(address nTokenAddress)
-        external
-        view
-        override
-        returns (uint256 totalSupply)
-    {
+    function nTokenTotalSupply(address nTokenAddress) external view override returns (uint256 totalSupply) {
         // prettier-ignore
         (
             totalSupply,
@@ -58,19 +53,14 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     /// @notice Get the number of tokens held by the `account`
     /// @param account The address of the account to get the balance of
     /// @return The number of tokens held
-    function nTokenBalanceOf(uint16 currencyId, address account)
-        external
-        view
-        override
-        returns (uint256)
-    {
+    function nTokenBalanceOf(uint16 currencyId, address account) external view override returns (uint256) {
         // prettier-ignore
         (
             /* int cashBalance */,
             int256 nTokenBalance,
             /* uint lastClaimTime */,
             /* uint accountIncentiveDebt */
-        ) = BalanceHandler.getBalanceStorage(account, currencyId);
+        ) = BalanceHandler.getBalanceStorageView(account, currencyId, block.timestamp);
 
         require(nTokenBalance >= 0); // dev: negative nToken balance
         return uint256(nTokenBalance);
@@ -95,6 +85,14 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         }
     }
 
+    function pCashTransferAllowance(
+        uint16 currencyId,
+        address tokenHolder,
+        address spender
+    ) external view override returns (uint256) {
+        return LibStorage.getPCashTransferAllowance()[tokenHolder][spender][currencyId];
+    }
+
     /// @notice Approve `spender` to transfer up to `amount` from `src`
     /// @dev auth:nTokenProxy
     /// @param currencyId Currency id of the nToken account
@@ -109,11 +107,24 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "Unauthorized caller");
+        require(msg.sender == nTokenAddress);
         require(tokenHolder != address(0));
 
         nTokenAllowance[tokenHolder][spender][currencyId] = amount;
+        return true;
+    }
 
+    function pCashTransferApprove(
+        uint16 currencyId,
+        address tokenHolder,
+        address spender,
+        uint256 amount
+    ) external override returns (bool) {
+        address pCashAddress = PrimeCashExchangeRate.getCashProxyAddress(currencyId);
+        require(msg.sender == pCashAddress);
+        require(tokenHolder != address(0));
+
+        LibStorage.getPCashTransferAllowance()[tokenHolder][spender][currencyId] = amount;
         return true;
     }
 
@@ -130,11 +141,25 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "Unauthorized caller");
-        require(from != to, "Cannot transfer to self");
+        require(msg.sender == nTokenAddress);
+        require(from != to);
         requireValidAccount(to);
 
-        return _transfer(currencyId, from, to, amount);
+        return _transfer(currencyId, from, to, amount, true);
+    }
+
+    function pCashTransfer(
+        uint16 currencyId,
+        address from,
+        address to,
+        uint256 amount
+    ) external override returns (bool) {
+        address pCashAddress = PrimeCashExchangeRate.getCashProxyAddress(currencyId);
+        require(msg.sender == pCashAddress);
+        require(from != to);
+        requireValidAccount(to);
+
+        return _transfer(currencyId, from, to, amount, false);
     }
 
     /// @notice Transfer `amount` tokens from `src` to `dst`
@@ -153,8 +178,8 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         uint256 amount
     ) external override returns (bool) {
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(msg.sender == nTokenAddress, "Unauthorized caller");
-        require(from != to, "Cannot transfer to self");
+        require(msg.sender == nTokenAddress);
+        require(from != to);
         requireValidAccount(to);
 
         uint256 allowance = nTokenAllowance[from][spender][currencyId];
@@ -172,7 +197,26 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
             nTokenWhitelist[from][spender] = allowance - amount;
         }
 
-        return _transfer(currencyId, from, to, amount);
+        return _transfer(currencyId, from, to, amount, true);
+    }
+
+    function pCashTransferFrom(
+        uint16 currencyId,
+        address spender,
+        address from,
+        address to,
+        uint256 amount
+    ) external override returns (bool) {
+        address pCashAddress = PrimeCashExchangeRate.getCashProxyAddress(currencyId);
+        require(msg.sender == pCashAddress);
+        require(from != to);
+        requireValidAccount(to);
+
+        uint256 allowance = LibStorage.getPCashTransferAllowance()[from][spender][currencyId];
+        require(allowance >= amount, "Insufficient allowance");
+        LibStorage.getPCashTransferAllowance()[from][spender][currencyId] = allowance - amount;
+
+        return _transfer(currencyId, from, to, amount, false);
     }
 
     /// @notice Will approve all nToken transfers to the specific sender. This is used for simplifying UX, a user can approve
@@ -183,11 +227,7 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
     /// @param spender The address of the account which may transfer tokens
     /// @param amount The number of tokens that are approved
     /// @return Whether or not the approval succeeded
-    function nTokenTransferApproveAll(address spender, uint256 amount)
-        external
-        override
-        returns (bool)
-    {
+    function nTokenTransferApproveAll(address spender, uint256 amount) external override returns (bool) {
         nTokenWhitelist[msg.sender][spender] = amount;
         emit Approval(msg.sender, spender, amount);
         return true;
@@ -229,57 +269,16 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
         return totalIncentivesClaimed;
     }
 
-    /// @notice Returns the present value of the nToken's assets denominated in asset tokens
-    function nTokenPresentValueAssetDenominated(uint16 currencyId)
-        external
-        view
-        override
-        returns (int256)
-    {
-        // prettier-ignore
-        (
-            int256 totalPrimePV,
-            /* portfolio */
-        ) = _getNTokenPV(currencyId);
-
-        return totalPrimePV;
-    }
-
-    /// @notice Returns the present value of the nToken's assets denominated in underlying
-    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId)
-        external
-        view
-        override
-        returns (int256)
-    {
-        (int256 totalPrimePV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
-
-        return nToken.cashGroup.assetRate.convertToUnderlying(totalPrimePV);
-    }
-
-    function _getNTokenPV(uint16 currencyId)
-        private
-        view
-        returns (int256, nTokenPortfolio memory)
-    {
-        uint256 blockTime = block.timestamp;
-        nTokenPortfolio memory nToken;
-        nToken.loadNTokenPortfolioView(currencyId);
-
-        int256 totalPrimePV = nTokenCalculations.getNTokenPrimePV(nToken, blockTime);
-
-        return (totalPrimePV, nToken);
-    }
-
     /// @notice Transferring tokens will also claim incentives at the same time
     function _transfer(
         uint16 currencyId,
         address sender,
         address recipient,
-        uint256 amount
+        uint256 amount,
+        bool isNToken
     ) internal returns (bool) {
         // This prevents amountInt from being negative
-        int256 amountInt = SafeCast.toInt256(amount);
+        int256 amountInt = amount.toInt();
 
         AccountContext memory senderContext = AccountContextHandler.getAccountContext(sender);
         // If sender has debt then we will check free collateral which will revert if we have not
@@ -290,19 +289,32 @@ contract nTokenAction is StorageLayoutV1, nTokenERC20, ActionGuards {
 
         BalanceState memory senderBalance;
         senderBalance.loadBalanceState(sender, currencyId, senderContext);
-        senderBalance.netNTokenTransfer = amountInt.neg();
-        senderBalance.finalize(sender, senderContext, false);
+        if (isNToken) {
+            senderBalance.netNTokenTransfer = amountInt.neg();
+        } else {
+            // Do not allow debt to accrue during transfer. This would violate standard
+            // expectations around ERC20 transfers
+            require(senderBalance.storedCashBalance > 0, "Insufficient balance");
+            require(amountInt <= senderBalance.storedCashBalance, "Insufficient balance");
+            senderBalance.netCashChange = amountInt.neg();
+        }
+        senderBalance.finalizeNoWithdraw(sender, senderContext);
         senderContext.setAccountContext(sender);
 
         AccountContext memory recipientContext = AccountContextHandler.getAccountContext(recipient);
         BalanceState memory recipientBalance;
         recipientBalance.loadBalanceState(recipient, currencyId, recipientContext);
-        recipientBalance.netNTokenTransfer = amountInt;
-        recipientBalance.finalize(recipient, recipientContext, false);
+        if (isNToken) {
+            recipientBalance.netNTokenTransfer = amountInt;
+        } else {
+            recipientBalance.netCashChange = amountInt;
+        }
+        recipientBalance.finalizeNoWithdraw(recipient, recipientContext);
         recipientContext.setAccountContext(recipient);
 
-        // nTokens are used as collateral so we have to check the free collateral when we transfer. Only the
-        // sender needs a free collateral check, the receiver's net free collateral position will only increase
+        // nTokens and pCash are used as collateral so we have to check the free collateral when we transfer.
+        // Only the sender needs a free collateral check, the receiver's net free collateral position will
+        // only increase
         if (senderContext.hasDebt != 0x00) {
             FreeCollateralExternal.checkFreeCollateralAndRevert(sender);
         }

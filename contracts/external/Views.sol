@@ -208,6 +208,17 @@ contract Views is StorageLayoutV2, NotionalViews {
         return nToken;
     }
 
+    /// @notice Returns pCash address for a given currency
+    function pCashAddress(uint16 currencyId) external view override returns (address) {
+        _checkValidCurrency(currencyId);
+        return PrimeCashExchangeRate.getCashProxyAddress(currencyId);
+    }
+
+    function pDebtAddress(uint16 currencyId) external view override returns (address) {
+        _checkValidCurrency(currencyId);
+        return PrimeCashExchangeRate.getDebtProxyAddress(currencyId);
+    }
+
     /// @notice Returns address of the NOTE token
     function getNoteToken() external pure override returns (address) {
         return Deployments.NOTE_TOKEN_ADDRESS;

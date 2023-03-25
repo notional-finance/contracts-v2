@@ -80,6 +80,26 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         return tokensToMint.toUint();
     }
 
+    /// @notice Returns the present value of the nToken's assets denominated in asset tokens
+    function nTokenPresentValueAssetDenominated(uint16 currencyId) external view override returns (int256) {
+        (int256 totalPrimePV, /* */) = _getNTokenPV(currencyId);
+        return totalPrimePV;
+    }
+
+    /// @notice Returns the present value of the nToken's assets denominated in underlying
+    function nTokenPresentValueUnderlyingDenominated(uint16 currencyId) external view override returns (int256) {
+        (int256 totalPrimePV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
+        return nToken.cashGroup.primeRate.convertToUnderlying(totalPrimePV);
+    }
+
+    function _getNTokenPV(uint16 currencyId) private view returns (int256, nTokenPortfolio memory) {
+        uint256 blockTime = block.timestamp;
+        nTokenPortfolio memory nToken;
+        nToken.loadNTokenPortfolioView(currencyId);
+
+        int256 totalPrimePV = nTokenCalculations.getNTokenPrimePV(nToken, blockTime);
+        return (totalPrimePV, nToken);
+    }
 
     /// @notice Returns the fCash amount to send when given a cash amount, be sure to buffer these amounts
     /// slightly because the liquidity curve is sensitive to changes in block time
