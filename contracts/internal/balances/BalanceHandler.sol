@@ -44,129 +44,144 @@ library BalanceHandler {
     /// @notice Emitted when reserve balance is harvested
     event ExcessReserveBalanceHarvested(uint16 indexed currencyId, int256 harvestAmount);
 
-    /// @notice Deposits asset tokens into an account
-    /// @dev Handles two special cases when depositing tokens into an account.
-    ///  - If a token has transfer fees then the amount specified does not equal the amount that the contract
-    ///    will receive. Complete the deposit here rather than in finalize so that the contract has the correct
-    ///    balance to work with.
-    ///  - Force a transfer before finalize to allow a different account to deposit into an account
-    /// @return assetAmountInternal which is the converted asset amount accounting for transfer fees
-    function depositAssetToken(
+    /// @notice Exists to maintain compatibility for asset token deposits that existed before
+    /// prime cash. After prime cash, Notional will no longer list new asset cash tokens. Asset
+    /// cash listed prior to the prime cash migration will be redeemed immediately to underlying
+    /// and this method will return how much underlying that represents.
+    function depositDeprecatedAssetToken(
         BalanceState memory balanceState,
         address account,
-        int256 assetAmountExternal,
-        bool forceTransfer
-    ) internal returns (int256 assetAmountInternal) {
+        int256 assetAmountExternal
+    ) internal returns (int256 primeCashDeposited) {
         if (assetAmountExternal == 0) return 0;
         require(assetAmountExternal > 0); // dev: deposit asset token amount negative
-        Token memory token = TokenHandler.getAssetToken(balanceState.currencyId);
-        if (token.tokenType == TokenType.aToken) {
-            // Handles special accounting requirements for aTokens
-            assetAmountExternal = AaveHandler.convertToScaledBalanceExternal(
+        Token memory assetToken = TokenHandler.getDeprecatedAssetToken(balanceState.currencyId);
+        require(assetToken.tokenAddress != address(0));
+
+        // Aave tokens will not be listed prior to the prime cash migration, if NonMintable tokens
+        // are minted then assetTokenTransferred is the underlying.
+        if (
+            assetToken.tokenType == TokenType.cToken ||
+            assetToken.tokenType == TokenType.cETH
+        ) {
+            primeCashDeposited = assetToken.depositDeprecatedAssetToken(
                 balanceState.currencyId,
-                assetAmountExternal
+                // Overflow checked above
+                uint256(assetAmountExternal),
+                account,
+                balanceState.primeRate
             );
-        }
-
-        // Force transfer is used to complete the transfer before going to finalize
-        if (token.hasTransferFee || forceTransfer) {
-            // If the token has a transfer fee the deposit amount may not equal the actual amount
-            // that the contract will receive. We handle the deposit here and then update the netCashChange
-            // accordingly which is denominated in internal precision.
-            int256 assetAmountExternalPrecisionFinal = token.transfer(account, balanceState.currencyId, assetAmountExternal);
-            // Convert the external precision to internal, it's possible that we lose dust amounts here but
-            // this is unavoidable because we do not know how transfer fees are calculated.
-            assetAmountInternal = token.convertToInternal(assetAmountExternalPrecisionFinal);
-            // Transfer has been called
-            balanceState.netCashChange = balanceState.netCashChange.add(assetAmountInternal);
-
-            return assetAmountInternal;
+            balanceState.netCashChange = balanceState.netCashChange.add(primeCashDeposited);
+        } else if (assetToken.tokenType == TokenType.NonMintable) {
+            // In this case, no redemption is necessary and the non mintable token maps
+            // 1-1 with the underlying token. Deprecated non-mintable tokens will never be ETH so
+            // the returnExcessWrapped flag is set to false.
+            primeCashDeposited = depositUnderlyingToken(balanceState, account, assetAmountExternal, false);
         } else {
-            assetAmountInternal = token.convertToInternal(assetAmountExternal);
-            // Otherwise add the asset amount here. It may be net off later and we want to only do
-            // a single transfer during the finalize method. Use internal precision to ensure that internal accounting
-            // and external account remain in sync.
-            // Transfer will be deferred
-            balanceState.netPrimeTransfer = balanceState
-                .netPrimeTransfer
-                .add(assetAmountInternal);
-
-            // Returns the converted assetAmountExternal to the internal amount
-            return assetAmountInternal;
+            revert();
         }
     }
 
-    /// @notice Handle deposits of the underlying token
-    /// @dev In this case we must wrap the underlying token into an asset token, ensuring that we do not end up
-    /// with any underlying tokens left as dust on the contract.
+    /// @notice Marks some amount of underlying token to be transferred. Transfers will be
+    /// finalized inside _finalizeTransfer unless forceTransfer is set to true
     function depositUnderlyingToken(
         BalanceState memory balanceState,
         address account,
-        int256 underlyingAmountExternal
-    ) internal returns (int256) {
+        int256 underlyingAmountExternal,
+        bool returnExcessWrapped
+    ) internal returns (int256 primeCashDeposited) {
         if (underlyingAmountExternal == 0) return 0;
         require(underlyingAmountExternal > 0); // dev: deposit underlying token negative
 
-        Token memory underlyingToken = TokenHandler.getUnderlyingToken(balanceState.currencyId);
-        // This is the exact amount of underlying tokens the account has in external precision.
-        if (underlyingToken.tokenType == TokenType.Ether) {
-            // Underflow checked above
-            require(uint256(underlyingAmountExternal) == msg.value, "ETH Balance");
-        } else {
-            underlyingAmountExternal = underlyingToken.transfer(account, balanceState.currencyId, underlyingAmountExternal);
+        // Transfer the tokens and credit the balance state with the
+        // amount of prime cash deposited.
+        (/* actualTransfer */, primeCashDeposited) = TokenHandler.depositUnderlyingExternal(
+            account,
+            balanceState.currencyId,
+            underlyingAmountExternal,
+            balanceState.primeRate,
+            returnExcessWrapped // if true, returns any excess ETH as WETH
+        );
+        balanceState.netCashChange = balanceState.netCashChange.add(primeCashDeposited);
         }
 
-        Token memory assetToken = TokenHandler.getAssetToken(balanceState.currencyId);
-        int256 assetTokensReceivedExternalPrecision =
-            assetToken.mint(balanceState.currencyId, SafeInt256.toUint(underlyingAmountExternal));
+    /// @notice Finalize collateral liquidation, checkAllowPrimeBorrow is set to false to force
+    /// a negative collateral cash balance if required.
+    function finalizeCollateralLiquidation(
+        BalanceState memory balanceState,
+        address account,
+        AccountContext memory accountContext
+    ) internal {
+        require(balanceState.primeCashWithdraw == 0);
+        _finalize(balanceState, account, accountContext, false, false);
+    }
 
-        // cTokens match INTERNAL_TOKEN_PRECISION so this will short circuit but we leave this here in case a different
-        // type of asset token is listed in the future. It's possible if those tokens have a different precision dust may
-        // accrue but that is not relevant now.
-        int256 assetTokensReceivedInternal =
-            assetToken.convertToInternal(assetTokensReceivedExternalPrecision);
-        // Transfer / mint has taken effect
-        balanceState.netCashChange = balanceState.netCashChange.add(assetTokensReceivedInternal);
+    /// @notice Calls finalize without any withdraws. Allows the withdrawWrapped flag to be hardcoded to false.
+    function finalizeNoWithdraw(
+        BalanceState memory balanceState,
+        address account,
+        AccountContext memory accountContext
+    ) internal {
+        require(balanceState.primeCashWithdraw == 0);
+        _finalize(balanceState, account, accountContext, false, true);
+    }
 
-        return assetTokensReceivedInternal;
+    /// @notice Finalizes an account's balances with withdraws, returns the actual amount of underlying tokens transferred
+    /// back to the account
+    function finalizeWithWithdraw(
+        BalanceState memory balanceState,
+        address account,
+        AccountContext memory accountContext,
+        bool withdrawWrapped
+    ) internal returns (int256 transferAmountExternal) {
+        return _finalize(balanceState, account, accountContext, withdrawWrapped, true);
     }
 
     /// @notice Finalizes an account's balances, handling any transfer logic required
     /// @dev This method SHOULD NOT be used for nToken accounts, for that use setBalanceStorageForNToken
     /// as the nToken is limited in what types of balances it can hold.
-    function finalize(
+    function  _finalize(
         BalanceState memory balanceState,
         address account,
         AccountContext memory accountContext,
-        bool redeemToUnderlying
-    ) internal returns (int256 transferAmountExternal) {
+        bool withdrawWrapped,
+        bool checkAllowPrimeBorrow
+    ) private returns (int256 transferAmountExternal) {
         bool mustUpdate;
-        if (balanceState.netNTokenTransfer < 0) {
-            require(
-                balanceState.storedNTokenBalance
-                    .add(balanceState.netNTokenSupplyChange)
-                    .add(balanceState.netNTokenTransfer) >= 0,
-                "Neg nToken"
-            );
-        }
-
-        if (balanceState.netPrimeTransfer < 0) {
-            require(
-                balanceState.storedCashBalance
-                    .add(balanceState.netCashChange)
-                    .add(balanceState.netPrimeTransfer) >= 0,
-                "Neg Cash"
-            );
-        }
 
         // Transfer amount is checked inside finalize transfers in case when converting to external we
         // round down to zero. This returns the actual net transfer in internal precision as well.
-        (
-            transferAmountExternal,
-            balanceState.netPrimeTransfer
-        ) = _finalizeTransfers(balanceState, account, redeemToUnderlying);
+        transferAmountExternal = TokenHandler.withdrawPrimeCash(
+            account,
+            balanceState.currencyId,
+            balanceState.primeCashWithdraw,
+            balanceState.primeRate,
+            withdrawWrapped // if true, withdraws ETH as WETH
+            );
+
         // No changes to total cash after this point
-        int256 totalCashChange = balanceState.netCashChange.add(balanceState.netPrimeTransfer);
+        int256 totalCashChange = balanceState.netCashChange.add(balanceState.primeCashWithdraw);
+
+        if (
+            checkAllowPrimeBorrow &&
+            totalCashChange < 0 &&
+            balanceState.storedCashBalance.add(totalCashChange) < 0
+        ) {
+            // If the total cash change is negative and it causes the stored cash balance to become negative,
+            // the account must allow prime debt. This is a safety check to ensure that accounts do not
+            // accidentally borrow variable through a withdraw or a batch transaction.
+            
+            // Accounts can still incur negative cash during fCash settlement, that will bypass this check.
+            
+            // During liquidation, liquidated accounts never have negative total cash change figures except
+            // in the case of negative local fCash liquidation. In that situation, setBalanceStorageForfCashLiquidation
+            // will be called instead.
+
+            // During liquidation, liquidators may have negative net cash change a token has transfer fees, however, in
+            // LiquidationHelpers.finalizeLiquidatorLocal they are not allowed to go into debt.
+            require(accountContext.allowPrimeBorrow, "No Prime Borrow");
+        }
+
 
         if (totalCashChange != 0) {
             balanceState.storedCashBalance = balanceState.storedCashBalance.add(totalCashChange);
@@ -184,9 +199,12 @@ library BalanceHandler {
             int256 finalNTokenBalance = balanceState.storedNTokenBalance
                 .add(balanceState.netNTokenTransfer)
                 .add(balanceState.netNTokenSupplyChange);
+            // Ensure that nToken balances never become negative
+            require(finalNTokenBalance >= 0, "Neg nToken");
 
-            // The toUint() call here will ensure that nToken balances never become negative
-            Incentives.claimIncentives(balanceState, account, finalNTokenBalance.toUint());
+
+            // overflow checked above
+            Incentives.claimIncentives(balanceState, account, uint256(finalNTokenBalance));
 
             balanceState.storedNTokenBalance = finalNTokenBalance;
 
@@ -208,7 +226,8 @@ library BalanceHandler {
                 balanceState.storedCashBalance,
                 balanceState.storedNTokenBalance,
                 balanceState.lastClaimTime,
-                balanceState.accountIncentiveDebt
+                balanceState.accountIncentiveDebt,
+                balanceState.primeRate
             );
         }
 
@@ -226,100 +245,6 @@ library BalanceHandler {
         }
     }
 
-    /// @dev Returns the amount transferred in underlying or asset terms depending on how redeem to underlying
-    /// is specified.
-    function _finalizeTransfers(
-        BalanceState memory balanceState,
-        address account,
-        bool redeemToUnderlying
-    ) private returns (int256 actualTransferAmountExternal, int256 assetTransferAmountInternal) {
-        Token memory assetToken = TokenHandler.getAssetToken(balanceState.currencyId);
-        // Dust accrual to the protocol is possible if the token decimals is less than internal token precision.
-        // See the comments in TokenHandler.convertToExternal and TokenHandler.convertToInternal
-        int256 assetTransferAmountExternal =
-            assetToken.convertToExternal(balanceState.netPrimeTransfer);
-
-        if (assetTransferAmountExternal == 0) {
-            return (0, 0);
-        } else if (redeemToUnderlying && assetTransferAmountExternal < 0) {
-            // We only do the redeem to underlying if the asset transfer amount is less than zero. If it is greater than
-            // zero then we will do a normal transfer instead.
-
-            // We use the internal amount here and then scale it to the external amount so that there is
-            // no loss of precision between our internal accounting and the external account. In this case
-            // there will be no dust accrual in underlying tokens since we will transfer the exact amount
-            // of underlying that was received.
-
-            actualTransferAmountExternal = assetToken.redeem(
-                balanceState.currencyId,
-                account,
-                // No overflow, checked above
-                uint256(assetTransferAmountExternal.neg())
-            );
-
-            // In this case we're transferring underlying tokens, we want to convert the internal
-            // asset transfer amount to store in cash balances
-            assetTransferAmountInternal = assetToken.convertToInternal(assetTransferAmountExternal);
-        } else {
-            // NOTE: in the case of aTokens assetTransferAmountExternal is the scaledBalanceOf in external precision, it
-            // will be converted to balanceOf denomination inside transfer
-            actualTransferAmountExternal = assetToken.transfer(account, balanceState.currencyId, assetTransferAmountExternal);
-            // Convert the actual transferred amount
-            assetTransferAmountInternal = assetToken.convertToInternal(actualTransferAmountExternal);
-        }
-    }
-
-    /// @notice Special method for settling negative current cash debts. This occurs when an account
-    /// has a negative fCash balance settle to cash. A settler may come and force the account to borrow
-    /// at the prevailing 3 month rate
-    /// @dev Use this method to avoid any nToken and transfer logic in finalize which is unnecessary.
-    function setBalanceStorageForSettleCashDebt(
-        address account,
-        CashGroupParameters memory cashGroup,
-        int256 amountToSettleAsset,
-        AccountContext memory accountContext
-    ) internal returns (int256) {
-        require(amountToSettleAsset >= 0); // dev: amount to settle negative
-        (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 accountIncentiveDebt) =
-            getBalanceStorage(account, cashGroup.currencyId);
-
-        // Prevents settlement of positive balances
-        require(cashBalance < 0, "Invalid settle balance");
-        if (amountToSettleAsset == 0) {
-            // Symbolizes that the entire debt should be settled
-            amountToSettleAsset = cashBalance.neg();
-            cashBalance = 0;
-        } else {
-            // A partial settlement of the debt
-            require(amountToSettleAsset <= cashBalance.neg(), "Invalid amount to settle");
-            cashBalance = cashBalance.add(amountToSettleAsset);
-        }
-
-        // NOTE: we do not update HAS_CASH_DEBT here because it is possible that the other balances
-        // also have cash debts
-        if (cashBalance == 0 && nTokenBalance == 0) {
-            accountContext.setActiveCurrency(
-                cashGroup.currencyId,
-                false,
-                Constants.ACTIVE_IN_BALANCES
-            );
-        }
-
-        _setBalanceStorage(
-            account,
-            cashGroup.currencyId,
-            cashBalance,
-            nTokenBalance,
-            lastClaimTime,
-            accountIncentiveDebt
-        );
-
-        // Emit the event here, we do not call finalize
-        emit CashBalanceChange(account, cashGroup.currencyId, amountToSettleAsset);
-
-        return amountToSettleAsset;
-    }
-
     /**
      * @notice A special balance storage method for fCash liquidation to reduce the bytecode size.
      */
@@ -327,16 +252,17 @@ library BalanceHandler {
         address account,
         AccountContext memory accountContext,
         uint16 currencyId,
-        int256 netCashChange
+        int256 netPrimeCashChange,
+        PrimeRate memory primeRate
     ) internal {
         (int256 cashBalance, int256 nTokenBalance, uint256 lastClaimTime, uint256 accountIncentiveDebt) =
-            getBalanceStorage(account, currencyId);
+            getBalanceStorage(account, currencyId, primeRate);
 
-        int256 newCashBalance = cashBalance.add(netCashChange);
+        int256 newCashBalance = cashBalance.add(netPrimeCashChange);
         // If a cash balance is negative already we cannot put an account further into debt. In this case
         // the netCashChange must be positive so that it is coming out of debt.
         if (newCashBalance < 0) {
-            require(netCashChange > 0, "Neg Cash");
+            require(netPrimeCashChange > 0, "Neg Cash");
             // NOTE: HAS_CASH_DEBT cannot be extinguished except by a free collateral check
             // where all balances are examined. In this case the has cash debt flag should
             // already be set (cash balances cannot get more negative) but we do it again
@@ -348,7 +274,7 @@ library BalanceHandler {
         accountContext.setActiveCurrency(currencyId, isActive, Constants.ACTIVE_IN_BALANCES);
 
         // Emit the event here, we do not call finalize
-        emit CashBalanceChange(account, currencyId, netCashChange);
+        emit CashBalanceChange(account, currencyId, netPrimeCashChange);
 
         _setBalanceStorage(
             account,
@@ -356,7 +282,8 @@ library BalanceHandler {
             newCashBalance,
             nTokenBalance,
             lastClaimTime,
-            accountIncentiveDebt
+            accountIncentiveDebt,
+            primeRate
         );
     }
 

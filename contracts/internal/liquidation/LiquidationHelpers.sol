@@ -214,13 +214,17 @@ library LiquidationHelpers {
     ) internal returns (AccountContext memory) {
         // Liquidator must deposit netLocalFromLiquidator, in the case of a repo discount then the
         // liquidator will receive some positive amount
-        Token memory token = TokenHandler.getAssetToken(localCurrencyId);
+        Token memory token = TokenHandler.getUnderlyingToken(localCurrencyId);
         AccountContext memory liquidatorContext =
             AccountContextHandler.getAccountContext(liquidator);
         BalanceState memory liquidatorLocalBalance;
         liquidatorLocalBalance.loadBalanceState(liquidator, localCurrencyId, liquidatorContext);
+        // netLocalFromLiquidator is always positive. Liquidity token liquidation allows for a negative
+        // netLocalFromLiquidator, but we do not allow regular accounts to hold liquidity tokens so those
+        // liquidations are not possible.
+        require(netLocalFromLiquidator > 0);
 
-        if (token.hasTransferFee && netLocalFromLiquidator > 0) {
+        if (token.hasTransferFee) {
             // If a token has a transfer fee then it must have been deposited prior to the liquidation
             // or else we won't be able to net off the correct amount. We also require that the account
             // does not have debt so that we do not have to run a free collateral check here
@@ -231,12 +235,17 @@ library LiquidationHelpers {
             ); // dev: token has transfer fee, no liquidator balance
             liquidatorLocalBalance.netCashChange = netLocalFromLiquidator.neg();
         } else {
-            // NOTE: in the case of aToken transfers this is going to convert the scaledBalanceOf aToken
-            // to the balanceOf value required for transfers
-            token.transfer(liquidator, localCurrencyId, token.convertToExternal(netLocalFromLiquidator));
+            TokenHandler.depositExactToMintPrimeCash(
+                liquidator,
+                localCurrencyId,
+                netLocalFromLiquidator,
+                liquidatorLocalBalance.primeRate,
+                false // excess ETH is returned to liquidator natively
+            );
         }
+
         liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
-        liquidatorLocalBalance.finalize(liquidator, liquidatorContext, false);
+        liquidatorLocalBalance.finalizeNoWithdraw(liquidator, liquidatorContext);
 
         return liquidatorContext;
     }
@@ -250,19 +259,19 @@ library LiquidationHelpers {
         bool withdrawCollateral,
         bool redeemToUnderlying
     ) internal returns (AccountContext memory) {
+        require(redeemToUnderlying, "Deprecated: Redeem to cToken");
         BalanceState memory balance;
         balance.loadBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
         balance.netCashChange = netCollateralToLiquidator;
 
         if (withdrawCollateral) {
             // This will net off the cash balance
-            balance.netPrimeTransfer = netCollateralToLiquidator.neg();
+            balance.primeCashWithdraw = netCollateralToLiquidator.neg();
         }
 
         balance.netNTokenTransfer = netCollateralNTokens;
-        // NOTE: redeem to underlying does not affect nTokens, those must be redeemed
-        // separately by calling back into Notional
-        balance.finalize(liquidator, liquidatorContext, redeemToUnderlying);
+        // Liquidator will always receive native ETH
+        balance.finalizeWithWithdraw(liquidator, liquidatorContext, false);
 
         return liquidatorContext;
     }
@@ -276,6 +285,6 @@ library LiquidationHelpers {
         BalanceState memory balance;
         balance.loadBalanceState(liquidateAccount, localCurrency, accountContext);
         balance.netCashChange = netLocalFromLiquidator;
-        balance.finalize(liquidateAccount, accountContext, false);
+        balance.finalizeNoWithdraw(liquidateAccount, accountContext);
     }
 }

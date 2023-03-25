@@ -10,11 +10,20 @@ library GenericToken {
 
     function transferNativeTokenOut(
         address account,
-        uint256 amount
+        uint256 amount,
+        bool withdrawWrapped
     ) internal {
-        // This does not work with contracts, but is reentrancy safe. If contracts want to withdraw underlying
-        // ETH they will have to withdraw the cETH token and then redeem it manually.
-        payable(account).transfer(amount);
+        // Native token withdraws are processed using .transfer() which is may not work
+        // for certain contracts that do not implement receive() with minimal gas requirements.
+        // Prior to the prime cash upgrade, these contracts could withdraw cETH, however, post
+        // upgrade they no longer have this option. For these contracts, wrap the Native token
+        // (i.e. WETH) and transfer that as an ERC20 instead.
+        if (withdrawWrapped) {
+            Deployments.WETH.deposit{value: amount}();
+            safeTransferOut(address(Deployments.WETH), account, amount);
+        } else {
+            payable(account).transfer(amount);
+        }
     }
 
     function safeTransferOut(
@@ -30,9 +39,15 @@ library GenericToken {
         address token,
         address account,
         uint256 amount
-    ) internal {
+    ) internal returns (uint256) {
+        uint256 startingBalance = IEIP20NonStandard(token).balanceOf(address(this));
+
         IEIP20NonStandard(token).transferFrom(account, address(this), amount);
         checkReturnCode();
+
+        uint256 endingBalance = IEIP20NonStandard(token).balanceOf(address(this));
+
+        return endingBalance.sub(startingBalance);
     }
 
     function safeTransferFrom(
@@ -43,6 +58,26 @@ library GenericToken {
     ) internal {
         IEIP20NonStandard(token).transferFrom(from, to, amount);
         checkReturnCode();
+    }
+
+    function executeLowLevelCall(
+        address target,
+        uint256 msgValue,
+        bytes memory callData
+    ) internal {
+        (bool status, bytes memory returnData) = target.call{value: msgValue}(callData);
+        require(status, checkRevertMessage(returnData));
+    }
+
+    function checkRevertMessage(bytes memory returnData) internal pure returns (string memory) {
+        // If the _res length is less than 68, then the transaction failed silently (without a revert message)
+        if (returnData.length < 68) return "Silent Revert";
+
+        assembly {
+            // Slice the sighash.
+            returnData := add(returnData, 0x04)
+        }
+        return abi.decode(returnData, (string)); // All that remains is the revert string
     }
 
     function checkReturnCode() internal pure {

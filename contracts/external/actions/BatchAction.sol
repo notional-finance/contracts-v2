@@ -165,31 +165,39 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // check FC at the end of the method.
             int256 requiredCash = balanceState.storedCashBalance.add(balanceState.netCashChange).neg();
             if (requiredCash > 0) {
+                int256 primeCashDeposited;
+                    Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
+                    int256 underlyingExternalAmount = underlyingToken.convertToUnderlyingExternalWithAdjustment(
+                    balanceState.primeRate.convertToUnderlying(requiredCash)
+                    );
+
                 if (action.depositUnderlying) {
                     // If depositing underlying, get the current asset rate and convert the required cash
                     // back to underlying.
-                    AssetRateParameters memory ar = AssetRate.buildAssetRateStateful(action.currencyId);
-                    Token memory underlyingToken = TokenHandler.getUnderlyingToken(action.currencyId);
-                    int256 underlyingInternalAmount = ar.convertToUnderlying(requiredCash);
-                    int256 underlyingExternalAmount = underlyingToken.convertToUnderlyingExternalWithAdjustment(
-                        underlyingInternalAmount
+                    primeCashDeposited = balanceState.depositUnderlyingToken(
+                        account,
+                        underlyingExternalAmount,
+                        false // ETH is never used here since the method is non-payable
                     );
-
-                    // This returns the cToken / aToken amount as a result of transfer and mint. It must be sufficient to
-                    // cover the required cash.
-                    int256 assetAmountInternal = balanceState.depositUnderlyingToken(account, underlyingExternalAmount);
-                    require(assetAmountInternal >= requiredCash, "Insufficient deposit");
                 } else {
-                    // balanceState.finalize will handle conversions to external precision as well as aToken
-                    // scaled balance conversions.
-                    balanceState.netPrimeTransfer = balanceState
-                        .netPrimeTransfer
-                        .add(requiredCash);
+                    // This code remains to support deprecated asset tokens. AssetRate is no longer used within
+                    // Notional, however, it is used here to calculate the proper amount of asset (cTokens) to
+                    // deposit in this lending scenario.
+                    primeCashDeposited = balanceState.depositDeprecatedAssetToken(
+                        account,
+                        DeprecatedAssetRate.convertUnderlyingExternalToAsset(
+                            action.currencyId,
+                            underlyingExternalAmount
+                        ).add(1)
+                    );
                 }
+
+                // Batch lending requires that the balance state does not go below zero, i.e. it does not allow users
+                // to borrow variable to lend fixed. That can be accomplished via batchActionWithTrades.
+                require(primeCashDeposited >= requiredCash, "Insufficient deposit");
             }
 
-            // Will write all the balance changes to storage and transfer asset tokens if required.
-            balanceState.finalize(account, accountContext, false);
+            balanceState.finalizeNoWithdraw(account, accountContext);
         }
 
         // Update the portfolio state if bitmap is not enabled. If bitmap is already enabled
@@ -318,7 +326,7 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
         uint256 depositActionAmount_
     ) private {
         int256 depositActionAmount = SafeInt256.toInt(depositActionAmount_);
-        int256 assetInternalAmount;
+        int256 primeCashDeposited;
         require(depositActionAmount >= 0);
 
         if (depositType == DepositActionType.None) {
@@ -327,29 +335,28 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             depositType == DepositActionType.DepositAsset ||
             depositType == DepositActionType.DepositAssetAndMintNToken
         ) {
-            // NOTE: this deposit will NOT revert on a failed transfer unless there is a
-            // transfer fee. The actual transfer will take effect later in balanceState.finalize
-            assetInternalAmount = balanceState.depositAssetToken(
+            // This transfer will happen immediately.
+            primeCashDeposited = balanceState.depositDeprecatedAssetToken(
                 account,
-                depositActionAmount,
-                false // no force transfer
+                depositActionAmount
             );
         } else if (
             depositType == DepositActionType.DepositUnderlying ||
             depositType == DepositActionType.DepositUnderlyingAndMintNToken
         ) {
-            // NOTE: this deposit will revert on a failed transfer immediately
-            assetInternalAmount = balanceState.depositUnderlyingToken(account, depositActionAmount);
+            // This transfer will be deferred until balanceState.finalize
+            primeCashDeposited = balanceState.depositUnderlyingToken(
+                account,
+                depositActionAmount,
+                false // No excess ETH by definition
+            );
         } else if (depositType == DepositActionType.ConvertCashToNToken) {
             // _executeNTokenAction will check if the account has sufficient cash
-            assetInternalAmount = depositActionAmount;
+            primeCashDeposited = depositActionAmount;
         }
 
         _executeNTokenAction(
-            balanceState,
-            depositType,
-            depositActionAmount,
-            assetInternalAmount
+            account, balanceState, depositType, depositActionAmount, primeCashDeposited
         );
     }
 
@@ -413,23 +420,24 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     ) private {
         int256 withdrawAmount = SafeInt256.toInt(withdrawAmountInternalPrecision);
         require(withdrawAmount >= 0); // dev: withdraw action overflow
+        // Prior to the prime cash migration, accounts could withdraw cash as cTokens. This is no longer
+        // possible. In the case of ETH, if redeemToUnderlying == false then ETH will be redeemed as WETH.
+        if (balanceState.currencyId != Constants.ETH_CURRENCY_ID) {
+            require(redeemToUnderlying, "Deprecated: Redemption to cToken");
+        }
 
         // NOTE: if withdrawEntireCashBalance is set it will override the withdrawAmountInternalPrecision input
         if (withdrawEntireCashBalance) {
             // This option is here so that accounts do not end up with dust after lending since we generally
             // cannot calculate exact cash amounts from the liquidity curve.
-            withdrawAmount = balanceState.storedCashBalance
-                .add(balanceState.netCashChange)
-                .add(balanceState.netPrimeTransfer);
+            withdrawAmount = balanceState.storedCashBalance.add(balanceState.netCashChange);
 
             // If the account has a negative cash balance then cannot withdraw
             if (withdrawAmount < 0) withdrawAmount = 0;
         }
 
-        // prettier-ignore
-        balanceState.netPrimeTransfer = balanceState
-            .netPrimeTransfer
-            .sub(withdrawAmount);
+        balanceState.primeCashWithdraw = withdrawAmount.neg();
+        balanceState.finalizeWithWithdraw(account, accountContext, !redeemToUnderlying);
 
         balanceState.finalize(account, accountContext, redeemToUnderlying);
     }

@@ -90,7 +90,7 @@ contract Views is StorageLayoutV2, NotionalViews {
         returns (Token memory assetToken, Token memory underlyingToken)
     {
         _checkValidCurrency(currencyId);
-        assetToken = TokenHandler.getAssetToken(currencyId);
+        assetToken = TokenHandler.getDeprecatedAssetToken(currencyId);
         underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
     }
 
@@ -103,7 +103,7 @@ contract Views is StorageLayoutV2, NotionalViews {
     {
         _checkValidCurrency(currencyId);
         mapping(uint256 => ETHRateStorage) storage ethStore = LibStorage.getExchangeRateStorage();
-        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
+        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage_deprecated();
         ethRate = ethStore[currencyId];
         assetRate = assetStore[currencyId];
     }
@@ -118,14 +118,14 @@ contract Views is StorageLayoutV2, NotionalViews {
             Token memory assetToken,
             Token memory underlyingToken,
             ETHRate memory ethRate,
-            AssetRateParameters memory assetRate
+            Deprecated_AssetRateParameters memory assetRate
         )
     {
         _checkValidCurrency(currencyId);
-        assetToken = TokenHandler.getAssetToken(currencyId);
+        assetToken = TokenHandler.getDeprecatedAssetToken(currencyId);
         underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
         ethRate = ExchangeRate.buildExchangeRate(currencyId);
-        assetRate = AssetRate.buildAssetRateView(currencyId);
+        assetRate = DeprecatedAssetRate.getAdaptedAssetRate(currencyId);
     }
 
     /// @notice Returns cash group settings for a currency
@@ -144,11 +144,11 @@ contract Views is StorageLayoutV2, NotionalViews {
         external
         view
         override
-        returns (CashGroupSettings memory cashGroup, AssetRateParameters memory assetRate)
+        returns (CashGroupSettings memory cashGroup, Deprecated_AssetRateParameters memory assetRate)
     {
         _checkValidCurrency(currencyId);
         cashGroup = CashGroup.deserializeCashGroupStorage(currencyId);
-        assetRate = AssetRate.buildAssetRateView(currencyId);
+        assetRate = DeprecatedAssetRate.getAdaptedAssetRate(currencyId);
     }
 
     /// @notice Returns market initialization parameters for a given currency
@@ -487,9 +487,9 @@ contract Views is StorageLayoutV2, NotionalViews {
 
     /// @notice Returns account balances for a given currency
     function getAccountBalance(uint16 currencyId, address account) external view override returns (
-            int256 cashBalance,
-            int256 nTokenBalance,
-            uint256 lastClaimTime
+        int256 cashBalance,
+        int256 nTokenBalance,
+        uint256 lastClaimTime
     ) {
         _checkValidCurrency(currencyId);
         // prettier-ignore

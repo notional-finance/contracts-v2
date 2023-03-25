@@ -82,9 +82,8 @@ contract LiquidateCurrencyAction is ActionGuards {
         address liquidateAccount,
         uint16 localCurrency,
         uint96 maxNTokenLiquidation
-    ) external nonReentrant returns (int256, int256) {
+    ) external payable nonReentrant returns (int256, int256) {
         // Calculates liquidation results:
-        //  - withdraws liquidity tokens in local currency
         //  - ntoken transfers
         //  - amount of cash paid to/from the liquidator
         (
@@ -115,14 +114,9 @@ contract LiquidateCurrencyAction is ActionGuards {
         // Finalizes liquidated account changes:
         //   - credits additional change in localBalanceChange.netCashChange
         //   - removes transferred nTokens from the account
-        //   - finalizes any liquidity token withdraws in an array portfolio
         //   - sets the account context
-        LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
-            liquidateAccount,
-            localBalanceState, // In this case, local currency is the collateral
-            accountContext,
-            portfolio
-        );
+        localBalanceState.finalizeNoWithdraw(liquidateAccount, accountContext);
+        accountContext.setAccountContext(liquidateAccount);
 
         emit LiquidateLocalCurrency(
             liquidateAccount,
@@ -203,15 +197,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         uint96 maxNTokenLiquidation,
         bool withdrawCollateral,
         bool redeemToUnderlying
-    )
-        external
-        nonReentrant
-        returns (
-            int256,
-            int256,
-            int256
-        )
-    {
+    ) external payable nonReentrant returns (int256, int256, int256) {
         // Calculates currency liquidation:
         //  - amount of collateral cash balance given to liquidator
         //  - liquidity tokens withdrawn
@@ -265,15 +251,11 @@ contract LiquidateCurrencyAction is ActionGuards {
 
         // Finalizes the liquidated account collateral balance:
         //   - removes collateral cash paid to liquidator from cash balance
-        //   - stores any updates to the portfolio array from removed liquidity tokens
         //   - removes collateral nTokens from the account
+        //   - skips the allowPrimeBorrow check
         //   - sets the account context
-        LiquidateCurrency.finalizeLiquidatedCollateralAndPortfolio(
-            liquidateAccount,
-            collateralBalanceState,
-            accountContext,
-            portfolio
-        );
+        collateralBalanceState.finalizeCollateralLiquidation(liquidateAccount, accountContext);
+        accountContext.setAccountContext(liquidateAccount);
 
         return (
             localPrimeCashFromLiquidator,

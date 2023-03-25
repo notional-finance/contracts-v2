@@ -83,24 +83,25 @@ contract AccountAction is ActionGuards {
 
         // NOTE: using msg.sender here allows for a different sender to deposit tokens into
         // the specified account. This may be useful for on-demand collateral top ups from a
-        // third party. If called with currencyId == 1 then `depositAssetToken` will access
-        // msg.value to mint cETH from ETH.
-        int256 assetTokensReceivedInternal = balanceState.depositUnderlyingToken(
+        // third party.
+        int256 primeCashReceived = balanceState.depositUnderlyingToken(
             msg.sender,
-            SafeInt256.toInt(amountExternalPrecision)
+            SafeInt256.toInt(amountExternalPrecision),
+            false // there should never be excess ETH here by definition
         );
 
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
+        require(primeCashReceived > 0); // dev: asset tokens negative or zero
 
-        balanceState.finalize(account, accountContext, false);
+        balanceState.finalizeNoWithdraw(account, accountContext);
         accountContext.setAccountContext(account);
 
         // NOTE: no free collateral checks required for depositing
-        return assetTokensReceivedInternal.toUint();
+        return primeCashReceived.toUint();
     }
 
-    /// @notice Deposits asset tokens into an account. Does not settle or check free collateral, idea is to
-    /// make deposit as gas efficient as possible during potential liquidation events.
+    /// @notice DEPRECATED: deposits deprecated cTokens tokens as collateral into an account that
+    /// were listed prior to the migration to prime cash. Future listed tokens will not have asset
+    /// tokens and will revert in this method.
     /// @param account the account to deposit into
     /// @param currencyId currency id of the asset token
     /// @param amountExternalPrecision the amount of asset tokens in its native decimal precision
@@ -122,20 +123,20 @@ contract AccountAction is ActionGuards {
 
         // Int conversion overflow check done inside this method call. msg.sender
         // is used as the account in deposit to allow for other accounts to deposit
-        // on behalf of the given account.
-        int256 assetTokensReceivedInternal = balanceState.depositAssetToken(
+        // on behalf of the given account. This always does an immediate transfer
+        // and marks the net prime cash change on the balance state.
+        int256 primeCashReceived = balanceState.depositDeprecatedAssetToken(
             msg.sender,
-            SafeInt256.toInt(amountExternalPrecision),
-            true // force transfer to ensure that msg.sender does the transfer, not account
+            SafeInt256.toInt(amountExternalPrecision)
         );
 
-        require(assetTokensReceivedInternal > 0); // dev: asset tokens negative or zero
+        require(primeCashReceived > 0); // dev: asset tokens negative or zero
 
-        balanceState.finalize(account, accountContext, false);
+        balanceState.finalizeNoWithdraw(account, accountContext);
         accountContext.setAccountContext(account);
 
         // NOTE: no free collateral checks required for depositing
-        return assetTokensReceivedInternal.toUint();
+        return primeCashReceived.toUint();
     }
 
     /// @notice Withdraws balances from Notional, may also redeem to underlying tokens on user request. Will settle
@@ -143,8 +144,10 @@ contract AccountAction is ActionGuards {
     /// an account must do an authenticated call via ERC1155Action `safeTransferFrom` or `safeBatchTransferFrom`
     /// @param currencyId currency id of the asset token
     /// @param amountInternalPrecision the amount of cash balance in internal 8 decimal precision to withdraw,
-    /// this is be denominated in asset cash.
-    /// @param redeemToUnderlying true if the tokens should be converted to underlying assets
+    /// this is be denominated in prime cash. If set to uint88 max, will withdraw an entire cash balance.
+    /// @param redeemToUnderlying DEPRECATED except for ETH balances. Prior to the prime cash upgrade, accounts could withdraw
+    /// cTokens directly. However, post prime cash migration this is no longer the case. If withdrawing ETH, setting redeemToUnderlying
+    /// to false will redeem ETH as WETH.
     /// @dev emit:CashBalanceChange emit:AccountContextUpdate
     /// @dev auth:msg.sender
     /// @return the amount of tokens received by the account denominated in the destination token precision (if
@@ -154,16 +157,27 @@ contract AccountAction is ActionGuards {
         uint88 amountInternalPrecision,
         bool redeemToUnderlying
     ) external nonReentrant returns (uint256) {
+        if (currencyId != Constants.ETH_CURRENCY_ID) {
+            require(redeemToUnderlying, "Deprecated: Redeem to cToken");
+        }
         // This happens before reading the balance state to get the most up to date cash balance
         (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(msg.sender);
 
         BalanceState memory balanceState;
         balanceState.loadBalanceState(msg.sender, currencyId, accountContext);
-        require(balanceState.storedCashBalance >= amountInternalPrecision, "Insufficient balance");
+        if (amountInternalPrecision == type(uint88).max) {
+            // if set to uint88 max, withdraw the full stored balance. This feature only
+            // works if there is a positive balance
+            require(balanceState.storedCashBalance > 0);
+            balanceState.primeCashWithdraw = balanceState.storedCashBalance.neg();
+        } else {
         // Overflow is not possible due to uint88
-        balanceState.netPrimeTransfer = int256(amountInternalPrecision).neg();
+            balanceState.primeCashWithdraw = int256(amountInternalPrecision).neg();
+        }
 
-        int256 amountWithdrawnExternal = balanceState.finalize(msg.sender, accountContext, redeemToUnderlying);
+        int256 underlyingWithdrawnExternal = balanceState.finalizeWithWithdraw(
+            msg.sender, accountContext, !redeemToUnderlying
+        );
 
         accountContext.setAccountContext(msg.sender);
 
@@ -171,8 +185,10 @@ contract AccountAction is ActionGuards {
             FreeCollateralExternal.checkFreeCollateralAndRevert(msg.sender);
         }
 
-        require(amountWithdrawnExternal <= 0);
-        return amountWithdrawnExternal.neg().toUint();
+        require(underlyingWithdrawnExternal <= 0);
+
+        // No need to check supply caps
+        return underlyingWithdrawnExternal.neg().toUint();
     }
 
     /// @notice Allows accounts to redeem nTokens into constituent assets and then absorb the assets
@@ -211,7 +227,7 @@ contract AccountAction is ActionGuards {
 
         // Set balances before transferring assets
         balance.netCashChange = totalPrimeCash;
-        balance.finalize(redeemer, context, false);
+        balance.finalizeNoWithdraw(redeemer, context);
 
         // The hasResidual flag is only set to true if selling residuals has failed, checking
         // if the length of assets is greater than zero will detect the presence of ifCash

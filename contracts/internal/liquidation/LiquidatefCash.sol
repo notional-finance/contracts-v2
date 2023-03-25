@@ -432,9 +432,10 @@ library LiquidatefCash {
         uint256[] calldata fCashMaturities,
         fCashContext memory c
     ) internal returns (int256[] memory, int256) {
-        Token memory token = TokenHandler.getAssetToken(localCurrency);
+        Token memory token = TokenHandler.getUnderlyingToken(localCurrency);
         AccountContext memory liquidatorContext = AccountContextHandler.getAccountContext(liquidator);
         int256 netLocalFromLiquidator = c.localPrimeCashFromLiquidator;
+        PrimeRate memory primeRate = PrimeRateLib.buildPrimeRateStateful(localCurrency);
 
         if (token.hasTransferFee && netLocalFromLiquidator > 0) {
             // If a token has a transfer fee then it must have been deposited prior to the liquidation
@@ -447,22 +448,40 @@ library LiquidatefCash {
                 liquidator,
                 liquidatorContext,
                 localCurrency,
-                netLocalFromLiquidator.neg()
+                netLocalFromLiquidator.neg(),
+                primeRate
             );
-        } else {
+        } else if (netLocalFromLiquidator > 0) {
             // In any other case, do a token transfer for the liquidator (either into or out of Notional)
             // and do not credit any cash balance. That will be done just for the liquidated account.
-
-            // NOTE: in the case of aToken transfers this is going to convert the scaledBalanceOf aToken
-            // to the balanceOf value required for transfers
-            token.transfer(liquidator, localCurrency, token.convertToExternal(netLocalFromLiquidator));
+            TokenHandler.depositExactToMintPrimeCash(
+                liquidator,
+                localCurrency,
+                netLocalFromLiquidator,
+                primeRate,
+                false // ETH will be returned natively to the liquidator
+            );
+        } else {
+            // In negative fCash liquidation, netLocalFromLiquidator < 0, meaning the liquidator is paid
+            // cash and will receive it in their cash balance. This ensures that there is greater likelihood
+            // of passing a free collateral check. Negative fCash liquidation is profitable from a PnL perspective
+            // but will not necessarily increase the free collateral of the liquidator due to fCash discounts
+            // and haircuts.
+            BalanceHandler.setBalanceStorageForfCashLiquidation(
+                liquidator,
+                liquidatorContext,
+                localCurrency,
+                netLocalFromLiquidator.neg(),
+                primeRate
+            );
         }
 
         BalanceHandler.setBalanceStorageForfCashLiquidation(
             liquidateAccount,
             c.accountContext,
             localCurrency,
-            netLocalFromLiquidator
+            netLocalFromLiquidator,
+            primeRate
         );
 
         bool liquidatorIncursDebt;

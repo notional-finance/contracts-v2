@@ -501,11 +501,12 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         factors = PrimeCashExchangeRate.getPrimeCashFactors(currencyId);
         }
 
-        if (token.tokenType == TokenType.aToken) {
-            // Special handling for aTokens, we use scaled balance internally
-            Token memory underlying = TokenHandler.getUnderlyingToken(currencyId);
-            amountExternal = AaveHandler.convertFromScaledBalanceExternal(underlying.tokenAddress, amountExternal);
-        }
+    function _convertToAmountExternal(uint16 currencyId, int256 depositAmountInternal) private view returns (uint256) {
+        Token memory token = TokenHandler.getUnderlyingToken(currencyId);
+        int256 amountExternal = depositAmountInternal < 0 ?
+            // We have to do a special rounding adjustment for underlying internal deposits from lending.
+            token.convertToUnderlyingExternalWithAdjustment(depositAmountInternal.neg()) :
+            token.convertToExternal(depositAmountInternal).abs();
 
         return SafeInt256.toUint(amountExternal);
     }
@@ -516,28 +517,16 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         uint256 depositAmountExternal,
         bool useUnderlying
     ) private view returns (int256 underlyingInternal, CashGroupParameters memory cashGroup) {
-        int256 depositAmount = SafeInt256.toInt(depositAmountExternal);
+        int256 depositAmount = depositAmountExternal.toInt();
         cashGroup = CashGroup.buildCashGroupView(currencyId);
 
-        Token memory token = useUnderlying ?
-            TokenHandler.getUnderlyingToken(currencyId) :
-            TokenHandler.getAssetToken(currencyId);
-
-        if (token.tokenType == TokenType.aToken) {
-            // Special handling for aTokens, we use scaled balance internally
-            depositAmount = AaveHandler.convertToScaledBalanceExternal(currencyId, depositAmount);
-        }
-
+        if (useUnderlying) {
+            Token memory token = TokenHandler.getUnderlyingToken(currencyId);
         underlyingInternal = token.convertToInternal(depositAmount);
-        if (!useUnderlying) {
-            // Convert asset rates to underlying internal amounts
-            underlyingInternal = cashGroup.assetRate.convertToUnderlying(underlyingInternal);
+        } else {
+            // In this case, depositAmount is prime cash denominated
+            underlyingInternal = cashGroup.primeRate.convertToUnderlying(depositAmount);
         }
-    }
-
-    function _safeInt88(int256 x) private pure returns (int88) {
-        require(type(int88).min <= x && x <= type(int88).max);
-        return int88(x);
     }
 
     function _encodeLendBorrowTrade(

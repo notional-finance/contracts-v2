@@ -91,35 +91,33 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         nonReentrant
         returns (uint256)
     {
+        uint256 balanceBefore = COMP.balanceOf(address(this));
         COMPTROLLER.claimComp(address(this), cTokens);
-        // NOTE: If Notional ever lists COMP as a collateral asset it will be cCOMP instead and it
-        // will never hold COMP balances directly. In this case we can always transfer all the COMP
-        // off of the contract.
-        uint256 bal = COMP.balanceOf(address(this));
+        uint256 balanceAfter = COMP.balanceOf(address(this));
+
         // NOTE: the onlyManagerContract modifier prevents a transfer to address(0) here
-        if (bal > 0) COMP.safeTransfer(msg.sender, bal);
+        uint256 netBalance = balanceAfter.sub(balanceBefore);
+        if (netBalance > 0) {
+            COMP.safeTransfer(msg.sender, netBalance);
+        }
+
         // NOTE: TreasuryManager contract will emit a COMPHarvested event
-        return bal;
+        return netBalance;
     }
 
     /// @notice redeems and transfers tokens to the treasury manager contract
-    function _redeemAndTransfer(
-        uint16 currencyId,
-        Token memory asset,
-        int256 assetInternalRedeemAmount
-    ) private returns (uint256) {
-        int256 assetExternalRedeemAmount = asset.convertToExternal(assetInternalRedeemAmount);
+    function _redeemAndTransfer(uint16 currencyId, int256 primeCashRedeemAmount) private returns (uint256) {
+        PrimeRate memory primeRate = PrimeRateLib.buildPrimeRateStateful(currencyId);
+        int256 actualTransferExternal = TokenHandler.withdrawPrimeCash(
+            treasuryManagerContract,
+            currencyId,
+            primeCashRedeemAmount.neg(),
+            primeRate,
+            true // if ETH, transfers it as WETH
+        );
 
-        // This is the actual redeemed amount in underlying external precision
-        // NOTE: asset.redeem will return a negative number to represent that assets have left the
-        // contract, convert to a positive uint here. asset.redeem() will also transfer the underlying
-        // to the treasuryManagerContract
-        uint256 redeemedExternalUnderlying = asset
-            .redeem(currencyId, treasuryManagerContract, assetExternalRedeemAmount.toUint())
-            .neg()
-            .toUint();
-
-        return redeemedExternalUnderlying;
+        require(actualTransferExternal > 0);
+        return uint256(actualTransferExternal);
     }
 
     /// @notice Transfers some amount of reserve assets to the treasury manager contract to be invested
