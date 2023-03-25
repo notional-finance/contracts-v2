@@ -19,39 +19,6 @@ library TransferAssets {
     using PortfolioHandler for PortfolioState;
     using SafeInt256 for int256;
 
-    /// @notice Decodes asset ids
-    function decodeAssetId(uint256 id)
-        internal
-        pure
-        returns (
-            uint256 currencyId,
-            uint256 maturity,
-            uint256 assetType
-        )
-    {
-        assetType = uint8(id);
-        maturity = uint40(id >> 8);
-        currencyId = uint16(id >> 48);
-    }
-
-    /// @notice Encodes asset ids
-    function encodeAssetId(
-        uint256 currencyId,
-        uint256 maturity,
-        uint256 assetType
-    ) internal pure returns (uint256) {
-        require(currencyId <= Constants.MAX_CURRENCIES);
-        require(maturity <= type(uint40).max);
-        require(assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX);
-
-        return
-            uint256(
-                (bytes32(uint256(uint16(currencyId))) << 48) |
-                    (bytes32(uint256(uint40(maturity))) << 8) |
-                    bytes32(uint256(uint8(assetType)))
-            );
-    }
-
     /// @dev Used to flip the sign of assets to decrement the `from` account that is sending assets
     function invertNotionalAmountsInPlace(PortfolioAsset[] memory assets) internal pure {
         for (uint256 i; i < assets.length; i++) {

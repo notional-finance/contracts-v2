@@ -40,9 +40,7 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         return interfaceId == type(IERC1155).interfaceId;
     }
 
-    /// @notice Returns the balance of an ERC1155 id on an account. WARNING: the balances returned by
-    /// this method do not show negative fCash balances because only unsigned integers are returned. They
-    /// are represented by zero here. Use `signedBalanceOf` to get a signed return value.
+    /// @notice Returns the balance of an ERC1155 id on an account.
     /// @param account account to get the id for
     /// @param id the ERC1155 id
     /// @return Balance of the ERC1155 id as an unsigned integer (negative fCash balances return zero)
@@ -56,15 +54,27 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
     /// @param id the ERC1155 id
     /// @return notional balance of the ERC1155 id as a signed integer
     function signedBalanceOf(address account, uint256 id) public view override returns (int256 notional) {
-        AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
+        if (Emitter.isfCash(id)) {
+            (uint16 currencyId, uint256 maturity, bool isfCashDebt) = Emitter.decodefCashId(id);
+            AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
 
-        if (accountContext.isBitmapEnabled()) {
-            notional = _balanceInBitmap(account, accountContext.bitmapCurrencyId, id);
+            if (accountContext.isBitmapEnabled()) {
+                notional = _balanceInBitmap(account, accountContext.bitmapCurrencyId, currencyId, maturity);
+            } else {
+                notional = _balanceInArray(
+                    PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength),
+                    currencyId,
+                    maturity
+                );
+            }
+
+            // If asking for the fCash debt id, then return the positive amount or zero if it is not debt
+            if (isfCashDebt) return notional < 0 ? notional.neg() : 0;
+            return notional;
         } else {
-            notional = _balanceInArray(
-                PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength),
-                id
-            );
+            // In this case, the id is referencing a vault asset and we make a call back to retrieve the relevant
+            // data. This is pretty inefficient for on chain calls but will work fine for off chain calls
+            IVaultAccountHealth(address(this)).signedBalanceOfVaultTokenId(account, id);
         }
     }
 
@@ -115,15 +125,10 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
     function _balanceInBitmap(
         address account,
         uint256 bitmapCurrencyId,
-        uint256 id
+        uint16 currencyId,
+        uint256 maturity
     ) internal view returns (int256) {
-        (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(id);
-
-        if (
-            currencyId != bitmapCurrencyId ||
-            assetType != Constants.FCASH_ASSET_TYPE
-        ) {
-            // Neither of these are possible for a bitmap group
+        if (currencyId == 0 || currencyId != bitmapCurrencyId) {
             return 0;
         } else {
             return BitmapAssetsHandler.getifCashNotional(account, currencyId, maturity);
@@ -131,21 +136,19 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
     }
 
     /// @dev Searches an array for the matching asset
-    function _balanceInArray(PortfolioAsset[] memory portfolio, uint256 id)
-        internal
-        pure
-        returns (int256)
-    {
-        (uint256 currencyId, uint256 maturity, uint256 assetType) = TransferAssets.decodeAssetId(id);
-
+    function _balanceInArray(
+        PortfolioAsset[] memory portfolio, uint16 currencyId, uint256 maturity
+    ) internal pure returns (int256) {
         for (uint256 i; i < portfolio.length; i++) {
             PortfolioAsset memory asset = portfolio[i];
             if (
                 asset.currencyId == currencyId &&
                 asset.maturity == maturity &&
-                asset.assetType == assetType
+                asset.assetType == Constants.FCASH_ASSET_TYPE
             ) return asset.notional;
         }
+
+        return 0;
     }
 
     /// @notice Transfer of a single fCash or liquidity token asset between accounts. Allows `from` account to transfer more fCash
@@ -175,7 +178,9 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
             PortfolioAsset[] memory assets = new PortfolioAsset[](1);
             PortfolioAsset memory asset = assets[0];
 
-            (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(id);
+            // Only Positive fCash is supported in ERC1155 transfers
+            _decodeTofCashAsset(id, asset);
+
             // This ensures that asset.notional is always a positive amount
             asset.notional = SafeInt256.toInt(amount);
             _requireValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
@@ -279,9 +284,20 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         (PortfolioAsset[] memory assets, /* */) = _decodeToAssets(ids, amounts);
         return assets;
     }
+    
+    function _decodeTofCashAsset(uint256 id, PortfolioAsset memory asset) private pure {
+        require(Emitter.isfCash(id), "Only fCash Transfer");
+        bool isfCashDebt;
+        (asset.currencyId, asset.maturity, isfCashDebt) = Emitter.decodefCashId(id);
+        // Technically debt is transferrable inside this method, but for clarity and backwards compatibility
+        // this restriction is applied here.
+        require(!isfCashDebt, "No Debt Transfer");
+
+        asset.assetType = Constants.FCASH_ASSET_TYPE;
+    }
 
     function _decodeToAssets(uint256[] calldata ids, uint256[] calldata amounts)
-        internal
+        private
         view
         returns (PortfolioAsset[] memory, bool)
     {
@@ -294,7 +310,7 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
             if (i > 0) require(ids[i] > ids[i - 1], "IDs must be sorted");
 
             PortfolioAsset memory asset = assets[i];
-            (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(ids[i]);
+            _decodeTofCashAsset(ids[i], assets[i]);
 
             _requireValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
             // Although amounts is encoded as uint256 we allow it to be negative here. This will
@@ -310,17 +326,16 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         return (assets, toTransferNegative);
     }
 
-    /// @notice Encodes parameters into an ERC1155 id
+    /// @notice Encodes parameters into an ERC1155 id, this method always returns an fCash id
     /// @param currencyId currency id of the asset
     /// @param maturity timestamp of the maturity
-    /// @param assetType id of the asset type
     /// @return ERC1155 id
     function encodeToId(
         uint16 currencyId,
         uint40 maturity,
-        uint8 assetType
+        uint8 /* assetType */
     ) external pure override returns (uint256) {
-        return TransferAssets.encodeAssetId(currencyId, maturity, assetType);
+        return Emitter.encodefCashId(currencyId, maturity, 0);
     }
 
     /// @dev Ensures that all maturities specified are valid for the currency id (i.e. they do not
@@ -344,7 +359,7 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
     ) internal returns (AccountContext memory, AccountContext memory) {
         AccountContext memory toContext = AccountContextHandler.getAccountContext(to);
         AccountContext memory fromContext = AccountContextHandler.getAccountContext(from);
-
+        
         // NOTE: context returned are in different memory locations
         (fromContext, toContext) = SettleAssetsExternal.transferAssets(
             from, to, fromContext, toContext, assets
