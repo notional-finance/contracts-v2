@@ -441,40 +441,64 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         (encodedTrade, /* */) = _encodeLendBorrowTrade(TradeActionType.Borrow, marketIndex, fCash, maxBorrowRate);
     }
 
-    /// @notice Converts an internal cash balance to an external token denomination
+    /// @notice Converts an prime cash balance to an external token denomination
     /// @param currencyId the currency id of the cash balance
-    /// @param cashBalanceInternal the signed cash balance that is stored in Notional
+    /// @param primeCashBalance the signed cash balance that is stored in Notional
     /// @param convertToUnderlying true if the value should be converted to underlying
     /// @return the cash balance converted to the external token denomination
     function convertCashBalanceToExternal(
         uint16 currencyId,
-        int256 cashBalanceInternal,
+        int256 primeCashBalance,
         bool convertToUnderlying
     ) external view override returns (int256) {
-        if (convertToUnderlying) {
-            AssetRateParameters memory ar = AssetRate.buildAssetRateView(currencyId);
-            cashBalanceInternal = ar.convertToUnderlying(cashBalanceInternal);
+        // Prime cash is just 1-1 with itself, no external conversion
+        if (!convertToUnderlying) return primeCashBalance;
+
+        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate
+            .getPrimeCashRateView(currencyId, block.timestamp);
+
+        int256 underlyingBalance = pr.convertToUnderlying(primeCashBalance);
+        int256 externalAmount = _convertToAmountExternal(currencyId, underlyingBalance.abs()).toInt();
+        return underlyingBalance < 0 ? externalAmount.neg() : externalAmount;
         }
 
-        int256 externalAmount = SafeInt256.toInt(_convertToAmountExternal(currencyId, cashBalanceInternal.abs(), convertToUnderlying));
-        return cashBalanceInternal < 0 ? externalAmount.neg() : externalAmount;
+    /// @notice Converts an underlying balance to prime cash
+    /// @param currencyId the currency id of the cash balance
+    /// @param underlyingExternal the underlying external token balance
+    /// @return the underlying balance converted to prime cash
+    function convertUnderlyingToPrimeCash(
+        uint16 currencyId,
+        int256 underlyingExternal
+    ) external view override returns (int256) {
+        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, block.timestamp);
+        Token memory token = TokenHandler.getUnderlyingToken(currencyId);
+        int256 underlyingInternal = token.convertToInternal(underlyingExternal);
+        return pr.convertFromUnderlying(underlyingInternal);
     }
 
-    function _convertToAmountExternal(
+    /// @notice Converts fCash to its settled prime cash value at the specified block time
+    /// @param currencyId the currency id of the fCash asset
+    /// @param maturity the timestamp when the fCash asset matures
+    /// @param fCashBalance signed balance of fcash
+    /// @param blockTime block time to convert to settled prime value, must be greater than maturity
+    /// @return signedPrimeSupplyValue amount of prime cash to be received or owed to the protocol
+    function convertSettledfCash(
         uint16 currencyId,
-        int256 depositAmountInternal,
-        bool useUnderlying
-    ) private view returns (uint256) {
-        int256 amountExternal;
-        Token memory token = useUnderlying ?
-            TokenHandler.getUnderlyingToken(currencyId) :
-            TokenHandler.getAssetToken(currencyId);
+        uint256 maturity,
+        int256 fCashBalance,
+        uint256 blockTime
+    ) external view override returns (int256 signedPrimeSupplyValue) {
+        require(maturity <= blockTime);
+        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, blockTime);
+        return pr.convertSettledfCashView(currencyId, maturity, fCashBalance, blockTime);
+    }
 
-        if (useUnderlying && depositAmountInternal < 0) {
-            // We have to do a special rounding adjustment for underlying internal deposits from lending.
-            amountExternal = token.convertToUnderlyingExternalWithAdjustment(depositAmountInternal.neg());
-        } else {
-            amountExternal = token.convertToExternal(depositAmountInternal).abs();
+    /// @notice Accrues prime interest and updates state up to the current block
+    function accruePrimeInterest(
+        uint16 currencyId
+    ) external override returns (PrimeRate memory pr, PrimeCashFactors memory factors) {
+        pr = PrimeRateLib.buildPrimeRateStateful(currencyId);
+        factors = PrimeCashExchangeRate.getPrimeCashFactors(currencyId);
         }
 
         if (token.tokenType == TokenType.aToken) {

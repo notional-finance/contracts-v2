@@ -234,16 +234,42 @@ contract Views is StorageLayoutV2, NotionalViews {
     }
 
     /** Global System State View Methods **/
+    function getPrimeFactors(
+        uint16 currencyId,
+        uint256 blockTime
+    ) external view override returns (
+        PrimeRate memory pr,
+        PrimeCashFactors memory factors,
+        uint256 maxUnderlyingSupply,
+        uint256 totalUnderlyingSupply
+    ) {
+        (pr, factors) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, blockTime);
+        (maxUnderlyingSupply, totalUnderlyingSupply) = pr.getSupplyCap(currencyId);
+    }
+
+    function getPrimeFactorsStored(
+        uint16 currencyId
+    ) external view override returns (PrimeCashFactors memory) {
+        return PrimeCashExchangeRate.getPrimeCashFactors(currencyId);
+    }
+
+    function getPrimeCashHoldingsOracle(uint16 currencyId) external view override returns (address) {
+        return address(PrimeCashExchangeRate.getPrimeCashHoldingsOracle(currencyId));
+    }
+
+    function getTotalfCashDebtOutstanding(
+        uint16 currencyId, uint256 maturity
+    ) external view override returns (int256) {
+        return PrimeCashExchangeRate.getTotalfCashDebtOutstanding(currencyId, maturity);
+    }
 
     /// @notice Returns the asset settlement rate for a given maturity
     function getSettlementRate(uint16 currencyId, uint40 maturity)
-        external
-        view
-        override
-        returns (AssetRateParameters memory)
-    {
+        external view override returns (PrimeRate memory) {
         _checkValidCurrency(currencyId);
-        return AssetRate.buildSettlementRateView(currencyId, maturity);
+        return PrimeRateLib.buildPrimeRateSettlementView(
+            currencyId, maturity, block.timestamp
+        );
     }
 
     /// @notice Returns a single market
