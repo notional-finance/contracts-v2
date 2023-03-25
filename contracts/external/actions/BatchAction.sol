@@ -293,7 +293,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 );
 
                 // If the account owes cash after trading, ensure that it has enough
-                if (netCash < 0) _checkSufficientCash(balanceState, netCash.neg());
                 balanceState.netCashChange = balanceState.netCashChange.add(netCash);
             }
 
@@ -485,22 +484,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
                 trades
             );
         }
-    }
-
-    /// @notice When lending, adding liquidity or minting nTokens the account must have a sufficient cash balance
-    /// to do so.
-    function _checkSufficientCash(BalanceState memory balanceState, int256 amountInternalPrecision)
-        private
-        pure
-    {
-        // The total cash position at this point is: storedCashBalance + netCashChange + netPrimeTransfer
-        require(
-            amountInternalPrecision >= 0 &&
-                balanceState.storedCashBalance
-                .add(balanceState.netCashChange)
-                .add(balanceState.netPrimeTransfer) >= amountInternalPrecision,
-            "Insufficient cash"
-        );
     }
 
     function _settleAccountIfRequired(address account)

@@ -29,7 +29,19 @@ contract AccountAction is ActionGuards {
     using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
 
-    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
+    /// @notice A per account setting that allows it to borrow prime cash (i.e. incur negative cash)
+    /// as a result of account initiated actions. Accounts can still incur negative cash as a result of
+    /// fCash settlement regardless of this setting.
+    /// @param allowPrimeBorrow true if the account can borrow prime cash
+    /// @dev emit:AccountSettled emit:AccountContextUpdate
+    /// @dev auth:msg.sender
+    function enablePrimeBorrow(bool allowPrimeBorrow) external {
+        require(msg.sender != address(this)); // dev: no internal call
+        requireValidAccount(msg.sender);
+        (AccountContext memory accountContext, /* didSettle */) = _settleAccountIfRequired(msg.sender);
+        accountContext.allowPrimeBorrow = allowPrimeBorrow;
+        accountContext.setAccountContext(msg.sender);
+    }
 
     /// @notice Enables a bitmap currency for msg.sender, account cannot have any assets when this call
     /// occurs. Will revert if the account already has a bitmap currency set.
