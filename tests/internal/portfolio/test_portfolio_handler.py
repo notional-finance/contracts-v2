@@ -10,6 +10,8 @@ from tests.helpers import active_currencies_to_list, get_portfolio_array, get_se
 
 chain = Chain()
 
+AssetStorageState = {"NoChange": 0, "Update": 1, "Delete": 2, "RevertIfStored": 3}
+
 
 def generate_asset_array(num_assets):
     cashGroups = [(1, 7), (2, 7), (3, 7)]
@@ -31,7 +33,7 @@ class TestPortfolioHandler:
 
     def test_store_asset_reverts_on_tainted_asset(self, portfolioHandler, accounts):
         maturity = chain.time() + 1000
-        assets = [(2, maturity, 1, 100e8, 1, 3)]
+        assets = [(2, maturity, 1, 100e8, 1, AssetStorageState["RevertIfStored"])]
         with brownie.reverts():
             portfolioHandler.storeAssets(accounts[1], (assets, [], 0, 1))
 
@@ -46,7 +48,7 @@ class TestPortfolioHandler:
         state = list(portfolioHandler.buildPortfolioState(accounts[1], 0))
         state[0] = list(state[0])
         state[0][0] = list(state[0][0])
-        state[0][0][5] = 3
+        state[0][0][5] = AssetStorageState["RevertIfStored"]
 
         with brownie.reverts():
             portfolioHandler.addAsset(state, 2, maturity, 1, 100e8)
@@ -56,12 +58,12 @@ class TestPortfolioHandler:
 
     def test_delete_asset_reverts_on_deleted_asset(self, portfolioHandler, accounts):
         maturity = chain.time() + 1000
-        assets = [(2, maturity, 1, 100e8, 1, 1)]
+        assets = [(2, maturity, 1, 100e8, 1, AssetStorageState["Update"])]
         portfolioHandler.storeAssets(accounts[1], ([], assets, 1, 0))
         state = list(portfolioHandler.buildPortfolioState(accounts[1], 0))
         state[0] = list(state[0])
         state[0][0] = list(state[0][0])
-        state[0][0][5] = 2
+        state[0][0][5] = AssetStorageState["Delete"]
 
         with brownie.reverts():
             portfolioHandler.deleteAsset(state, 0)
@@ -75,12 +77,151 @@ class TestPortfolioHandler:
         sortedArray = portfolioHandler.getAssetArray(accounts[1])
         assert computedSort == tuple([s[0:3] for s in sortedArray])
 
-    def test_add_repeated_new_asset(self, portfolioHandler, accounts):
+    def test_new_assets_merge(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
         state = portfolioHandler.buildPortfolioState(accounts[1], 0)
-        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8)
-        state = portfolioHandler.addAsset(state, 1, 1000, 1, 100e8)
-        assert len(state[1]) == 1
-        assert state[1][0][3] == 200e8
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, -300e8)
+        assert len(state["newAssets"]) == 1
+        assert state["newAssets"][0][3] == -200e8
+        assert state["newAssets"][0][5] == AssetStorageState["Update"]
+
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    def test_new_assets_append(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 2, maturity, 1, 100e8)
+        assert len(state["newAssets"]) == 2
+        assert state["newAssets"][0][0] == 1
+        assert state["newAssets"][0][5] == AssetStorageState["NoChange"]
+        assert state["newAssets"][1][0] == 2
+        assert state["newAssets"][1][5] == AssetStorageState["NoChange"]
+
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    def test_new_assets_net_off(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, -100e8)
+        assert len(state["newAssets"]) == 1
+        assert state["newAssets"][0][3] == 0
+        assert state["newAssets"][0][5] == AssetStorageState["Update"]
+
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    @given(isDebt=strategy("bool"))
+    def test_stored_assets_merge(self, portfolioHandler, accounts, isDebt):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        portfolioHandler.storeAssets(accounts[1], state)
+
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, -200e8 if isDebt else 100e8)
+        assert len(state["newAssets"]) == 0
+        if isDebt:
+            assert state["storedAssets"][0][3] == -100e8
+        else:
+            assert state["storedAssets"][0][3] == 200e8
+        assert state["storedAssets"][0][5] == AssetStorageState["Update"]
+
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    @given(isFirstDebt=strategy("bool"), isSecondDebt=strategy("bool"))
+    def test_stored_assets_append(self, portfolioHandler, accounts, isFirstDebt, isSecondDebt):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, -100e8 if isFirstDebt else 100e8)
+        portfolioHandler.storeAssets(accounts[1], state)
+
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 2, maturity, 1, -100e8 if isSecondDebt else 100e8)
+        assert len(state["storedAssets"]) == 1
+        assert len(state["newAssets"]) == 1
+        assert state["newAssets"][0][0] == 2
+        assert state["newAssets"][0][3] == -100e8 if isSecondDebt else 100e8
+        assert state["newAssets"][0][5] == AssetStorageState["NoChange"]
+
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    def test_stored_assets_insert_between(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 1, maturity + 1000, 1, 100e8)
+        portfolioHandler.storeAssets(accounts[1], state)
+
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity + 500, 1, -100e8)
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    def test_stored_assets_delete_between(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 1, maturity + 500, 1, -100e8)
+        state = portfolioHandler.addAsset(state, 1, maturity + 1000, 1, 100e8)
+        portfolioHandler.storeAssets(accounts[1], state)
+
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity + 500, 1, 100e8)
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    def test_stored_assets_net_off(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        portfolioHandler.storeAssets(accounts[1], state)
+
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, -100e8)
+        assert len(state["storedAssets"]) == 1
+        assert state["storedAssets"][0][3] == 0
+        assert state["storedAssets"][0][5] == AssetStorageState["Update"]
+
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    def test_stored_assets_delete(self, portfolioHandler, accounts):
+        maturity = chain.time() + 1000
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, maturity, 1, 100e8)
+        state = portfolioHandler.addAsset(state, 2, maturity, 1, -100e8)
+        portfolioHandler.storeAssets(accounts[1], state)
+
+        stateBefore = portfolioHandler.buildPortfolioState(accounts[1], 0)
+
+        # Delete the first index
+        stateAfter = portfolioHandler.deleteAsset(stateBefore, 0)
+        assert stateAfter["storedAssetLength"] == 1
+        assert stateAfter["storedAssets"][0][5] == AssetStorageState["Delete"]
+        # storage slots are swapped
+        assert stateAfter["storedAssets"][0][4] == stateBefore["storedAssets"][1][4]
+        assert stateAfter["storedAssets"][1][4] == stateBefore["storedAssets"][0][4]
+
+        self.context_invariants(portfolioHandler, stateAfter, accounts)
+
+        chain.undo()
+        # Delete the second index
+        stateAfter = portfolioHandler.deleteAsset(stateBefore, 1)
+        assert stateAfter["storedAssetLength"] == 1
+        assert stateAfter["storedAssets"][1][5] == AssetStorageState["Delete"]
+        # storage slot does not change
+        assert stateAfter["storedAssets"][1][4] == stateBefore["storedAssets"][1][4]
+
+        self.context_invariants(portfolioHandler, stateAfter, accounts)
+
+    def test_cannot_store_matured_assets(self, portfolioHandler, accounts):
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        state = portfolioHandler.addAsset(state, 1, chain.time() - 100, 1, 100e8)
+        with brownie.reverts("dev: cannot store matured assets"):
+            portfolioHandler.storeAssets(accounts[1], state)
+
+    def test_can_store_empty_array(self, portfolioHandler, accounts):
+        state = portfolioHandler.buildPortfolioState(accounts[1], 0)
+        self.context_invariants(portfolioHandler, state, accounts)
 
     @given(num_assets=strategy("uint", min_value=0, max_value=7))
     def test_add_delete_assets(self, portfolioHandler, accounts, num_assets):
@@ -177,13 +318,25 @@ class TestPortfolioHandler:
                 tmp[3] = 0  # mark notional as zero
                 startingAssets[index] = tuple(tmp)
 
+        self.context_invariants(portfolioHandler, state, accounts)
+
+    def context_invariants(self, portfolioHandler, state, accounts):
+        assetsStart = portfolioHandler.getAssetArray(accounts[1])
+        assetsFinal = state["storedAssets"] + state["newAssets"]
+
         txn = portfolioHandler.storeAssets(accounts[1], state)
         (context) = txn.return_value
         finalStored = portfolioHandler.getAssetArray(accounts[1])
-        # Filter out the active assets with zero notional from the computed list
-        finalComputed = tuple(list(filter(lambda x: x[3] != 0, startingAssets)))
 
-        assert context[2] == len(finalComputed)  # assert length is correct
+        # Filter out the active assets with zero notional from the computed list
+        finalComputed = tuple(
+            list(filter(lambda x: x[3] != 0 and x[5] != AssetStorageState["Delete"], assetsFinal))
+        )
+
+        assert sorted([x[0:4] for x in finalStored]) == sorted([(x[0:4]) for x in finalComputed])
+
+        # assert length is correct
+        assert context[2] == len(finalComputed)
 
         # assert nextSettleTime is correct
         if len(finalComputed) == 0:
@@ -211,4 +364,38 @@ class TestPortfolioHandler:
             currencies = list(sorted(set([(x[0], True, False) for x in finalComputed])))
             assert activeCurrencyList == currencies
 
-        assert sorted([x[0:4] for x in finalStored]) == sorted([(x[0:4]) for x in finalComputed])
+        # Create assetsStart and assetsFinal by matching keys
+        matchingfCash = {}
+        for a in assetsStart:
+            if a[2] != 1:
+                continue
+            matchingfCash[a[0:2]] = (a[3], 0)
+
+        for a in finalStored:
+            if a[2] != 1:
+                continue
+            key = a[0:2]
+            if key in matchingfCash:
+                matchingfCash[key] = (matchingfCash[key][0], a[3])
+            else:
+                matchingfCash[key] = (0, a[3])
+
+        debtEvents = (
+            txn.events["TotalfCashDebtOutstandingChanged"]
+            if "TotalfCashDebtOutstandingChanged" in txn.events
+            else []
+        )
+        for ((currencyId, maturity), (before, after)) in matchingfCash.items():
+            event = list(
+                filter(
+                    lambda x: x["currencyId"] == currencyId and x["maturity"] == maturity,
+                    debtEvents,
+                )
+            )
+            negChange = portfolioHandler.negChange(before, after)
+
+            if negChange == 0:
+                assert len(event) == 0
+            else:
+                assert len(event) == 1
+                assert event[0]["netDebtChange"] == -negChange

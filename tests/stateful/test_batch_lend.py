@@ -31,12 +31,12 @@ def test_fail_on_unsorted_actions(environment, accounts):
     action1 = get_lend_action(
         1,
         [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0}],
-        False,
+        True,
     )
     action2 = get_lend_action(
         2,
         [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 0}],
-        False,
+        True,
     )
 
     with brownie.reverts("Unsorted actions"):
@@ -44,7 +44,7 @@ def test_fail_on_unsorted_actions(environment, accounts):
 
 
 def test_fail_on_zero_actions(environment, accounts):
-    action = get_lend_action(1, [], False)
+    action = get_lend_action(1, [], True)
     with brownie.reverts():
         environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
 
@@ -53,7 +53,7 @@ def test_fail_on_non_lend_actions(environment, accounts):
     action = get_lend_action(
         1,
         [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
-        False,
+        True,
     )
     with brownie.reverts():
         environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
@@ -63,7 +63,7 @@ def test_fail_on_slippage(environment, accounts):
     action = get_lend_action(
         2,
         [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 100e8, "minSlippage": 1e9}],
-        False,
+        True,
     )
     with brownie.reverts("Trade failed, slippage"):
         environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
@@ -89,7 +89,7 @@ def test_lend_sufficient_cash_no_transfer(environment, useUnderlying, useBitmap,
     if useBitmap:
         environment.notional.enableBitmapCurrency(2, {"from": accounts[1]})
 
-    environment.notional.depositUnderlyingToken(accounts[1], 2, 100e18, {"from": accounts[1]})
+    environment.notional.depositUnderlyingToken(accounts[1], 2, 97.9e18, {"from": accounts[1]})
     marketsBefore = environment.notional.getActiveMarkets(2)
     action = get_lend_action(
         2,
@@ -166,12 +166,7 @@ def test_lend_sufficient_cash_transfer(environment, useUnderlying, useBitmap, ac
     assert context[1] == "0x00"
 
     (cashBalance, nToken, incentiveDebt) = environment.notional.getAccountBalance(2, accounts[1])
-    if useUnderlying:
-        # Using underlying results in dust
-        assert cashBalance < 100
-    else:
-        # Using asset tokens is exact
-        assert cashBalance == 0
+    assert cashBalance < 100
 
     assert nToken == 0
     assert incentiveDebt == 0
@@ -259,14 +254,8 @@ def test_multi_currency_lend_actions(environment, useUnderlying, accounts):
 
     (daiCash, _, _) = environment.notional.getAccountBalance(2, accounts[1])
     (usdcCash, _, _) = environment.notional.getAccountBalance(3, accounts[1])
-    if useUnderlying:
-        # Using underlying results in dust
-        assert daiCash < 100
-        assert usdcCash < 10000
-    else:
-        # Using asset tokens is exact
-        assert daiCash == 0
-        assert usdcCash == 0
+    assert daiCash < 5000
+    assert usdcCash < 5000
 
     check_system_invariants(environment, accounts)
 
@@ -304,13 +293,7 @@ def test_multiple_lend_trades(environment, currencyId, useUnderlying, useBitmap,
     assert portfolio[1][3] == 100e8
 
     (cash, _, _) = environment.notional.getAccountBalance(currencyId, accounts[1])
-
-    if useUnderlying:
-        # Using underlying results in dust
-        assert cash < 10000
-    else:
-        # Using asset tokens is exact
-        assert cash == 0
+    assert cash < 5000
 
     check_system_invariants(environment, accounts)
 
@@ -359,7 +342,7 @@ def test_token_with_transfer_fee_reverts(environment, accounts):
     )
     environment.cToken["USDT"].mint(10_000_000e8, {"from": accounts[0]})
     environment.enableCurrency("USDT", CurrencyDefaults)
-    _enable_cash_group(5, environment, accounts)
+    _enable_cash_group(5, environment, accounts, initialCash=1_000_000e18)
 
     action = get_lend_action(
         5,

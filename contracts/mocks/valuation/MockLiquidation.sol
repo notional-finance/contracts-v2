@@ -7,10 +7,15 @@ import "../../internal/AccountContextHandler.sol";
 import "../../internal/liquidation/LiquidationHelpers.sol";
 import "../../internal/liquidation/LiquidateCurrency.sol";
 import "../../internal/liquidation/LiquidatefCash.sol";
+import "../../internal/valuation/FreeCollateral.sol";
 import "../../external/actions/LiquidateCurrencyAction.sol";
 import "./MockValuationLib.sol";
+import "./AbstractSettingsRouter.sol";
 
-contract MockLiquidationSetup is MockValuationBase {
+contract MockLiquidationSetup is MockValuationLib, AbstractSettingsRouter {
+
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
+
     function preLiquidationActions(
         address liquidateAccount,
         uint16 localCurrency,
@@ -44,11 +49,20 @@ contract MockLiquidationSetup is MockValuationBase {
     }
 
     function calculateLocalToPurchase(
-        LiquidationFactors memory factors,
+        ETHRate memory localETHRate,
+        ETHRate memory collateralETHRate,
+        PrimeRate memory localPrimeRate,
+        int256 localPrimeAvailable,
         int256 liquidationDiscount,
         int256 collateralUnderlyingPresentValue,
         int256 collateralAssetBalanceToSell
-    ) internal pure returns (int256, int256) {
+    ) external pure returns (int256, int256) {
+        LiquidationFactors memory factors;
+        factors.localETHRate = localETHRate;
+        factors.collateralETHRate = collateralETHRate;
+        factors.localPrimeRate = localPrimeRate;
+        factors.localPrimeAvailable = localPrimeAvailable;
+
         return LiquidationHelpers.calculateLocalToPurchase(
             factors,
             liquidationDiscount,
@@ -58,10 +72,12 @@ contract MockLiquidationSetup is MockValuationBase {
     }
 }
 
-contract MockLocalLiquidation is MockValuationBase {
+contract MockLocalLiquidation is MockValuationLib, AbstractSettingsRouter {
     using SafeInt256 for int256;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
+
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
 
     event LocalLiquidationTokens(
         int256 localPrimeCashFromLiquidator,
@@ -70,7 +86,6 @@ contract MockLocalLiquidation is MockValuationBase {
         PortfolioState portfolioState
     );
 
-    event Test(int256 a, int256 t, LiquidateCurrency.WithdrawFactors w);
     function calculateLocalCurrencyLiquidation(
         address liquidateAccount,
         uint16 localCurrency,
@@ -141,13 +156,10 @@ contract MockLocalLiquidation is MockValuationBase {
 
         int256 localPrimeCashFromLiquidator =
             LiquidateCurrency.liquidateLocalCurrency(
-                localCurrency,
                 maxNTokenLiquidation,
-                block.timestamp,
                 localBalanceState,
-                factors,
-                portfolio
-            );
+                factors
+        );
 
         return (
             localPrimeCashFromLiquidator,
@@ -166,10 +178,12 @@ contract MockLocalLiquidation is MockValuationBase {
     }
 }
 
-contract MockCollateralLiquidation is MockValuationBase {
+contract MockCollateralLiquidation is MockValuationLib, AbstractSettingsRouter {
     using SafeInt256 for int256;
     using AccountContextHandler for AccountContext;
     using BalanceHandler for BalanceState;
+
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
 
     event CollateralLiquidationTokens(
         int256 localPrimeCashFromLiquidator,
@@ -241,7 +255,7 @@ contract MockCollateralLiquidation is MockValuationBase {
             localPrimeCashFromLiquidator,
             _collateralPrimeCashToLiquidator(collateralBalanceState),
             collateralBalanceState.netNTokenTransfer.neg(),
-            collateralBalanceState.netPrimeTransfer,
+            collateralBalanceState.primeCashWithdraw,
             portfolio
         );
     }
@@ -262,7 +276,6 @@ contract MockCollateralLiquidation is MockValuationBase {
             AccountContext memory
         )
     {
-        uint256 blockTime = block.timestamp;
         (
             AccountContext memory accountContext,
             LiquidationFactors memory factors,
@@ -286,10 +299,8 @@ contract MockCollateralLiquidation is MockValuationBase {
             LiquidateCurrency.liquidateCollateralCurrency(
                 maxCollateralLiquidation,
                 maxNTokenLiquidation,
-                blockTime,
                 collateralBalanceState,
-                factors,
-                portfolio
+                factors
             );
 
         return (
@@ -309,7 +320,7 @@ contract MockCollateralLiquidation is MockValuationBase {
         // liquidity tokens.
         return
             collateralBalanceState.netCashChange.neg().add(
-                collateralBalanceState.netPrimeTransfer
+                collateralBalanceState.primeCashWithdraw
             );
     }
 
@@ -326,10 +337,12 @@ contract MockCollateralLiquidation is MockValuationBase {
     }
 }
 
-contract MockLocalfCashLiquidation is MockValuationBase {
+contract MockLocalfCashLiquidation is MockValuationLib, AbstractSettingsRouter {
     using AccountContextHandler for AccountContext;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
+
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
 
     function getFreeCollateral(address account, uint256 blockTime)
         external
@@ -378,9 +391,9 @@ contract MockLocalfCashLiquidation is MockValuationBase {
             /* int256 nTokenBalance */,
             /* uint256 lastClaimTime */,
             /* uint256 accountIncentiveDebt*/
-        ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency);
+        ) = BalanceHandler.getBalanceStorage(liquidateAccount, localCurrency, c.factors.localPrimeRate);
         // Cash balance is used if liquidating negative fCash
-        c.localCashBalanceUnderlying = c.factors.localAssetRate.convertToUnderlying(cashBalance);
+        c.localCashBalanceUnderlying = c.factors.localPrimeRate.convertToUnderlying(cashBalance);
         c.fCashNotionalTransfers = new int256[](fCashMaturities.length);
 
         LiquidatefCash.liquidatefCashLocal(
@@ -396,10 +409,11 @@ contract MockLocalfCashLiquidation is MockValuationBase {
     }
 }
 
-contract MockCrossCurrencyfCashLiquidation is MockValuationBase {
+contract MockCrossCurrencyfCashLiquidation is MockValuationLib, AbstractSettingsRouter {
     using AccountContextHandler for AccountContext;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
 
     function getFreeCollateral(address account, uint256 blockTime) external view returns (int256, int256[] memory) {
         return FreeCollateralAtTime.getFreeCollateralViewAtTime(account, blockTime);
@@ -466,7 +480,6 @@ library FreeCollateralAtTime {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         // The internal free collateral function does not account for settled assets. The Notional SDK
         // can calculate the free collateral off chain if required at this point.
-        // TODO: this should go forward in time
         require(!accountContext.mustSettleAssets(), "Assets not settled");
         return FreeCollateral.getFreeCollateralView(account, accountContext, blockTime);
     }

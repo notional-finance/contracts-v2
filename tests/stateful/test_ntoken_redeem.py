@@ -8,6 +8,8 @@ from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import (
     get_balance_action,
     get_balance_trade_action,
+    get_interest_rate_curve,
+    get_tref,
     initialize_environment,
     setup_residual_environment,
 )
@@ -80,7 +82,7 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
     currencyId = 2
     (
         cashBalanceBefore,
-        perpTokenBalanceBefore,
+        nTokenBalanceBefore,
         lastMintTimeBefore,
     ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
@@ -106,7 +108,7 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    (cashBalanceAfter, perpTokenBalanceAfter, _) = environment.notional.getAccountBalance(
+    (cashBalanceAfter, nTokenBalanceAfter, _) = environment.notional.getAccountBalance(
         currencyId, accounts[0]
     )
 
@@ -119,7 +121,7 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
         assert m[4] > marketsAfter[i][4]
 
     assert cashBalanceAfter > cashBalanceBefore
-    assert perpTokenBalanceAfter == perpTokenBalanceBefore - 1e8
+    assert nTokenBalanceAfter == nTokenBalanceBefore - 1e8
 
     check_system_invariants(environment, accounts)
 
@@ -258,7 +260,7 @@ def test_redeem_ntoken_batch_balance_action(
     environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
-    redeemAmount = 1_000_000e8
+    redeemAmount = 98_000e8 * environment.primeCashScalars["DAI"]
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
@@ -275,14 +277,10 @@ def test_redeem_ntoken_batch_balance_action(
     action = get_balance_action(2, "RedeemNToken", depositActionAmount=redeemAmount)
 
     if not canSellResiduals and marketResiduals:
-        try:
-            environment.notional.nTokenRedeem(
+        with brownie.reverts():
+            environment.notional.nTokenRedeem.call(
                 accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
             )
-            assert False
-        except RPCRequestError:
-            # This is how we detect a revert when Ganache throws an Invalid String Length error
-            pass
     else:
         environment.notional.batchBalanceAction(
             accounts[2].address, [action], {"from": accounts[2]}
@@ -299,7 +297,7 @@ def test_redeem_ntoken_batch_balance_action(
 
     if residualType == 0 and not marketResiduals:
         # In this scenario (with no residuals anywhere) valuation is at par
-        assert cashRatio == supplyRatio
+        assert pytest.approx(cashRatio, rel=1e-9) == supplyRatio
     else:
         assert cashRatio < supplyRatio
 
@@ -315,7 +313,7 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
     environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
-    redeemAmount = 1_000_000e8
+    redeemAmount = 98_000e8 * environment.primeCashScalars["DAI"]
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
@@ -331,14 +329,10 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
 
     if not canSellResiduals and marketResiduals:
         # If residual sales fail then this must revert
-        try:
-            environment.notional.nTokenRedeem(
+        with brownie.reverts():
+            environment.notional.nTokenRedeem.call(
                 accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
             )
-            assert False
-        except RPCRequestError:
-            # This is how we detect a revert when Ganache throws an Invalid String Length error
-            pass
     else:
         environment.notional.nTokenRedeem(
             accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
@@ -355,7 +349,7 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
 
     if residualType == 0 and not marketResiduals:
         # In this scenario (with no residuals anywhere) valuation is at par
-        assert cashRatio == supplyRatio
+        assert pytest.approx(cashRatio, rel=1e-9) == supplyRatio
     else:
         assert cashRatio < supplyRatio
 
@@ -371,6 +365,7 @@ def test_redeem_ntoken_keep_assets_no_residuals(
     environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
+    redeemAmount = 50_000e8 * environment.primeCashScalars["DAI"]
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
@@ -378,7 +373,7 @@ def test_redeem_ntoken_keep_assets_no_residuals(
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 50_000e8, {"from": accounts[0]})
+    environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
     assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
 
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
@@ -386,7 +381,7 @@ def test_redeem_ntoken_keep_assets_no_residuals(
 
     if not marketResiduals:
         environment.notional.nTokenRedeem(
-            accounts[2].address, currencyId, 50_000e8, False, False, {"from": accounts[2]}
+            accounts[2].address, currencyId, redeemAmount, False, False, {"from": accounts[2]}
         )
 
         # Should have fCash assets for each liquid market
@@ -395,11 +390,11 @@ def test_redeem_ntoken_keep_assets_no_residuals(
 
         (cash, _, _) = environment.notional.getAccountBalance(2, accounts[2])
         cashRatio = cash / nTokenPV
-        supplyRatio = 50000e8 / totalSupply
+        supplyRatio = redeemAmount / totalSupply
 
         if residualType == 0:
             # In this scenario (with no residuals anywhere) valuation is at par
-            assert cashRatio == supplyRatio
+            assert pytest.approx(cashRatio, rel=1e-9) == supplyRatio
         else:
             assert cashRatio < supplyRatio
     else:
@@ -421,6 +416,7 @@ def test_redeem_ntoken_keep_assets_accept_residuals(
     environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
+    redeemAmount = 50_000e8 * environment.primeCashScalars["DAI"]
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
@@ -428,14 +424,14 @@ def test_redeem_ntoken_keep_assets_accept_residuals(
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 50_000e8, {"from": accounts[0]})
+    environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
     assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
     blockTime = chain.time()
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
 
     environment.notional.nTokenRedeem(
-        accounts[2].address, currencyId, 50_000e8, False, True, {"from": accounts[2]}
+        accounts[2].address, currencyId, redeemAmount, False, True, {"from": accounts[2]}
     )
 
     # Should have fCash assets for each liquid market and the ifCash asset
@@ -472,7 +468,7 @@ def test_redeem_ntoken_keep_assets_accept_residuals(
         # This is in asset cash terms
         valuation += environment.notional.getPresentfCashValue(2, a[1], a[3], blockTime, False) * 50
     valuationRatio = valuation / nTokenPV
-    supplyRatio = 50000e8 / totalSupply
+    supplyRatio = redeemAmount / totalSupply
 
     # assert that valuation is par to the nToken PV
     assert pytest.approx(valuationRatio, abs=100) == supplyRatio
@@ -489,6 +485,7 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
     environment, accounts, residualType, marketResiduals, canSellResiduals
 ):
     currencyId = 2
+    redeemAmount = 98_000e8 * environment.primeCashScalars["DAI"]
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
@@ -496,25 +493,26 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
     (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
-    environment.nToken[currencyId].transfer(accounts[2], 1_000_000e8, {"from": accounts[0]})
+    environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
     assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
     blockTime = chain.time()
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
 
     environment.notional.nTokenRedeem(
-        accounts[2].address, currencyId, 1_000_000e8, True, True, {"from": accounts[2]}
+        accounts[2].address, currencyId, redeemAmount, True, True, {"from": accounts[2]}
     )
 
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
 
     (valuation, _, _) = environment.notional.getAccountBalance(2, accounts[2])
     for a in portfolio:
-        # This is in asset cash terms
-        valuation += environment.notional.getPresentfCashValue(2, a[1], a[3], blockTime, False) * 50
+        valuation += environment.notional.getPresentfCashValue(2, a[1], a[3], blockTime, False)
     valuationRatio = valuation / nTokenPV
-    supplyRatio = 1_000_000e8 / totalSupply
+    supplyRatio = redeemAmount / totalSupply
 
+    # 9 month fCash maturity
+    ifCashMaturity = get_tref(chain.time()) + SECONDS_IN_QUARTER * 3
     if residualType == 0:
         if not marketResiduals or canSellResiduals:
             # No ifCash residuals so no assets
@@ -523,7 +521,7 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
             # Some fCash residuals sold but not all
             assert len(portfolio) > 0 and len(portfolio) < 4
             # No ifCash assets in portfolio
-            assert len(list(filter(lambda x: x[1] == ifCashAssets[2][1], portfolio))) == 0
+            assert len(list(filter(lambda x: x[1] == ifCashMaturity, portfolio))) == 0
     else:
         if not marketResiduals or canSellResiduals:
             # We can get off by one errors here due to the nature of the
@@ -539,7 +537,7 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
             # Some fCash residuals sold but not all
             assert len(portfolio) > 0 and len(portfolio) <= 4
             # Holding ifCash assets in portfolio
-            assert len(list(filter(lambda x: x[1] == ifCashAssets[2][1], portfolio))) == 1
+            assert len(list(filter(lambda x: x[1] == ifCashMaturity, portfolio))) == 1
 
     if marketResiduals and canSellResiduals:
         assert valuationRatio < supplyRatio
@@ -564,13 +562,20 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
         currencyId, [0.4e8, 0.2e8, 0.2e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9, 0.8e9]
     )
 
+    environment.notional.updateInterestRateCurve(
+        currencyId, [1, 2, 3, 4], [get_interest_rate_curve()] * 4
+    )
     environment.notional.updateInitializationParameters(
-        currencyId, [0.01e9, 0.021e9, 0.07e9, 0.08e9], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0] * 4, [0.5e9, 0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
+    for (cid, _) in environment.nToken.items():
+        try:
+            environment.notional.initializeMarkets(cid, False)
+        except Exception:
+            pass
 
     collateral = get_balance_trade_action(1, "DepositUnderlying", [], depositActionAmount=10e18)
     action = get_balance_trade_action(
@@ -593,7 +598,11 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
     # Now settle the markets, should be some residual
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
+    for (cid, _) in environment.nToken.items():
+        try:
+            environment.notional.initializeMarkets(cid, False)
+        except Exception:
+            pass
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)

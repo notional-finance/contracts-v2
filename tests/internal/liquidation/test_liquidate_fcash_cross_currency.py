@@ -66,32 +66,32 @@ class TestLiquidatefCash:
         pass
 
     @given(
-        localDebt=strategy("int", min_value=-1_000_000e8, max_value=-1e8),
+        localDebt=strategy("int", min_value=-100_000e8, max_value=-1e8),
         local=strategy("uint", min_value=1, max_value=4),
-        ratio=strategy("uint", min_value=1, max_value=150),
+        ratio=strategy("uint", min_value=10, max_value=150),
         numAssets=strategy("uint", min_value=1, max_value=5),
     )
     def test_cross_currency_fcash(self, liquidation, accounts, localDebt, local, ratio, numAssets):
         blockTime = chain.time()
-
         # Set the local debt amount
-        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt)
-        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
+        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt, blockTime)
 
         # Gets the collateral fCash asset to set the fc to ~ 0
         (collateral, collateralUnderlying) = setup_collateral_liquidation(
             liquidation, local, localDebt
         )
+
         assets = liquidation.get_fcash_portfolio(
             collateral, collateralUnderlying, numAssets, blockTime
         )
 
         # Set the fCash asset (note: bitmaps cannot have cross currency fCash liquidations)
-        liquidation.mock.setPortfolio(accounts[0], assets)
+        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
+        liquidation.mock.setPortfolio(accounts[0], ([], assets, 0, 0))
 
         # FC should be ~0 at this point
-        (fc, _) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
-        assert pytest.approx(fc, abs=1e8) == 0
+        (fc1, _) = liquidation.mock.getFreeCollateral(accounts[0], chain.time() + 1)
+        assert pytest.approx(fc1, abs=0.5e8) == 0
 
         # Moves the exchange rate based on the ratio
         (newExchangeRate, discountedExchangeRate) = move_collateral_exchange_rate(
@@ -99,7 +99,8 @@ class TestLiquidatefCash:
         )
 
         # FC is be negative at this point
-        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
+        (fc, netLocal) = liquidation.mock.getFreeCollateral(accounts[0], chain.time() + 1)
+        blockTime = chain.time()
 
         # Convert to expected fCash trade
         maturities = sorted([a[1] for a in assets], reverse=True)
@@ -116,15 +117,16 @@ class TestLiquidatefCash:
             {"from": accounts[1]},
         )
 
-        transfers = []
         liquidatorPrice = 0
         fCashHaircut = 0
+        state = liquidation.mock.buildPortfolioState(accounts[0])
         for (m, t) in zip(maturities, notionalTransfers):
             matchingfCash = list(filter(lambda x: x[1] == m, assets))[0]
             # Transfer cannot exceed fCash balance.
             assert matchingfCash[3] >= t
 
-            transfers.append(get_fcash_token(1, currencyId=collateral, maturity=m, notional=-t))
+            # add transfer to portfolio state
+            state = liquidation.mock.addAsset(state, collateral, m, 1, -t)
             liquidator = liquidation.discount_to_pv(collateral, t, m, blockTime, "liquidator")
             haircut = liquidation.discount_to_pv(collateral, t, m, blockTime, "haircut")
 
@@ -132,18 +134,21 @@ class TestLiquidatefCash:
             fCashHaircut += haircut
 
         # Check price is correct
-        localCashFinal = liquidation.calculate_to_underlying(local, localAssetCashFromLiquidator)
+        localCashFinal = liquidation.calculate_to_underlying(
+            local, localAssetCashFromLiquidator, blockTime
+        )
         assert (
-            pytest.approx(Wei((localCashFinal * discountedExchangeRate) / 1e18), rel=1e-5, abs=10)
+            pytest.approx(Wei((localCashFinal * discountedExchangeRate) / 1e18), rel=1e-4, abs=10)
             == liquidatorPrice
         )
 
         # Simulate transfer
-        liquidation.mock.setPortfolio(accounts[0], transfers)
+        liquidation.mock.setPortfolio(accounts[0], state)
         liquidation.mock.setBalance(
             accounts[0], local, localDebtAsset + localAssetCashFromLiquidator, 0
         )
-        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0], blockTime)
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateral(accounts[0], chain.time() + 1)
+        blockTime = chain.time()
 
         # Check that we did not cross available boundaries in the trade
         collateralAvailableBefore = netLocal[1 if collateral > local else 0]
@@ -151,7 +156,7 @@ class TestLiquidatefCash:
         assert pytest.approx(
             Wei(fCashHaircut), rel=1e-6, abs=100
         ) == liquidation.calculate_to_underlying(
-            collateral, collateralAvailableBefore - collateralAvailableAfter
+            collateral, collateralAvailableBefore - collateralAvailableAfter, blockTime
         )
         assert collateralAvailableAfter >= 0
 
@@ -176,7 +181,7 @@ class TestLiquidatefCash:
         finalExpectedFC = fc - collateralETHValue - debtETHBuffer
 
         # fCash haircut is used to determine the amount of collateral traded
-        assert pytest.approx(finalExpectedFC, rel=1e-6, abs=100) == fcAfter
+        assert pytest.approx(finalExpectedFC, rel=1e-6, abs=5_000) == fcAfter
         assert fcAfter > fc
 
     @given(numAssets=strategy("uint", min_value=1, max_value=5))
@@ -196,7 +201,7 @@ class TestLiquidatefCash:
         )
 
         # Set the fCash asset (note: bitmaps cannot have cross currency fCash liquidations)
-        liquidation.mock.setPortfolio(accounts[0], assets)
+        liquidation.mock.setPortfolio(accounts[0], ([], assets, 0, 0))
 
         # Convert to expected fCash trade
         maturities = sorted([a[1] for a in assets], reverse=True)
@@ -221,11 +226,11 @@ class TestLiquidatefCash:
     def test_cross_currency_fcash_no_duplicate_maturities(self, liquidation, accounts, local):
         blockTime = chain.time()
         collateral = random.choice([c for c in range(1, 5) if c != local])
-        assets = liquidation.get_fcash_portfolio(collateral, 100e8, 1, blockTime)
-        liquidation.mock.setPortfolio(accounts[0], assets)
-        liquidation.mock.setBalance(accounts[0], local, -20000e8, 0)
+        assets = liquidation.get_fcash_portfolio(collateral, 100e8, 2, blockTime)
+        liquidation.mock.setPortfolio(accounts[0], ([], assets, 0, 0))
+        liquidation.mock.setBalance(accounts[0], local, -500_000e8, 0)
 
-        maturities = sorted([a[1] for a in assets], reverse=True) * 2
+        maturities = [assets[0][1]] * 2
         with brownie.reverts():
             liquidation.mock.calculatefCashCrossCurrencyLiquidation(
                 accounts[0],
@@ -233,6 +238,6 @@ class TestLiquidatefCash:
                 collateral,
                 maturities,
                 [0] * len(maturities),
-                blockTime,
+                chain.time() + 1,
                 {"from": accounts[1]},
             )

@@ -111,7 +111,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
     function getInitializationParameters(uint256 currencyId, uint256 maxMarketIndex)
         external
         view
-        returns (int256[] memory, int256[] memory)
+        returns (int256[] memory)
     {
         return nTokenHandler.getInitializationParameters(currencyId, maxMarketIndex);
     }

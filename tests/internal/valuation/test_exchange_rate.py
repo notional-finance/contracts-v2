@@ -2,6 +2,7 @@ from itertools import product
 
 import brownie
 import pytest
+from brownie.test import given, strategy
 
 parameterNames = "rateDecimals,mustInvert"
 parameterValues = list(product([6, 8, 18], [True, False]))
@@ -143,3 +144,22 @@ class TestExchangeRate:
 
         usdc = exchangeRate.convertETHTo(rate, 1e8)
         assert usdc == 0.1e8
+
+    @given(buffer=strategy("uint8", min_value=100))
+    def test_buffer_multiple(self, exchangeRate, accounts, MockAggregator, buffer):
+        rateDecimals = 18
+        aggregator = accounts[0].deploy(MockAggregator, rateDecimals)
+        aggregator.setAnswer(10 ** rateDecimals / 100)
+
+        rateStorage = (aggregator.address, 18, False, buffer, 80, 105)
+
+        # Currency ID 1 == ETH, rates are hardcoded
+        exchangeRate.setETHRateMapping(1, rateStorage)
+        rate = exchangeRate.buildExchangeRate(1)
+
+        if buffer < 150:
+            assert rate['buffer'] == buffer
+        else:
+            assert rate['buffer'] == 150 + (buffer - 150) * 10
+
+        assert exchangeRate.convertToETH(rate, -100e8) == -100e8 * rate['buffer'] / 100

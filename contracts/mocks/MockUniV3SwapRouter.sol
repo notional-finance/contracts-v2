@@ -3,14 +3,7 @@ pragma solidity =0.7.6;
 pragma experimental ABIEncoderV2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-
-interface WETH9 {
-    function deposit() external payable;
-
-    function withdraw(uint256 wad) external;
-
-    function transfer(address dst, uint256 wad) external returns (bool);
-}
+import {WETH9} from "../../interfaces/WETH9.sol";
 
 contract MockUniV3SwapRouter {
     address public WETH;

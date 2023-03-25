@@ -1,132 +1,90 @@
 import pytest
 from brownie import accounts
 from brownie.convert.datatypes import HexString
+from brownie.network.contract import Contract
 from scripts.common import TokenType
-from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF
+from tests.constants import SECONDS_IN_QUARTER, START_TIME_TREF, ZERO_ADDRESS
+from tests.helpers import setup_internal_mock
 
 
 @pytest.fixture(scope="module", autouse=True)
-def underlying(MockERC20, accounts):
-    return MockERC20.deploy("DAI", "DAI", 18, 0, {"from": accounts[0]})
-
-
-@pytest.fixture(scope="module", autouse=True)
-def cToken(MockCToken, accounts, underlying):
-    token = MockCToken.deploy(8, {"from": accounts[0]})
-    underlying.transfer(token, 100_000_000e18, {"from": accounts[0]})
-    token.setAnswer(0.02e28)
-    token.setUnderlying(underlying)
-    return token
-
-
-@pytest.fixture(scope="module", autouse=True)
-def vaultConfigState(MockVaultConfigurationState, cToken, cTokenV2Aggregator, accounts, underlying):
-    mockVaultConf = MockVaultConfigurationState.deploy({"from": accounts[0]})
-    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
-    mockVaultConf.setToken(
-        1,
-        aggregator.address,
-        18,
-        (cToken.address, False, TokenType["cToken"], 8, 0),
-        (underlying.address, False, TokenType["UnderlyingToken"], 18, 0),
-        accounts[9].address,
-        {"from": accounts[0]},
+def vaultConfigState(MockVaultConfigurationState, MockSettingsLib, accounts):
+    settings = MockSettingsLib.deploy({"from": accounts[0]})
+    mockVaultConf = MockVaultConfigurationState.deploy(settings, {"from": accounts[0]})
+    mockVaultConf = Contract.from_abi(
+        "mock", mockVaultConf.address, MockSettingsLib.abi + mockVaultConf.abi, owner=accounts[0]
     )
-    return mockVaultConf
-
-
-@pytest.fixture(scope="module", autouse=True)
-def vaultConfigAccount(
-    MockVaultConfigurationAccount, cToken, cTokenV2Aggregator, accounts, underlying
-):
-    mockVaultConf = MockVaultConfigurationAccount.deploy({"from": accounts[0]})
-    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
-    mockVaultConf.setToken(
-        1,
-        aggregator.address,
-        18,
-        (cToken.address, False, TokenType["cToken"], 8, 0),
-        (underlying.address, False, TokenType["UnderlyingToken"], 18, 0),
-        accounts[9].address,
-        {"from": accounts[0]},
-    )
-    return mockVaultConf
-
-
-@pytest.fixture(scope="module")
-def cTokenVaultConfig(
-    MockVaultConfigurationAccount, MockCToken, cTokenV2Aggregator, MockERC20, accounts
-):
-    mockVaultConf = MockVaultConfigurationAccount.deploy({"from": accounts[0]})
-
-    cETH = MockCToken.deploy(8, {"from": accounts[0]})
-    aggregator = cTokenV2Aggregator.deploy(cETH.address, {"from": accounts[0]})
-    mockVaultConf.setToken(
-        1,
-        aggregator.address,
-        18,
-        (cETH.address, False, TokenType["cETH"], 8, 0),
-        (HexString(0, "bytes20"), False, TokenType["Ether"], 18, 0),
-        accounts[9].address,
-        {"from": accounts[0]},
-    )
-    cETH.setAnswer(0.02e28)
-
-    for currencyId in range(2, 5):
-        cToken = MockCToken.deploy(8, {"from": accounts[0]})
-        if currencyId == 2:
-            underlying = MockERC20.deploy("DAI", "DAI", 18, 0, {"from": accounts[0]})
-            underlying.transfer(cToken, 100_000_000e18, {"from": accounts[0]})
-            cToken.setAnswer(0.02e28)
-        elif currencyId == 3:
-            # Has transfer fee
-            underlying = MockERC20.deploy("TEST", "TEST", 8, 0.01e18, {"from": accounts[0]})
-            underlying.transfer(cToken, 100_000_000e8, {"from": accounts[0]})
-            cToken.setAnswer(0.02e18)
-        elif currencyId == 4:
-            underlying = MockERC20.deploy("USDC", "USDC", 6, 0, {"from": accounts[0]})
-            underlying.transfer(cToken, 100_000_000e6, {"from": accounts[0]})
-            cToken.setAnswer(0.02e16)
-
-        cToken.setUnderlying(underlying)
-        aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
-
-        mockVaultConf.setToken(
-            currencyId,
-            aggregator.address,
-            underlying.decimals(),
-            (cToken.address, False, TokenType["cToken"], 8, 0),
-            (
-                underlying.address,
-                currencyId == 3,
-                TokenType["UnderlyingToken"],
-                underlying.decimals(),
-                0,
-            ),
-            accounts[10 - currencyId].address,
-            {"from": accounts[0]},
-        )
-
-    # NOMINT
-    underlying = MockERC20.deploy("NOMINT", "NOMINT", 18, 0, {"from": accounts[0]})
-    mockVaultConf.setToken(
-        5,
-        HexString(0, "bytes20"),
-        underlying.decimals(),
-        (underlying.address, False, TokenType["NonMintable"], 18, 0),
-        (HexString(0, "bytes20"), False, TokenType["UnderlyingToken"], 0, 0),
-        accounts[10 - 5].address,
-        {"from": accounts[0]},
-    )
+    tokens = setup_internal_mock(mockVaultConf)
+    mockVaultConf.setToken(1, (ZERO_ADDRESS, False, TokenType["Ether"], 18, 0))
+    mockVaultConf.setToken(2, (tokens["DAI"], False, TokenType["UnderlyingToken"], 18, 0))
+    mockVaultConf.setToken(3, (tokens["USDC"], False, TokenType["UnderlyingToken"], 6, 0))
+    mockVaultConf.setToken(4, (tokens["WBTC"], False, TokenType["UnderlyingToken"], 8, 0))
 
     return mockVaultConf
 
 
 @pytest.fixture(scope="module", autouse=True)
-def vault(SimpleStrategyVault, vaultConfigAccount, accounts):
-    return SimpleStrategyVault.deploy(
-        "Simple Strategy", vaultConfigAccount.address, 1, {"from": accounts[0]}
+def vaultConfigTokenTransfer(MockVaultTokenTransfers, accounts, MockSettingsLib):
+    settings = MockSettingsLib.deploy({"from": accounts[0]})
+    mockVaultConf = MockVaultTokenTransfers.deploy(settings, {"from": accounts[0]})
+    mockVaultConf = Contract.from_abi(
+        "mock", mockVaultConf.address, MockSettingsLib.abi + mockVaultConf.abi, owner=accounts[0]
     )
+    tokens = setup_internal_mock(mockVaultConf)
+    mockVaultConf.setToken(1, (ZERO_ADDRESS, False, TokenType["Ether"], 18, 0))
+    mockVaultConf.setToken(2, (tokens["DAI"], False, TokenType["UnderlyingToken"], 18, 0))
+    mockVaultConf.setToken(3, (tokens["USDC"], False, TokenType["UnderlyingToken"], 6, 0))
+    mockVaultConf.setToken(4, (tokens["WBTC"], False, TokenType["UnderlyingToken"], 8, 0))
+
+    return mockVaultConf
+
+
+@pytest.fixture(scope="module", autouse=True)
+def vaultConfigAccount(MockVaultAccount, accounts, MockSettingsLib):
+    settings = MockSettingsLib.deploy({"from": accounts[0]})
+    mockVaultConf = MockVaultAccount.deploy(settings, {"from": accounts[0]})
+    mockVaultConf = Contract.from_abi(
+        "mock", mockVaultConf.address, MockSettingsLib.abi + mockVaultConf.abi, owner=accounts[0]
+    )
+    tokens = setup_internal_mock(mockVaultConf)
+    mockVaultConf.setToken(1, (ZERO_ADDRESS, False, TokenType["Ether"], 18, 0))
+    mockVaultConf.setToken(2, (tokens["DAI"], False, TokenType["UnderlyingToken"], 18, 0))
+    mockVaultConf.setToken(3, (tokens["USDC"], False, TokenType["UnderlyingToken"], 6, 0))
+    mockVaultConf.setToken(4, (tokens["WBTC"], False, TokenType["UnderlyingToken"], 8, 0))
+
+    return mockVaultConf
+
+
+@pytest.fixture(scope="module", autouse=True)
+def vaultConfigSecondaryBorrow(MockVaultSecondaryBorrow, accounts, MockSettingsLib):
+    settings = MockSettingsLib.deploy({"from": accounts[0]})
+    mockVaultConf = MockVaultSecondaryBorrow.deploy(settings, {"from": accounts[0]})
+    mockVaultConf = Contract.from_abi(
+        "mock", mockVaultConf.address, MockSettingsLib.abi + mockVaultConf.abi, owner=accounts[0]
+    )
+    tokens = setup_internal_mock(mockVaultConf)
+    mockVaultConf.setToken(1, (ZERO_ADDRESS, False, TokenType["Ether"], 18, 0))
+    mockVaultConf.setToken(2, (tokens["DAI"], False, TokenType["UnderlyingToken"], 18, 0))
+    mockVaultConf.setToken(3, (tokens["USDC"], False, TokenType["UnderlyingToken"], 6, 0))
+    mockVaultConf.setToken(4, (tokens["WBTC"], False, TokenType["UnderlyingToken"], 8, 0))
+
+    return mockVaultConf
+
+
+@pytest.fixture(scope="module", autouse=True)
+def vaultConfigValuation(MockVaultValuation, accounts, MockSettingsLib):
+    settings = MockSettingsLib.deploy({"from": accounts[0]})
+    mockVaultConf = MockVaultValuation.deploy(settings, {"from": accounts[0]})
+    mockVaultConf = Contract.from_abi(
+        "mock", mockVaultConf.address, MockSettingsLib.abi + mockVaultConf.abi, owner=accounts[0]
+    )
+    tokens = setup_internal_mock(mockVaultConf)
+    mockVaultConf.setToken(1, (ZERO_ADDRESS, False, TokenType["Ether"], 18, 0))
+    mockVaultConf.setToken(2, (tokens["DAI"], False, TokenType["UnderlyingToken"], 18, 0))
+    mockVaultConf.setToken(3, (tokens["USDC"], False, TokenType["UnderlyingToken"], 6, 0))
+    mockVaultConf.setToken(4, (tokens["WBTC"], False, TokenType["UnderlyingToken"], 8, 0))
+
+    return mockVaultConf
 
 
 @pytest.fixture(autouse=True)
@@ -136,24 +94,26 @@ def isolation(fn_isolation):
 
 def set_flags(flags, **kwargs):
     binList = list(format(flags, "b").rjust(16, "0"))
-    if "ENABLED" in kwargs:
+    if "ENABLED" in kwargs and kwargs["ENABLED"]:
         binList[0] = "1"
-    if "ALLOW_ROLL_POSITION" in kwargs:
+    if "ALLOW_ROLL_POSITION" in kwargs and kwargs["ALLOW_ROLL_POSITION"]:
         binList[1] = "1"
-    if "ONLY_VAULT_ENTRY" in kwargs:
+    if "ONLY_VAULT_ENTRY" in kwargs and kwargs["ONLY_VAULT_ENTRY"]:
         binList[2] = "1"
-    if "ONLY_VAULT_EXIT" in kwargs:
+    if "ONLY_VAULT_EXIT" in kwargs and kwargs["ONLY_VAULT_EXIT"]:
         binList[3] = "1"
-    if "ONLY_VAULT_ROLL" in kwargs:
+    if "ONLY_VAULT_ROLL" in kwargs and kwargs["ONLY_VAULT_ROLL"]:
         binList[4] = "1"
-    if "ONLY_VAULT_DELEVERAGE" in kwargs:
+    if "ONLY_VAULT_DELEVERAGE" in kwargs and kwargs["ONLY_VAULT_DELEVERAGE"]:
         binList[5] = "1"
-    if "ONLY_VAULT_SETTLE" in kwargs:
+    if "ONLY_VAULT_SETTLE" in kwargs and kwargs["ONLY_VAULT_SETTLE"]:
         binList[6] = "1"
-    if "ALLOW_REENTRANCY" in kwargs:
+    if "ALLOW_REENTRANCY" in kwargs and kwargs["ALLOW_REENTRANCY"]:
         binList[7] = "1"
-    if "DISABLE_DELEVERAGE" in kwargs:
+    if "DISABLE_DELEVERAGE" in kwargs and kwargs["DISABLE_DELEVERAGE"]:
         binList[8] = "1"
+    if "ENABLE_FCASH_DISCOUNT" in kwargs and kwargs["ENABLE_FCASH_DISCOUNT"]:
+        binList[9] = "1"
     return int("".join(reversed(binList)), 2)
 
 
@@ -170,27 +130,25 @@ def get_vault_config(**kwargs):
         kwargs.get("maxDeleverageCollateralRatioBPS", 4000),  # 8: 40% max collateral ratio
         kwargs.get("secondaryBorrowCurrencies", [0, 0]),  # 9: none set
         kwargs.get("maxRequiredAccountCollateralRatio", 20000),  # 10: none set
+        kwargs.get("minAccountSecondaryBorrow", [0, 0]),  # 10: none set
     ]
 
 
 def get_vault_state(**kwargs):
     return [
         kwargs.get("maturity", START_TIME_TREF + SECONDS_IN_QUARTER),
-        kwargs.get("totalfCash", 0),
-        kwargs.get("isSettled", False),
+        kwargs.get("totalDebtUnderlying", 0),
         kwargs.get("totalVaultShares", 0),
-        kwargs.get("totalAssetCash", 0),
-        kwargs.get("totalStrategyTokens", 0),
-        kwargs.get("settlementStrategyTokenValue", 0),
+        kwargs.get("isSettled", False),
     ]
 
 
 def get_vault_account(**kwargs):
     return [
-        kwargs.get("fCash", 0),
+        kwargs.get("accountDebtUnderlying", 0),
         kwargs.get("maturity", 0),
         kwargs.get("vaultShares", 0),
         kwargs.get("account", accounts[0].address),
         kwargs.get("tempCashBalance", 0),
-        kwargs.get("lastEntryBlockHeight", 0),
+        kwargs.get("lastUpdateBlockTime", 0),
     ]

@@ -2,8 +2,9 @@ import math
 
 import brownie
 import pytest
+from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from brownie.test import given
+from brownie.test import given, strategy
 from tests.constants import (
     FCASH_ASSET_TYPE,
     MARKETS,
@@ -19,6 +20,7 @@ from tests.helpers import (
     get_market_state,
     get_portfolio_array,
     impliedRateStrategy,
+    setup_internal_mock,
 )
 
 chain = Chain()
@@ -27,52 +29,44 @@ chain = Chain()
 @pytest.mark.valuation
 class TestAssetHandler:
     @pytest.fixture(scope="class", autouse=True)
-    def assetLibrary(self, MockAssetHandler, MockCToken, cTokenV2Aggregator, accounts):
-        assetLibrary = accounts[0].deploy(MockAssetHandler)
-        ctoken = accounts[0].deploy(MockCToken, 8)
-        # This is the identity rate
-        ctoken.setAnswer(1e18)
-        aggregator = cTokenV2Aggregator.deploy(ctoken.address, {"from": accounts[0]})
+    def assetLibrary(self, MockFreeCollateral, MockSettingsLib, accounts):
+        settings = MockSettingsLib.deploy({"from": accounts[0]})
+        mock = MockFreeCollateral.deploy(settings, {"from": accounts[0]})
+        mock = Contract.from_abi(
+            "mock", mock.address, MockSettingsLib.abi + mock.abi, owner=accounts[0]
+        )
 
-        rateStorage = (aggregator.address, 8)
-        assetLibrary.setAssetRateMapping(1, rateStorage)
-        cg = get_cash_group_with_max_markets(3)
-        assetLibrary.setCashGroup(1, cg)
+        setup_internal_mock(mock)
 
-        assetLibrary.setAssetRateMapping(2, rateStorage)
-        assetLibrary.setCashGroup(2, cg)
-
-        assetLibrary.setAssetRateMapping(3, rateStorage)
-        assetLibrary.setCashGroup(3, cg)
-
-        chain.mine(1, timestamp=START_TIME)
-
-        assetLibrary.setMarketStorage(1, SETTLEMENT_DATE, get_market_state(MARKETS[0]))
-        assetLibrary.setMarketStorage(1, SETTLEMENT_DATE, get_market_state(MARKETS[1]))
-        assetLibrary.setMarketStorage(1, SETTLEMENT_DATE, get_market_state(MARKETS[2]))
-
-        assetLibrary.setMarketStorage(2, SETTLEMENT_DATE, get_market_state(MARKETS[0]))
-        assetLibrary.setMarketStorage(2, SETTLEMENT_DATE, get_market_state(MARKETS[1]))
-        assetLibrary.setMarketStorage(2, SETTLEMENT_DATE, get_market_state(MARKETS[2]))
-
-        assetLibrary.setMarketStorage(3, SETTLEMENT_DATE, get_market_state(MARKETS[0]))
-        assetLibrary.setMarketStorage(3, SETTLEMENT_DATE, get_market_state(MARKETS[1]))
-        assetLibrary.setMarketStorage(3, SETTLEMENT_DATE, get_market_state(MARKETS[2]))
-
-        return assetLibrary
+        return mock
 
     @pytest.fixture(scope="class", autouse=True)
     def cashGroups(self, assetLibrary):
-        marketStates = [
-            get_market_state(MARKETS[0]),
-            get_market_state(MARKETS[1]),
-            get_market_state(MARKETS[2]),
-        ]
-
         return [
-            (assetLibrary.buildCashGroupView(1), marketStates),
-            (assetLibrary.buildCashGroupView(2), marketStates),
-            (assetLibrary.buildCashGroupView(3), marketStates),
+            (
+                assetLibrary.buildCashGroupView(1),
+                [
+                    assetLibrary.getMarket(1, MARKETS[0], SETTLEMENT_DATE),
+                    assetLibrary.getMarket(1, MARKETS[1], SETTLEMENT_DATE),
+                    assetLibrary.getMarket(1, MARKETS[2], SETTLEMENT_DATE),
+                ],
+            ),
+            (
+                assetLibrary.buildCashGroupView(2),
+                [
+                    assetLibrary.getMarket(2, MARKETS[0], SETTLEMENT_DATE),
+                    assetLibrary.getMarket(2, MARKETS[1], SETTLEMENT_DATE),
+                    assetLibrary.getMarket(2, MARKETS[2], SETTLEMENT_DATE),
+                ],
+            ),
+            (
+                assetLibrary.buildCashGroupView(3),
+                [
+                    assetLibrary.getMarket(3, MARKETS[0], SETTLEMENT_DATE),
+                    assetLibrary.getMarket(3, MARKETS[1], SETTLEMENT_DATE),
+                    assetLibrary.getMarket(3, MARKETS[2], SETTLEMENT_DATE),
+                ],
+            ),
         ]
 
     @pytest.fixture(autouse=True)
@@ -99,139 +93,6 @@ class TestAssetHandler:
         with brownie.reverts():
             # invalid asset type
             assetLibrary.getSettlementDate((1, START_TIME_TREF, 11, 0, 0, 0))
-
-    def test_failure_liquidity_token_cash_claims(self, assetLibrary, cashGroups):
-        marketState = get_market_state(MARKETS[0])
-        (cashGroup, _) = cashGroups[0]
-
-        with brownie.reverts():
-            assetLibrary.getCashClaims(get_fcash_token(1), marketState)
-
-        with brownie.reverts():
-            assetLibrary.getHaircutCashClaims(get_fcash_token(1), marketState, cashGroup)
-
-        with brownie.reverts():
-            assetLibrary.getCashClaims((1, START_TIME_TREF, 11, 1e18, 0, 0), marketState)
-
-        with brownie.reverts():
-            assetLibrary.getHaircutCashClaims(
-                (1, START_TIME_TREF, 11, 1e18, 0, 0), marketState, cashGroup
-            )
-
-        with brownie.reverts():
-            assetLibrary.getCashClaims(get_liquidity_token(1, notional=-1), marketState)
-
-        with brownie.reverts():
-            assetLibrary.getHaircutCashClaims(
-                get_liquidity_token(1, notional=-1), marketState, cashGroup
-            )
-
-    def test_liquidity_token_cash_claims(self, assetLibrary, cashGroups):
-        marketState = get_market_state(MARKETS[1])
-        (cashGroup, _) = cashGroups[0]
-        token = get_liquidity_token(1, notional=0.5e18)
-
-        (assetCashHaircut, fCashHaircut) = assetLibrary.getHaircutCashClaims(
-            token, marketState, cashGroup
-        )
-        (assetCash, fCash) = assetLibrary.getCashClaims(token, marketState)
-
-        assert assetCashHaircut == math.trunc(0.5e18 * 99 / 100)
-        assert fCashHaircut == math.trunc(0.5e18 * 99 / 100)
-        assert assetCash == 0.5e18
-        assert fCash == 0.5e18
-
-    def test_invalid_liquidity_token_value(self, assetLibrary, cashGroups):
-        (cashGroup, _) = cashGroups[0]
-        token = get_liquidity_token(1, maturity=MARKETS[0] + 100)
-
-        with brownie.reverts():
-            assetLibrary.getLiquidityTokenValue(0, cashGroup, [token], 0)
-
-        with brownie.reverts():
-            assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, [token], 0)
-
-        with brownie.reverts():
-            token = list(token)
-            token[3] = -1000
-            assetLibrary.getLiquidityTokenValueRiskAdjusted(0, cashGroup, [token], 0)
-
-    def test_liquidity_token_value_fcash_not_found(self, assetLibrary, cashGroups):
-        token = get_liquidity_token(1)
-        (cashGroup, _) = cashGroups[0]
-        oracleRate = get_market_state(MARKETS[0])[6]
-        assetsBefore = tuple([token])
-
-        # Case when token is not found
-        (assetCash, riskAdjustedPv, assetsAfter) = assetLibrary.getLiquidityTokenValueRiskAdjusted(
-            0, cashGroup, assetsBefore, START_TIME
-        )
-
-        assert assetsAfter == assetsBefore
-        assert assetCash == 0.99e18
-        assert riskAdjustedPv == assetLibrary.getRiskAdjustedPresentValue(
-            cashGroup, 0.99e18, MARKETS[0], START_TIME, oracleRate
-        )
-
-        # Test when not risk adjusted
-        (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
-            0, cashGroup, assetsBefore, START_TIME
-        )
-
-        assert assetsAfter == assetsBefore
-        assert assetCash == 1e18
-        assert pv == assetLibrary.getPresentValue(1e18, MARKETS[0], START_TIME, oracleRate)
-
-    def test_liquidity_token_value_fcash_not_found_index_positive(self, assetLibrary, cashGroups):
-        token = get_liquidity_token(1, currencyId=2)
-        (cashGroup, _) = cashGroups[1]
-        oracleRate = get_market_state(MARKETS[0])[6]
-        assetsBefore = [get_fcash_token(1, notional=-0.25e18), token]
-
-        # Case when token is not found
-        (assetCash, riskAdjustedPv, assetsAfter) = assetLibrary.getLiquidityTokenValueRiskAdjusted(
-            1, cashGroup, assetsBefore, START_TIME
-        )
-
-        assert assetsAfter == assetsBefore
-        assert assetCash == 0.99e18
-        assert riskAdjustedPv == assetLibrary.getRiskAdjustedPresentValue(
-            cashGroup, 0.99e18, MARKETS[0], START_TIME, oracleRate
-        )
-
-        # Test when not risk adjusted
-        (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
-            1, cashGroup, assetsBefore, START_TIME
-        )
-
-        assert assetsAfter == assetsBefore
-        assert assetCash == 1e18
-        assert pv == assetLibrary.getPresentValue(1e18, MARKETS[0], START_TIME, oracleRate)
-
-    def test_liquidity_token_value_fcash_found(self, assetLibrary, cashGroups):
-        token = get_liquidity_token(1, notional=0.5e18)
-        (cashGroup, _) = cashGroups[0]
-        assets = [get_fcash_token(1, notional=-0.25e18), token]
-
-        # Case when token is found
-        (assetCash, pv, assetsAfter) = assetLibrary.getLiquidityTokenValue(
-            1, cashGroup, assets, START_TIME
-        )
-
-        assert assetCash == 0.5e18
-        assert pv == 0
-        assert assetsAfter[0][3] == 0.25e18
-
-        (assetCash, riskAdjustedPv, assetsAfter) = assetLibrary.getLiquidityTokenValueRiskAdjusted(
-            1, cashGroup, assets, START_TIME
-        )
-
-        assert assetCash == 0.5e18 * 0.99
-        assert riskAdjustedPv == 0
-        # Take the haircut first and then net off
-        assert assetsAfter[0][3] == (0.5e18 * 0.99) - 0.25e18
-        # Assert that this now has a storage state of RevertIfStored
-        assert assetsAfter[0][5] == 3
 
     @pytest.mark.skip_coverage
     @given(oracleRate=impliedRateStrategy)
@@ -271,52 +132,39 @@ class TestAssetHandler:
         assert riskPVNegative == -1e18
 
     def test_oracle_rate_failure(self, assetLibrary, cashGroups):
-        (cashGroup, _) = cashGroups[0]
         assets = [get_fcash_token(1, maturity=MARKETS[5])]
 
         # Fails due to unset market
         with brownie.reverts():
-            assetLibrary.getNetCashGroupValue(assets, cashGroup, START_TIME, 0)
+            assetLibrary.getNetCashGroupValue(assets, START_TIME, 0)
 
-    def test_portfolio_value_cash_group_not_found(self, assetLibrary, cashGroups):
-        (cashGroup, _) = cashGroups[0]
-        assets = [get_fcash_token(1, currencyId=2)]
-
-        # Cash group not found
-        (pvAsset, index) = assetLibrary.getNetCashGroupValue(assets, cashGroup, START_TIME, 0)
-        assert pvAsset == 0
-        assert index == 0
-
-    def test_portfolio_value(self, assetLibrary, cashGroups):
+    @given(randSeed=strategy("uint"))
+    def test_portfolio_value(self, assetLibrary, cashGroups, randSeed):
         cgs = [cashGroups[0][0], cashGroups[1][0], cashGroups[2][0]]
-        assets = get_portfolio_array(5, cgs, sorted=True)
+        assets = get_portfolio_array(5, cgs, sorted=True, noLiquidity=True)
 
-        assetValuesRiskAdjusted = []
+        primeValuesRiskAdjusted = []
         i = 0
         for c in cgs:
-            (av, i) = assetLibrary.getNetCashGroupValue(assets, c, START_TIME, i)
-            assetValuesRiskAdjusted.append(av)
+            (av, i) = assetLibrary.getNetCashGroupValue(assets, START_TIME, i)
+            primeValuesRiskAdjusted.append(av)
 
-        assert len(assetValuesRiskAdjusted) == 3
+        assert len(primeValuesRiskAdjusted) == 3
         assert i == len(assets)
 
-        totalPV = [0, 0, 0]
-        for asset in assets:
+        totalPrimeValue = [0, 0, 0]
+        for (i, asset) in enumerate(assets):
             currencyId = asset[0]
-            if asset[2] == FCASH_ASSET_TYPE:
-                # All implied rates in this example are 0.1e9
-                totalPV[currencyId - 1] += assetLibrary.getPresentValue(
-                    asset[3], asset[1], START_TIME, 0.1e9
-                )
-            else:
-                (assetCash, pv, _) = assetLibrary.getLiquidityTokenValue(
-                    0, cgs[currencyId - 1], [asset], START_TIME
-                )
-                totalPV[currencyId - 1] += pv
-                totalPV[currencyId - 1] += assetCash
+            (pr, _) = assetLibrary.buildPrimeRateView(currencyId, START_TIME)
 
-        for (i, pv) in enumerate(totalPV):
+            market = assetLibrary.getMarket(currencyId, asset[1], SETTLEMENT_DATE)
+            totalPrimeValue[currencyId - 1] += assetLibrary.convertFromUnderlying(
+                pr,
+                assetLibrary.getPresentValue(asset[3], asset[1], START_TIME, market["oracleRate"]),
+            )
+
+        for (i, pv) in enumerate(totalPrimeValue):
             if pv == 0:
-                assert assetValuesRiskAdjusted[i] == 0
+                assert primeValuesRiskAdjusted[i] == 0
             else:
-                assert pv > assetValuesRiskAdjusted[i]
+                assert pv > primeValuesRiskAdjusted[i]

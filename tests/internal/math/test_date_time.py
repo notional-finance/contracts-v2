@@ -1,14 +1,21 @@
 import random
 
 import pytest
+from brownie.network.contract import Contract
 from brownie.test import given, strategy
 from tests.constants import SECONDS_IN_DAY, START_TIME
 
 
 class TestDateTime:
     @pytest.fixture(scope="module", autouse=True)
-    def dateTime(self, MockCashGroup, MockCToken, accounts):
-        return accounts[0].deploy(MockCashGroup)
+    def dateTime(self, MockCashGroup, MockSettingsLib, accounts):
+        settings = MockSettingsLib.deploy({"from": accounts[0]})
+        mock = MockCashGroup.deploy(settings, {"from": accounts[0]})
+        mock = Contract.from_abi(
+            "mock", mock.address, MockSettingsLib.abi + mock.abi, owner=accounts[0]
+        )
+
+        return mock
 
     @pytest.fixture(autouse=True)
     def isolation(self, fn_isolation):

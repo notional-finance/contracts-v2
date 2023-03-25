@@ -10,6 +10,13 @@ contract MockPortfolioHandler is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
 
+    event TotalfCashDebtOutstandingChanged(
+        uint16 indexed currencyId,
+        uint256 indexed maturity,
+        int256 totalfCashDebt,
+        int256 netDebtChange
+    );
+
     function getAssetArray(address account) external view returns (PortfolioAsset[] memory) {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
         return PortfolioHandler.getSortedPortfolio(account, accountContext.assetArrayLength);
@@ -17,7 +24,7 @@ contract MockPortfolioHandler is StorageLayoutV1 {
 
     function addAsset(
         PortfolioState memory portfolioState,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
         uint256 assetType,
         int256 notional
@@ -36,7 +43,7 @@ contract MockPortfolioHandler is StorageLayoutV1 {
         returns (AccountContext memory)
     {
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
-        accountContext.storeAssetsAndUpdateContext(account, portfolioState, false);
+        accountContext.storeAssetsAndUpdateContext(account, portfolioState);
         accountContext.setAccountContext(account);
 
         return accountContext;
@@ -65,5 +72,9 @@ contract MockPortfolioHandler is StorageLayoutV1 {
                 accountContext.assetArrayLength,
                 newAssetsHint
             );
+    }
+
+    function negChange(int256 start, int256 end) external pure returns (int256) {
+        return SafeInt256.negChange(start, end);
     }
 }

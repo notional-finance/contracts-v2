@@ -2,18 +2,25 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
+import "../global/Types.sol";
 import "../internal/markets/Market.sol";
 import "../internal/portfolio/BitmapAssetsHandler.sol";
-import "../internal/markets/AssetRate.sol";
+import {PrimeRateLib} from "../internal/pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../internal/pCash/PrimeCashExchangeRate.sol";
 import "../global/StorageLayoutV1.sol";
+import "./valuation/AbstractSettingsRouter.sol";
 
-contract MockBitmapAssetsHandler is StorageLayoutV1 {
+contract MockBitmapAssetsHandler is AbstractSettingsRouter {
     using Market for MarketParameters;
 
-    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
-        assetStore[id] = rs;
-    }
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
+
+    event TotalfCashDebtOutstandingChanged(
+        uint16 indexed currencyId,
+        uint256 indexed maturity,
+        int256 totalfCashDebt,
+        int256 netDebtChange
+    );
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
@@ -57,7 +64,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
 
     function addifCashAsset(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 maturity,
         uint256 nextSettleTime,
         int256 notional
@@ -140,7 +147,7 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
 
     function getifCashArray(
         address account,
-        uint256 currencyId,
+        uint16 currencyId,
         uint256 nextSettleTime
     ) external view returns (PortfolioAsset[] memory) {
         return BitmapAssetsHandler.getifCashArray(account, currencyId, nextSettleTime);
@@ -157,5 +164,12 @@ contract MockBitmapAssetsHandler is StorageLayoutV1 {
         uint256 bitNum
     ) external pure returns (bool) {
         return Bitmap.isBitSet(bitmap, bitNum);
+    }
+
+    function getTotalfCashDebtOutstanding(
+        uint16 currencyId,
+        uint256 maturity
+    ) external view returns (int256) {
+        return PrimeCashExchangeRate.getTotalfCashDebtOutstanding(currencyId, maturity);
     }
 }

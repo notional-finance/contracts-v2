@@ -6,7 +6,12 @@ from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults, nTokenDefaults
 from tests.constants import SECONDS_IN_QUARTER
-from tests.helpers import get_balance_action, get_balance_trade_action, initialize_environment
+from tests.helpers import (
+    get_balance_action,
+    get_balance_trade_action,
+    get_interest_rate_curve,
+    initialize_environment,
+)
 
 chain = Chain()
 LocalCurrency_NoTransferFee = 0
@@ -95,9 +100,8 @@ def env(accounts):
 
     environment.notional.updateCashGroup(2, cashGroup)
     environment.notional.updateDepositParameters(2, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
-    environment.notional.updateInitializationParameters(
-        2, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
-    )
+    environment.notional.updateInterestRateCurve(2, [1, 2, 3], [get_interest_rate_curve()] * 3)
+    environment.notional.updateInitializationParameters(2, [0] * 3, [0.5e9, 0.5e9, 0.5e9])
 
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
@@ -113,9 +117,8 @@ def env(accounts):
     environment.notional.updateCashGroup(5, cashGroup)
     environment.notional.updateDepositParameters(5, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])
     environment.notional.updateTokenCollateralParameters(5, *(nTokenDefaults["Collateral"]))
-    environment.notional.updateInitializationParameters(
-        5, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
-    )
+    environment.notional.updateInterestRateCurve(5, [1, 2, 3], [get_interest_rate_curve()] * 3)
+    environment.notional.updateInitializationParameters(5, [0] * 3, [0.5e9, 0.5e9, 0.5e9])
     environment.notional.batchBalanceAction(
         accounts[0],
         [get_balance_action(5, "DepositAssetAndMintNToken", depositActionAmount=50000000e8)],

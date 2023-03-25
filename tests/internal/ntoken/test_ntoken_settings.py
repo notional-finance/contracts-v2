@@ -208,31 +208,29 @@ class TestNTokenSettings:
 
     def test_init_parameters_failures(self, nToken):
         with brownie.reverts("PT: annualized anchor rates length"):
-            nToken.setInitializationParameters(1, [1] * 10, [1] * 10)
+            nToken.setInitializationParameters(1, [0] * 10, [1] * 10)
 
         with brownie.reverts("PT: proportions length"):
-            nToken.setInitializationParameters(1, [1] * 2, [1] * 10)
+            nToken.setInitializationParameters(1, [0] * 2, [1] * 10)
 
         with brownie.reverts("PT: invalid proportion"):
-            nToken.setInitializationParameters(1, [0.02e9], [0])
-            nToken.setInitializationParameters(1, [0.02e9], [1.1e9])
+            nToken.setInitializationParameters(1, [0], [0])
+            nToken.setInitializationParameters(1, [0], [1.1e9])
 
-        with brownie.reverts("NT: anchor rate zero"):
-            nToken.setInitializationParameters(1, [0], [0.5e9])
+        with brownie.reverts():
+            nToken.setInitializationParameters(1, [1], [0.5e9])
 
         with brownie.reverts("PT: invalid proportion"):
-            nToken.setInitializationParameters(1, [1.1e9], [1.1e9])
+            nToken.setInitializationParameters(1, [0], [1.1e9])
 
     @given(maxMarketIndex=strategy("uint", min_value=0, max_value=7))
     def test_init_parameters_values(self, nToken, maxMarketIndex):
         currencyId = 1
-        initialAnnualRates = [random.randint(0, 0.4e9) for i in range(0, maxMarketIndex)]
+        # anchor rates are no longer used or returned from nToken settings
+        initialAnnualRates = [0 for i in range(0, maxMarketIndex)]
         proportions = [random.randint(0.75e9, 0.999e9) for i in range(0, maxMarketIndex)]
 
         nToken.setInitializationParameters(currencyId, initialAnnualRates, proportions)
 
-        (storedRateAnchors, storedProportions) = nToken.getInitializationParameters(
-            currencyId, maxMarketIndex
-        )
-        assert storedRateAnchors == initialAnnualRates
+        storedProportions = nToken.getInitializationParameters(currencyId, maxMarketIndex)
         assert storedProportions == proportions

@@ -1,3 +1,4 @@
+import brownie
 import pytest
 from brownie.network.state import Chain
 from tests.constants import HAS_ASSET_DEBT, HAS_CASH_DEBT, SECONDS_IN_QUARTER
@@ -110,7 +111,7 @@ def test_settle_bitmap_to_cash(environment, accounts):
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
     )
-    collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=50000e8)
+    collateral = get_balance_trade_action(3, "DepositUnderlying", [], depositActionAmount=1000e6)
 
     environment.notional.batchBalanceAndTradeAction(
         accounts[1], [borrowAction, collateral], {"from": accounts[1]}
@@ -129,7 +130,7 @@ def test_settle_bitmap_to_cash(environment, accounts):
     assert len(portfolio) == 0
     assert context[1] == HAS_CASH_DEBT
     assert context[0] == get_tref(txn.timestamp)
-    assert balance[0] == -5000e8
+    assert environment.approxInternal("DAI", balance[0], -100e8)
 
     check_system_invariants(environment, accounts)
 
@@ -153,7 +154,7 @@ def test_settle_bitmap_shift_assets(environment, accounts):
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
     )
-    collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=50000e8)
+    collateral = get_balance_trade_action(3, "DepositUnderlying", [], depositActionAmount=1000e6)
 
     markets = environment.notional.getActiveMarkets(2)
     environment.notional.batchBalanceAndTradeAction(
@@ -196,7 +197,7 @@ def test_settle_array_to_cash(environment, accounts):
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
     )
-    collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=50000e8)
+    collateral = get_balance_trade_action(3, "DepositUnderlying", [], depositActionAmount=1000e6)
 
     environment.notional.batchBalanceAndTradeAction(
         accounts[1], [borrowAction, collateral], {"from": accounts[1]}
@@ -214,8 +215,8 @@ def test_settle_array_to_cash(environment, accounts):
     balance = environment.notional.getAccountBalance(currencyId, accounts[1])
     assert len(portfolio) == 0
     assert context[1] == HAS_CASH_DEBT
-    assert balance[0] == -5000e8
     assert context[0] == 0
+    assert environment.approxInternal("DAI", balance[0], -100e8)
 
     check_system_invariants(environment, accounts)
 
@@ -234,7 +235,7 @@ def test_settle_on_withdraw(environment, accounts):
     environment.notional.initializeMarkets(2, False)
     environment.notional.initializeMarkets(3, False)
 
-    txn = environment.notional.withdraw(1, 50e8, False, {"from": account})
+    txn = environment.notional.withdraw(1, 1e8, True, {"from": account})
     assert txn.events["AccountSettled"]
 
     check_system_invariants(environment, accounts)
@@ -271,5 +272,20 @@ def test_transfer_fcash_requires_settlement(environment, accounts):
     assert txn.events["AccountSettled"][1]["account"] == accounts[1]
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 1
     assert len(environment.notional.getAccountPortfolio(accounts[1])) == 1
+
+    check_system_invariants(environment, accounts)
+
+
+def test_settlement_requires_markets_initialized(environment, accounts):
+    account = accounts[1]
+    setup_multiple_asset_settlement(environment, account)
+
+    # Set the blockchain forward one quarter to settle
+    blockTime = chain.time()
+    newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
+    chain.mine(1, timestamp=newTime)
+
+    with brownie.reverts("Must init markets"):
+        environment.notional.settleAccount(accounts[1])
 
     check_system_invariants(environment, accounts)

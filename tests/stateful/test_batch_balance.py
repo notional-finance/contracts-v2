@@ -1,6 +1,8 @@
 import brownie
 import pytest
 from brownie.network.state import Chain
+from brownie.test import given, strategy
+from tests.constants import HAS_CASH_DEBT
 from tests.helpers import active_currencies_to_list, get_balance_action, initialize_environment
 from tests.stateful.invariants import check_system_invariants
 
@@ -22,8 +24,8 @@ def test_fails_on_unordered_currencies(environment, accounts):
         environment.notional.batchBalanceAction(
             accounts[0],
             [
-                get_balance_action(3, "DepositAsset", depositActionAmount=int(100e8)),
-                get_balance_action(2, "DepositAsset", depositActionAmount=int(100e8)),
+                get_balance_action(3, "DepositUnderlying", depositActionAmount=int(100e8)),
+                get_balance_action(2, "DepositUnderlying", depositActionAmount=int(100e8)),
             ],
         )
 
@@ -31,8 +33,8 @@ def test_fails_on_unordered_currencies(environment, accounts):
         environment.notional.batchBalanceAction(
             accounts[0],
             [
-                get_balance_action(2, "DepositAsset", depositActionAmount=100e8),
-                get_balance_action(2, "DepositAsset", depositActionAmount=100e8),
+                get_balance_action(2, "DepositUnderlying", depositActionAmount=100e8),
+                get_balance_action(2, "DepositUnderlying", depositActionAmount=100e8),
             ],
         )
 
@@ -60,35 +62,39 @@ def test_fails_on_unauthorized_caller(environment, accounts):
         )
 
 
-def test_deposit_asset_batch(environment, accounts):
+def test_deposit_deprecated_asset_batch(environment, accounts):
     txn = environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "DepositAsset", depositActionAmount=100e8),
-            get_balance_action(3, "DepositAsset", depositActionAmount=100e8),
+            get_balance_action(2, "DepositAsset", depositActionAmount=5000e8),
+            get_balance_action(3, "DepositAsset", depositActionAmount=5000e8),
         ],
         {"from": accounts[1]},
     )
 
     assert txn.events["CashBalanceChange"][0]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][0]["currencyId"] == 2
-    assert txn.events["CashBalanceChange"][0]["netCashChange"] == 100e8
+    assert environment.approxExternal(
+        "DAI", txn.events["CashBalanceChange"][0]["netCashChange"], 100e18
+    )
 
     assert txn.events["CashBalanceChange"][1]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][1]["currencyId"] == 3
-    assert txn.events["CashBalanceChange"][1]["netCashChange"] == 100e8
+    assert environment.approxExternal(
+        "USDC", txn.events["CashBalanceChange"][1]["netCashChange"], 100e6
+    )
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
     assert activeCurrenciesList == [(2, False, True), (3, False, True)]
 
     balances = environment.notional.getAccountBalance(2, accounts[1])
-    assert balances[0] == 100e8
+    assert environment.approxInternal("DAI", balances[0], 100e8)
     assert balances[1] == 0
     assert balances[2] == 0
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
-    assert balances[0] == 100e8
+    assert environment.approxInternal("USDC", balances[0], 100e8)
     assert balances[1] == 0
     assert balances[2] == 0
 
@@ -107,46 +113,65 @@ def test_deposit_underlying_batch(environment, accounts):
 
     assert txn.events["CashBalanceChange"][0]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][0]["currencyId"] == 2
-    assert txn.events["CashBalanceChange"][0]["netCashChange"] == 5000e8
+    assert environment.approxExternal(
+        "DAI", txn.events["CashBalanceChange"][0]["netCashChange"], 100e18
+    )
 
     assert txn.events["CashBalanceChange"][1]["account"] == accounts[1]
     assert txn.events["CashBalanceChange"][1]["currencyId"] == 3
-    assert txn.events["CashBalanceChange"][1]["netCashChange"] == 5000e8
+    assert environment.approxExternal(
+        "USDC", txn.events["CashBalanceChange"][1]["netCashChange"], 100e6
+    )
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
     assert activeCurrenciesList == [(2, False, True), (3, False, True)]
 
     balances = environment.notional.getAccountBalance(2, accounts[1])
-    assert balances[0] == 5000e8
+    assert environment.approxInternal("DAI", balances[0], 100e8)
     assert balances[1] == 0
     assert balances[2] == 0
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
-    assert balances[0] == 5000e8
+    assert environment.approxInternal("USDC", balances[0], 100e8)
     assert balances[1] == 0
     assert balances[2] == 0
 
     check_system_invariants(environment, accounts)
 
 
-def test_deposit_asset_and_mint_perpetual(environment, accounts):
-    txn = environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=100e8),
-            get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=100e8),
-        ],
-        {"from": accounts[1]},
-    )
+@given(useUnderlying=strategy("bool"))
+def test_deposit_and_mint_ntoken(environment, accounts, useUnderlying):
+    if useUnderlying:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(2, "DepositUnderlyingAndMintNToken", depositActionAmount=100e18),
+                get_balance_action(3, "DepositUnderlyingAndMintNToken", depositActionAmount=100e6),
+            ],
+            {"from": accounts[1]},
+        )
+    else:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
+                get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
+            ],
+            {"from": accounts[1]},
+        )
 
     assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
     assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == 100e8
+    assert environment.approxInternal(
+        "DAI", txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"], 100e8
+    )
 
     assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
     assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == 100e8
+    assert environment.approxInternal(
+        "USDC", txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"], 100e8
+    )
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -154,44 +179,11 @@ def test_deposit_asset_and_mint_perpetual(environment, accounts):
 
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
-    assert balances[1] == 100e8
+    assert environment.approxInternal("DAI", balances[1], 100e8)
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
     assert balances[0] == 0
-    assert balances[1] == 100e8
-
-    check_system_invariants(environment, accounts)
-
-
-def test_deposit_underlying_and_mint_perpetual(environment, accounts):
-    txn = environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(2, "DepositUnderlyingAndMintNToken", depositActionAmount=100e18),
-            get_balance_action(3, "DepositUnderlyingAndMintNToken", depositActionAmount=100e6),
-        ],
-        {"from": accounts[1]},
-    )
-
-    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == 5000e8
-
-    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == 5000e8
-
-    context = environment.notional.getAccountContext(accounts[1])
-    activeCurrenciesList = active_currencies_to_list(context[4])
-    assert activeCurrenciesList == [(2, False, True), (3, False, True)]
-
-    balances = environment.notional.getAccountBalance(2, accounts[1])
-    assert balances[0] == 0
-    assert balances[1] == 5000e8
-
-    balances = environment.notional.getAccountBalance(3, accounts[1])
-    assert balances[0] == 0
-    assert balances[1] == 5000e8
+    assert environment.approxInternal("USDC", balances[1], 100e8)
 
     check_system_invariants(environment, accounts)
 
@@ -200,95 +192,43 @@ def test_redeem_ntoken(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=100e8),
-            get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=100e8),
+            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
+            get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
         ],
         {"from": accounts[1]},
     )
 
+    daiNTokenBalance = environment.notional.getAccountBalance(2, accounts[1])[1]
+    usdcNTokenBalance = environment.notional.getAccountBalance(3, accounts[1])[1]
+
     txn = environment.notional.batchBalanceAction(
         accounts[1],
         [
-            get_balance_action(2, "RedeemNToken", depositActionAmount=100e8),
-            get_balance_action(3, "RedeemNToken", depositActionAmount=100e8),
+            get_balance_action(2, "RedeemNToken", depositActionAmount=daiNTokenBalance),
+            get_balance_action(3, "RedeemNToken", depositActionAmount=usdcNTokenBalance),
         ],
         {"from": accounts[1]},
     )
 
     assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
     assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -100e8
+    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -daiNTokenBalance
 
     assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
     assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -100e8
+    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -usdcNTokenBalance
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
     assert activeCurrenciesList == [(2, False, True), (3, False, True)]
 
     balances = environment.notional.getAccountBalance(2, accounts[1])
-    assert balances[0] == 100e8
+    assert environment.approxExternal("DAI", balances[0], 100e18)
     assert balances[1] == 0
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
-    assert balances[0] == 100e8
+    assert environment.approxExternal("USDC", balances[0], 100e6)
     assert balances[1] == 0
-
-    check_system_invariants(environment, accounts)
-
-
-def test_redeem_ntoken_and_withdraw_asset(environment, accounts):
-    environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=100e8),
-            get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=100e8),
-        ],
-        {"from": accounts[1]},
-    )
-
-    daiBalanceBefore = environment.cToken["DAI"].balanceOf(accounts[1])
-    usdcBalanceBefore = environment.cToken["USDC"].balanceOf(accounts[1])
-
-    txn = environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(
-                2, "RedeemNToken", depositActionAmount=100e8, withdrawEntireCashBalance=True
-            ),
-            get_balance_action(
-                3, "RedeemNToken", depositActionAmount=100e8, withdrawEntireCashBalance=True
-            ),
-        ],
-        {"from": accounts[1]},
-    )
-
-    daiBalanceAfter = environment.cToken["DAI"].balanceOf(accounts[1])
-    usdcBalanceAfter = environment.cToken["USDC"].balanceOf(accounts[1])
-
-    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -100e8
-
-    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -100e8
-
-    context = environment.notional.getAccountContext(accounts[1])
-    activeCurrenciesList = active_currencies_to_list(context[4])
-    assert activeCurrenciesList == []
-
-    balances = environment.notional.getAccountBalance(2, accounts[1])
-    assert balances[0] == 0
-    assert balances[1] == 0
-    assert daiBalanceAfter - daiBalanceBefore == 100e8
-
-    balances = environment.notional.getAccountBalance(3, accounts[1])
-    assert balances[0] == 0
-    assert balances[1] == 0
-    assert usdcBalanceAfter - usdcBalanceBefore == 100e8
-    # TODO: test incentives
 
     check_system_invariants(environment, accounts)
 
@@ -306,20 +246,23 @@ def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
     daiBalanceBefore = environment.token["DAI"].balanceOf(accounts[1])
     usdcBalanceBefore = environment.token["USDC"].balanceOf(accounts[1])
 
+    daiNTokenBalance = environment.notional.getAccountBalance(2, accounts[1])[1]
+    usdcNTokenBalance = environment.notional.getAccountBalance(3, accounts[1])[1]
+
     txn = environment.notional.batchBalanceAction(
         accounts[1],
         [
             get_balance_action(
                 2,
                 "RedeemNToken",
-                depositActionAmount=100e8,
+                depositActionAmount=daiNTokenBalance * 0.1,
                 withdrawEntireCashBalance=True,
                 redeemToUnderlying=True,
             ),
             get_balance_action(
                 3,
                 "RedeemNToken",
-                depositActionAmount=100e8,
+                depositActionAmount=usdcNTokenBalance * 0.1,
                 withdrawEntireCashBalance=True,
                 redeemToUnderlying=True,
             ),
@@ -332,11 +275,11 @@ def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
 
     assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
     assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -100e8
+    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -daiNTokenBalance * 0.1
 
     assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
     assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -100e8
+    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -usdcNTokenBalance * 0.1
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -344,13 +287,13 @@ def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
 
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
-    assert balances[1] == 4900e8
-    assert daiBalanceAfter - daiBalanceBefore == 2e18
+    assert pytest.approx(balances[1], abs=10) == daiNTokenBalance * 0.9
+    assert pytest.approx(daiBalanceAfter - daiBalanceBefore, abs=1e10) == 10e18
 
     balances = environment.notional.getAccountBalance(3, accounts[1])
     assert balances[0] == 0
-    assert balances[1] == 4900e8
-    assert usdcBalanceAfter - usdcBalanceBefore == 2e6
+    assert pytest.approx(balances[1], abs=10) == usdcNTokenBalance * 0.9
+    assert pytest.approx(usdcBalanceAfter - usdcBalanceBefore, abs=10) == 10e6
 
     check_system_invariants(environment, accounts)
 
@@ -358,29 +301,65 @@ def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
 def test_convert_cash_to_ntoken(environment, accounts):
     environment.notional.batchBalanceAction(
         accounts[1],
-        [get_balance_action(2, "DepositAsset", depositActionAmount=100000e8)],
+        [get_balance_action(2, "DepositUnderlying", depositActionAmount=100_000e18)],
         {"from": accounts[1]},
     )
     balances = environment.notional.getAccountBalance(2, accounts[1])
-    assert balances[0] == 100000e8
+    assert environment.approxExternal("DAI", balances[0], 100_000e18)
     assert balances[1] == 0
     assert balances[2] == 0
 
-    with brownie.reverts("Insufficient cash"):
+    with brownie.reverts("No Prime Borrow"):
         environment.notional.batchBalanceAction(
             accounts[1],
-            [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=1000000e8)],
+            [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=balances[0] * 10)],
             {"from": accounts[1]},
         )
 
     environment.notional.batchBalanceAction(
         accounts[1],
-        [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=100000e8)],
+        [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=balances[0])],
         {"from": accounts[1]},
     )
 
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
-    assert balances[1] == 100000e8
+    assert environment.approxInternal("DAI", balances[1], 100_000e8)
+
+    check_system_invariants(environment, accounts)
+
+
+def test_borrow_prime_to_mint_ntoken(environment, accounts):
+    # Account is borrowing prime cash to mint nTokens and depositing USDC as the margin
+    with brownie.reverts("No Prime Borrow"):
+        environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(2, "ConvertCashToNToken", depositActionAmount=100_000e8),
+                get_balance_action(3, "DepositUnderlying", depositActionAmount=30_000e6),
+            ],
+            {"from": accounts[1]},
+        )
+
+    environment.notional.enablePrimeBorrow(True, {"from": accounts[1]})
+    environment.notional.batchBalanceAction(
+        accounts[1],
+        [
+            get_balance_action(2, "ConvertCashToNToken", depositActionAmount=100_000e8),
+            get_balance_action(3, "DepositUnderlying", depositActionAmount=30_000e6),
+        ],
+        {"from": accounts[1]},
+    )
+
+    context = environment.notional.getAccountContext(accounts[1])
+    assert context["hasDebt"] == HAS_CASH_DEBT
+
+    balances = environment.notional.getAccountBalance(2, accounts[1])
+    assert pytest.approx(balances[0], abs=1) == -100_000e8
+    assert balances[1] == 100_000e8
+
+    balances = environment.notional.getAccountBalance(3, accounts[1])
+    assert environment.approxExternal("USDC", balances[0], 30_000e6)
+    assert balances[1] == 0
 
     check_system_invariants(environment, accounts)

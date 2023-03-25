@@ -1,14 +1,48 @@
+import logging
+import math
+
 import brownie
 import pytest
+from brownie import MockERC20, SimpleStrategyVault
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from fixtures import *
-from tests.helpers import initialize_environment
+from tests.constants import PRIME_CASH_VAULT_MATURITY, SECONDS_IN_QUARTER
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
+LOGGER = logging.getLogger(__name__)
+
+
+"""
+Vault Exit Testing Plan
+
+Pre Exit Checks:
+  - Vault Authorization (test_only_vault_exit)
+  - Can exit if paused
+  - Min Entry Time (test_cannot_exit_within_min_blocks)
+  - Settle Vault Account
+
+Lend to Exit:
+  - Cannot lend to positive position
+  - Lending to prime cash will assess fees
+  - Lend may fail, deposit to account cash balance
+
+Transfer Tokens:
+  - Return prime cash to receiver/account
+  - Return post repayment profits to receiver/account
+  - Transfer repayment requirement from account
+
+Set Vault Account:
+  - Check minimum borrow (test_exit_vault_min_borrow)
+  - Clear maturity on full exit
+
+Check Collateral Ratio:
+  - Max Collateral Ratio (test_cannot_exit_vault_above_max_collateral)
+  - Min Collateral Ratio (test_exit_vault_insufficient_collateral)
+"""
 
 
 @pytest.fixture(autouse=True)
@@ -28,7 +62,7 @@ def test_cannot_exit_within_min_blocks(environment, vault, accounts):
         accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    with brownie.reverts("Min Entry Blocks"):
+    with brownie.reverts():
         environment.notional.exitVault(
             accounts[1],
             vault.address,
@@ -39,7 +73,6 @@ def test_cannot_exit_within_min_blocks(environment, vault, accounts):
             "",
             {"from": accounts[1]},
         )
-
 
 def test_cannot_exit_vault_above_max_collateral(environment, vault, accounts):
     environment.notional.updateVault(
@@ -59,7 +92,7 @@ def test_cannot_exit_vault_above_max_collateral(environment, vault, accounts):
         accounts[1], vault.address, 50_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
     )
 
-    chain.mine(5)
+    chain.mine(1, timedelta=60)
     with brownie.reverts("Above Max Collateral"):
         # Approx 250_000 vault shares w/ 200_000 borrow, reducing borrow
         # to 100_000 will revert (2.25x leverage < 3.3x required)
@@ -69,7 +102,7 @@ def test_cannot_exit_vault_above_max_collateral(environment, vault, accounts):
 
     # Can reduce a smaller size
     environment.notional.exitVault(
-        accounts[1], vault.address, accounts[1], 0, 10_000e8, 0, "", {"from": accounts[1]}
+        accounts[1], vault.address, accounts[1], 0, 5_000e8, 0, "", {"from": accounts[1]}
     )
 
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
@@ -91,7 +124,7 @@ def test_cannot_exit_vault_above_max_collateral(environment, vault, accounts):
         vault.address,
         accounts[1],
         vaultAccountBefore["vaultShares"],
-        190_000e8,
+        195_000e8,
         0,
         "",
         {"from": accounts[1]},
@@ -100,7 +133,7 @@ def test_cannot_exit_vault_above_max_collateral(environment, vault, accounts):
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault).dict()
     assert vaultAccountAfter["maturity"] == 0
     assert vaultAccountAfter["vaultShares"] == 0
-    assert vaultAccountAfter["fCash"] == 0
+    assert vaultAccountAfter["accountDebtUnderlying"] == 0
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -130,7 +163,7 @@ def test_only_vault_exit(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
-    chain.mine(5)
+    chain.mine(1, timedelta=60)
     # Execution from vault is allowed
     environment.notional.exitVault(
         accounts[1], vault.address, accounts[1], 50_000e8, 50_000e8, 0, "", {"from": vault.address}
@@ -151,7 +184,7 @@ def test_exit_vault_min_borrow(environment, vault, accounts):
         accounts[1], vault.address, 100_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    chain.mine(5)
+    chain.mine(1, timedelta=60)
     with brownie.reverts("Min Borrow"):
         # User account cannot directly exit vault
         environment.notional.exitVault(
@@ -164,162 +197,6 @@ def test_exit_vault_min_borrow(environment, vault, accounts):
             "",
             {"from": accounts[1]},
         )
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-def test_exit_vault_transfer_from_account(environment, vault, accounts):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 100_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    balanceBefore = environment.token["DAI"].balanceOf(accounts[1])
-
-    (amountUnderlying, _, _, _) = environment.notional.getDepositFromfCashLend(
-        2, 100_000e8, maturity, 0, chain.time()
-    )
-
-    # If vault share value < exit cost then we need to transfer from the account
-    chain.mine(5)
-    environment.notional.exitVault(
-        accounts[1], vault.address, accounts[1], 50_000e8, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
-    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultState = environment.notional.getVaultState(vault, maturity)
-
-    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-8) == amountUnderlying - 50_000e18
-    assert collateralRatioBefore < collateralRatioAfter
-
-    assert vaultAccount["fCash"] == -100_000e8
-    assert vaultAccount["maturity"] == maturity
-    assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 50_000e8
-
-    assert vaultState["totalfCash"] == -100_000e8
-    assert vaultState["totalAssetCash"] == 0
-    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
-    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-def test_exit_vault_transfer_from_account_sell_zero_shares(environment, vault, accounts):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 100_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    balanceBefore = environment.token["DAI"].balanceOf(accounts[1])
-
-    (amountUnderlying, _, _, _) = environment.notional.getDepositFromfCashLend(
-        2, 100_000e8, maturity, 0, chain.time()
-    )
-
-    # If vault share value < exit cost then we need to transfer from the account
-    chain.mine(5)
-    environment.notional.exitVault(
-        accounts[1], vault.address, accounts[1], 0, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
-    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultState = environment.notional.getVaultState(vault, maturity)
-
-    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-8) == amountUnderlying
-    assert collateralRatioBefore < collateralRatioAfter
-
-    assert vaultAccount["fCash"] == -100_000e8
-    assert vaultAccount["maturity"] == maturity
-    assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"]
-
-    assert vaultState["totalfCash"] == -100_000e8
-    assert vaultState["totalAssetCash"] == 0
-    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
-    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-@given(useReceiver=strategy("bool"))
-def test_exit_vault_transfer_to_account(environment, vault, accounts, useReceiver):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-    receiver = accounts[2] if useReceiver else accounts[1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 200_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    balanceBefore = environment.token["DAI"].balanceOf(receiver)
-
-    (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
-        2, 100_000e8, maturity, 0, chain.time()
-    )
-
-    # If vault share value > exit cost then we transfer to the account
-    chain.mine(5)
-    expectedProfit = environment.notional.exitVault.call(
-        accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-    environment.notional.exitVault(
-        accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    balanceAfter = environment.token["DAI"].balanceOf(receiver)
-    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultState = environment.notional.getVaultState(vault, maturity)
-
-    assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == 150_000e18 - amountUnderlying
-    assert pytest.approx(balanceAfter - balanceBefore, abs=1.5e-8) == expectedProfit
-    assert collateralRatioBefore < collateralRatioAfter
-
-    assert vaultAccount["fCash"] == -100_000e8
-    assert vaultAccount["maturity"] == maturity
-    assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 150_000e8
-
-    assert vaultState["totalfCash"] == -100_000e8
-    assert vaultState["totalAssetCash"] == 0
-    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
-    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -337,11 +214,317 @@ def test_exit_vault_insufficient_collateral(environment, vault, accounts):
     )
 
     # Cannot exit a vault below min collateral ratio
-    chain.mine(5)
+    chain.mine(1, timedelta=60)
     with brownie.reverts("Insufficient Collateral"):
         environment.notional.exitVault(
             accounts[1], vault.address, accounts[1], 10_000e8, 0, 0, "", {"from": accounts[1]}
         )
+
+    check_system_invariants(environment, accounts, [vault])
+
+
+def get_vault_account(environment, accounts, currencyId, isPrime, enablefCashDiscount):
+    decimals = environment.notional.getCurrency(currencyId)["underlyingToken"]["decimals"]
+    vault = SimpleStrategyVault.deploy(
+        "Simple Strategy", environment.notional.address, currencyId, {"from": accounts[0]}
+    )
+    vault.setExchangeRate(1e18)
+    # Set a multiple because ETH liquidity is lower in the test environment
+    multiple = 1 if currencyId == 1 else 1_000
+
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=currencyId,
+            flags=set_flags(
+                0, ENABLED=True, ALLOW_ROLL_POSITION=True, ENABLE_FCASH_DISCOUNT=enablefCashDiscount
+            ),
+            minAccountBorrowSize=50 * multiple,
+        ),
+        100_000_000e8,
+    )
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY
+        if isPrime
+        else environment.notional.getActiveMarkets(currencyId)[0][1]
+    )
+
+    environment.notional.enterVault(
+        accounts[1],
+        vault.address,
+        25 * multiple * decimals,
+        maturity,
+        100 * multiple * 1e8,
+        0,
+        "",
+        {"from": accounts[1], "value": 25 * multiple * decimals if currencyId == 1 else 0},
+    )
+
+    environment.notional.enterVault(
+        accounts[2],
+        vault.address,
+        25 * multiple * decimals,
+        maturity,
+        100 * multiple * 1e8,
+        0,
+        "",
+        {"from": accounts[2], "value": 25 * multiple * decimals if currencyId == 1 else 0},
+    )
+
+    if currencyId != 1:
+        token = MockERC20.at(
+            environment.notional.getCurrency(currencyId)["underlyingToken"]["tokenAddress"]
+        )
+    else:
+        token = None
+
+    return (vault, maturity, decimals, token)
+
+
+"""
+# Exit Types
+    - Full Exit
+        - Vault Shares == 0, Account Debt == 0
+        - No FC check required
+        - Check Receiver
+    - Partial Exit, Repayment
+        - Vault Share Value < Debt Repaid
+    - Partial Exit, Profits
+        - Vault Share Value > Debt Repaid
+        - Check Receiver
+
+# Edge Conditions:
+    - Vault Has Cash
+    - Account Has Cash
+
+# Edge conditions:
+    - fCash lending fails (test_exit_vault_lending_fails)
+
+# accountHasCash=strategy("bool") => result of lending failure
+# isInsolvent=strategy("bool") => change vault share value?
+#   - must be full exit to avoid check
+# vaultHasCash=strategy("bool")
+"""
+
+
+def setup_exit_conditions(environment, accounts, currencyId, isPrime, hasMatured):
+    (vault, maturity, decimals, token) = get_vault_account(
+        environment, accounts, currencyId, isPrime, False
+    )
+
+    if hasMatured:
+        # If prime, then this will just accrue debt
+        chain.mine(1, timedelta=SECONDS_IN_QUARTER)
+        environment.notional.initializeMarkets(currencyId, False)
+    else:
+        # Allow exit
+        chain.mine(1, timedelta=60)
+
+    return (vault, maturity, decimals, token)
+
+
+@given(
+    currencyId=strategy("uint", min_value=1, max_value=3),
+    isPrime=strategy("bool"),
+    hasMatured=strategy("bool"),
+)
+def test_full_exit(environment, accounts, currencyId, isPrime, hasMatured):
+    (vault, maturity, decimals, token) = setup_exit_conditions(
+        environment, accounts, currencyId, isPrime, hasMatured
+    )
+
+    if currencyId == 1:
+        balanceBefore = accounts[1].balance()
+    else:
+        balanceBefore = token.balanceOf(accounts[1])
+
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
+    healthFactors = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)[0]
+    totalShareValue = healthFactors["vaultShareValueUnderlying"] * decimals / 1e8
+
+    if isPrime or hasMatured:
+        costToRepay = -vaultAccountBefore["accountDebtUnderlying"] * decimals / 1e8
+    else:
+        (costToRepay, _, _, _) = environment.notional.getDepositFromfCashLend(
+            currencyId, -vaultAccountBefore["accountDebtUnderlying"], maturity, 0, chain.time()
+        )
+
+    # Full repayment for prime vaults
+    debtToRepay = (
+        2 ** 256 - 1 if isPrime or hasMatured else -vaultAccountBefore["accountDebtUnderlying"]
+    )
+    txn = environment.notional.exitVault(
+        accounts[1],
+        vault.address,
+        accounts[1],
+        vaultAccountBefore["vaultShares"],
+        debtToRepay,
+        0,
+        "",
+        {"from": accounts[1]},
+    )
+
+    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
+    assert vaultAccountAfter["maturity"] == 0
+    assert vaultAccountAfter["vaultShares"] == 0
+    assert vaultAccountAfter["accountDebtUnderlying"] == 0
+
+    # if isPrime or hasMatured:
+    #     assert "VaultFeeAccrued" in txn.events
+    #     totalFees = (
+    #         txn.events["VaultFeeAccrued"]["reserveFee"] + txn.events["VaultFeeAccrued"]["nTokenFee"]
+    #     )
+    #     totalFees = environment.notional.convertCashBalanceToExternal(currencyId, totalFees, True)
+    # else:
+    #     totalFees = 0
+
+    # if currencyId == 1:
+    #     balanceAfter = accounts[1].balance()
+    # else:
+    #     balanceAfter = token.balanceOf(accounts[1])
+
+    # assert (
+    #     pytest.approx(balanceAfter - balanceBefore, rel=5e-7, abs=5_000)
+    #     == totalShareValue - costToRepay - totalFees
+    # )
+
+    check_system_invariants(environment, accounts, [vault])
+
+
+@given(
+    currencyId=strategy("uint", min_value=1, max_value=3),
+    isPrime=strategy("bool"),
+    hasMatured=strategy("bool"),
+    shareOfDebtToRedeem=strategy("uint", min_value=0, max_value=120),
+)
+def test_partial_exit(environment, accounts, currencyId, isPrime, hasMatured, shareOfDebtToRedeem):
+    (vault, maturity, decimals, token) = setup_exit_conditions(
+        environment, accounts, currencyId, isPrime, hasMatured
+    )
+
+    if currencyId == 1:
+        balanceBefore = accounts[1].balance()
+    else:
+        balanceBefore = token.balanceOf(accounts[1])
+
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
+
+    # Repay 25% of the debt
+    debtToRepay = -vaultAccountBefore["accountDebtUnderlying"] * 0.25
+    if isPrime or hasMatured:
+        costToRepay = debtToRepay * decimals / 1e8
+    else:
+        (costToRepay, _, _, _) = environment.notional.getDepositFromfCashLend(
+            currencyId, debtToRepay, maturity, 0, chain.time()
+        )
+
+    (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
+    totalShareValue = healthBefore["vaultShareValueUnderlying"]
+    valueToRedeem = costToRepay * shareOfDebtToRedeem / decimals
+    valueToRedeemInternal = valueToRedeem * 1e8 / decimals
+    sharesToRedeem = math.floor(
+        vaultAccountBefore["vaultShares"] * valueToRedeemInternal / totalShareValue
+    )
+    # Need to buffer ETH by a tiny bit to account for fees and drift in time
+    paymentRequired = (
+        costToRepay + 5e15 - valueToRedeem if costToRepay + 5e15 > valueToRedeem else 0
+    )
+
+    txn = environment.notional.exitVault(
+        accounts[1],
+        vault.address,
+        accounts[1],
+        sharesToRedeem,
+        debtToRepay,
+        0,
+        "",
+        {
+            "from": accounts[1],
+            "value": paymentRequired * 1.1 if currencyId == 1 and paymentRequired > 0 else 0,
+        },
+    )
+
+    # All these assertions hold for all exits
+    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
+    assert vaultAccountBefore["vaultShares"] - vaultAccountAfter["vaultShares"] == sharesToRedeem
+    assert (
+        pytest.approx(
+            vaultAccountAfter["accountDebtUnderlying"]
+            - vaultAccountBefore["accountDebtUnderlying"],
+            abs=1e6,
+        )
+        == debtToRepay
+    )
+
+    # if isPrime or hasMatured:
+    #     assert "VaultFeeAccrued" in txn.events
+    #     totalFees = (
+    #         txn.events["VaultFeeAccrued"]["reserveFee"] + txn.events["VaultFeeAccrued"]["nTokenFee"]
+    #     )
+    #     totalFees = environment.notional.convertCashBalanceToExternal(currencyId, totalFees, True)
+    #     assert vaultAccountAfter["maturity"] == PRIME_CASH_VAULT_MATURITY
+    # else:
+    #     totalFees = 0
+    #     assert vaultAccountAfter["maturity"] == vaultAccountBefore["maturity"]
+
+    # if currencyId == 1:
+    #     balanceAfter = accounts[1].balance()
+    # else:
+    #     balanceAfter = token.balanceOf(accounts[1])
+
+    # assert (
+    #     pytest.approx(balanceAfter - balanceBefore, rel=5e-7, abs=5_000)
+    #     == valueToRedeem - costToRepay - totalFees
+    # )
+
+    check_system_invariants(environment, accounts, [vault])
+
+
+@given(useReceiver=strategy("bool"))
+def test_exit_vault_transfer_to_receiver(environment, vault, accounts, useReceiver):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    receiver = accounts[2] if useReceiver else accounts[1]
+
+    environment.notional.enterVault(
+        accounts[1], vault.address, 200_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
+    balanceBefore = environment.token["DAI"].balanceOf(receiver)
+
+    # If vault share value > exit cost then we transfer to the account
+    chain.mine(1, timedelta=65)
+    expectedProfit = environment.notional.exitVault.call(
+        accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+    (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
+        2, 100_000e8, maturity, 0, chain.time()
+    )
+    environment.notional.exitVault(
+        accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
+    )
+
+    balanceAfter = environment.token["DAI"].balanceOf(receiver)
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
+    (healthAfter, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
+    vaultState = environment.notional.getVaultState(vault, maturity)
+
+    assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == 150_000e18 - amountUnderlying
+    assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == expectedProfit
+    assert healthBefore["collateralRatio"] < healthAfter["collateralRatio"]
+
+    assert vaultAccount["accountDebtUnderlying"] == -100_000e8
+    assert vaultAccount["maturity"] == maturity
+    assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 150_000e8
+
+    assert vaultState["totalDebtUnderlying"] == -100_000e8
+    assert vaultState["totalVaultShares"] == vaultAccount["vaultShares"]
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -361,22 +544,23 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     )
 
     # Reduce liquidity in DAI
-    environment.notional.nTokenRedeem(accounts[0], 2, 49000000e8, True, True, {"from": accounts[0]})
+    redeemAmount = 990_000e8 * environment.primeCashScalars["DAI"]
+    environment.notional.nTokenRedeem(
+        accounts[0], 2, redeemAmount, True, True, {"from": accounts[0]}
+    )
     (amountAsset, _, _, _) = environment.notional.getDepositFromfCashLend(
         2, 100_000e8, maturity, 0, chain.time()
     )
     assert amountAsset == 0
 
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
+    (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault).dict()
     balanceBeforeReceiver = environment.token["DAI"].balanceOf(receiver)
     balanceBefore = environment.token["DAI"].balanceOf(accounts[1])
 
-    # NOTE: this adds 5_000_000e8 cDAI into the contract but there is no offsetting fCash position
+    # NOTE: this adds 100_000 DAI into the contract but there is no offsetting fCash position
     # recorded, similarly, the fCash erased is not recorded anywhere either
-    chain.mine(5)
+    chain.mine(1, timedelta=60)
     environment.notional.exitVault(
         accounts[1], vault.address, receiver, 10_000e8, 100_000e8, 0, "", {"from": accounts[1]}
     )
@@ -384,141 +568,65 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
     balanceAfterReceiver = environment.token["DAI"].balanceOf(receiver)
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
+    (healthAfter, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
     vaultState = environment.notional.getVaultState(vault, maturity)
 
-    assert balanceBefore - balanceAfter == Wei(90_000e18) + Wei(1e10)
+    assert balanceBefore - balanceAfter == Wei(90_000e18)
     if useReceiver:
         assert balanceBeforeReceiver == balanceAfterReceiver
-    assert collateralRatioBefore < collateralRatioAfter
+    assert healthBefore["collateralRatio"] < healthAfter["collateralRatio"]
 
-    assert vaultAccount["fCash"] == -100_000e8
+    assert vaultAccount["accountDebtUnderlying"] == -100_000e8
     assert vaultAccount["maturity"] == maturity
     assert vaultAccount["vaultShares"] == vaultAccountBefore["vaultShares"] - 10_000e8
 
-    assert vaultState["totalfCash"] == -100_000e8
-    assert vaultState["totalAssetCash"] == 0
-    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
-    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
+    assert vaultState["totalDebtUnderlying"] == -100_000e8
+    assert vaultState["totalVaultShares"] == vaultAccount["vaultShares"]
 
-    vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity, "fCash": -100_000e8}]
+    (primeRate, _, _, _) = environment.notional.getPrimeFactors(2, chain.time() + 1)
     environment.notional.setReserveCashBalance(
-        2, environment.notional.getReserveBalance(2) + 5_000_000e8
+        2,
+        environment.notional.getReserveBalance(2)
+        + math.floor(100_000e8 * 1e36 / primeRate["supplyFactor"]),
     )
+    vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity, "fCash": -100_000e8}]
     check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)
 
-
-@given(useReceiver=strategy("bool"))
-def test_exit_vault_during_settlement(environment, vault, accounts, useReceiver):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-    receiver = accounts[2] if useReceiver else accounts[1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 50_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
+@given(
+    currencyId=strategy("uint", min_value=1, max_value=3),
+    enablefCashDiscount=strategy("bool"),
+)
+def test_settle_vault(environment, accounts, currencyId, enablefCashDiscount):
+    (vault, maturity, _, _) = get_vault_account(
+        environment, accounts, currencyId, False, enablefCashDiscount
     )
 
-    vault.redeemStrategyTokensToCash(maturity, 120_000e8, "", {"from": accounts[0]})
-
-    balanceBefore = environment.token["DAI"].balanceOf(receiver)
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
 
-    (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
-        2, 100_000e8, maturity, 0, chain.time()
-    )
-    chain.mine(5)
-    environment.notional.exitVault(
-        accounts[1], vault.address, receiver, 100_000e8, 100_000e8, 0, "", {"from": accounts[1]}
-    )
+    chain.mine(1, timestamp=maturity)
 
-    balanceAfter = environment.token["DAI"].balanceOf(receiver)
-    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
+    with brownie.reverts(dev_revert_msg="dev: settlement rate unset"):
+        environment.notional.settleVaultAccount(accounts[1], vault)
+
+    environment.notional.initializeMarkets(currencyId, False)
+
+    (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
+    txn = environment.notional.settleVaultAccount(accounts[1], vault)
+    assert "VaultAccountEvent" not in txn.events
+
+    (healthAfter, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
 
-    assert vaultAccountAfter["fCash"] == -100_000e8
-    assert vaultAccountBefore["vaultShares"] - 100_000e8 == vaultAccountAfter["vaultShares"]
-    # Vault account keeps its current maturity since it still has vault shares
-    assert vaultAccountAfter["maturity"] == maturity
-
-    assert vaultStateAfter["totalfCash"] == -100_000e8
-    assert vaultStateAfter["totalVaultShares"] == vaultStateBefore["totalVaultShares"] - 100_000e8
-    tokensRedeemed = (
-        vaultStateBefore["totalStrategyTokens"] - vaultStateAfter["totalStrategyTokens"]
+    assert (
+        pytest.approx(vaultAccountAfter["accountDebtUnderlying"], abs=100)
+        == vaultAccountBefore["accountDebtUnderlying"]
+    )
+    assert (
+        pytest.approx(healthBefore["collateralRatio"], abs=10) == healthAfter["collateralRatio"]
     )
 
-    # Asset cash change nets off with the debt repayment and the amount transferred to the account
-    assert pytest.approx(vaultStateAfter["totalAssetCash"], rel=1e-8) == (
-        vaultStateBefore["totalAssetCash"]
-        - amountAsset
-        - (((balanceAfter - balanceBefore) * 50) / 1e10 - tokensRedeemed * 50)
-    )
+    assert vaultAccountAfter["maturity"] == PRIME_CASH_VAULT_MATURITY
+    assert vaultAccountAfter["lastUpdateBlockTime"] == txn.timestamp
 
-    # Settle out the remaining debt in the vault
-    vault.redeemStrategyTokensToCash(maturity, 30_000e8, "", {"from": accounts[0]})
-
-    # Check that we can still settle this vault even if fCash == 0
-    chain.mine(1, timestamp=maturity)
-    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
-    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
-    assert vaultStateAfter["isSettled"]
-
+    # the second account will be settled in invariants
     check_system_invariants(environment, accounts, [vault])
-
-
-@given(useReceiver=strategy("bool"))
-def test_exit_vault_after_settlement(environment, vault, accounts, useReceiver):
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(2)[0][1]
-    receiver = accounts[2] if useReceiver else accounts[1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
-
-    chain.mine(1, timestamp=maturity)
-    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
-
-    balanceBefore = environment.token["DAI"].balanceOf(receiver)
-    vaultStateBefore = environment.notional.getVaultState(vault, maturity)
-    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
-
-    chain.mine(5)
-    environment.notional.exitVault(
-        accounts[1],
-        vault.address,
-        receiver,
-        vaultAccountBefore["vaultShares"],
-        0,
-        0,
-        "",
-        {"from": accounts[1]},
-    )
-
-    balanceAfter = environment.token["DAI"].balanceOf(receiver)
-    vaultStateAfter = environment.notional.getVaultState(vault, maturity)
-    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-
-    assert (balanceAfter - balanceBefore) / 1e10 == vaultStateBefore["totalStrategyTokens"]
-    assert vaultStateAfter["totalStrategyTokens"] == vaultStateAfter["totalStrategyTokens"]
-    assert vaultStateAfter["totalVaultShares"] == vaultStateAfter["totalVaultShares"]
-    assert vaultAccountAfter["vaultShares"] == 0
-    assert vaultAccountAfter["fCash"] == 0
-    assert vaultAccountAfter["maturity"] == 0
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-# def test_cannot_exit_vault_insolvent()

@@ -15,6 +15,7 @@ START_TIME_TREF = START_TIME - START_TIME % (90 * SECONDS_IN_DAY)
 SETTLEMENT_DATE = START_TIME_TREF + (90 * SECONDS_IN_DAY)
 FCASH_ASSET_TYPE = 1
 REPO_INCENTIVE = 10
+PRIME_CASH_VAULT_MATURITY = 2 ** 40 - 1
 
 PORTFOLIO_FLAG = HexString("0x8000", "bytes2")
 BALANCE_FLAG = HexString("0x4000", "bytes2")
@@ -23,18 +24,6 @@ BALANCE_FLAG_INT = to_int(HexString("0x4000", "bytes2"), "int")
 HAS_ASSET_DEBT = "0x01"
 HAS_CASH_DEBT = "0x02"
 HAS_BOTH_DEBT = "0x03"
-
-MARKET_LENGTH = [
-    90 * SECONDS_IN_DAY,
-    180 * SECONDS_IN_DAY,
-    SECONDS_IN_YEAR,
-    2 * SECONDS_IN_YEAR,
-    5 * SECONDS_IN_YEAR,
-    7 * SECONDS_IN_YEAR,
-    10 * SECONDS_IN_YEAR,
-    15 * SECONDS_IN_YEAR,
-    20 * SECONDS_IN_YEAR,
-]
 
 MARKETS = [
     START_TIME_TREF + 90 * SECONDS_IN_DAY,
@@ -49,8 +38,8 @@ MARKETS = [
 CASH_GROUP_PARAMETERS = (
     7,  # 0: Max Market Index
     10,  # 1: time window, 10 min
-    30,  # 2: total fee, 30 BPS
-    50,  # 3: reserve fee share, percentage
+    0,  # 2: [deprecated] total fee, 30 BPS
+    30,  # 3: reserve fee share, percentage
     30,  # 4: debt buffer 150 bps
     30,  # 5: fcash haircut 150 bps
     40,  # 6: settlement penalty 400 bps
@@ -58,8 +47,8 @@ CASH_GROUP_PARAMETERS = (
     20,  # 8: liquidation debt buffer
     # 9: token haircuts (percentages)
     (99, 98, 97, 96, 95, 94, 93),
-    # 10: rate scalar (increments of 10)
-    (20, 19, 18, 17, 16, 15, 14),
+    # 10: [deprecated] rate scalar
+    (0, 0, 0, 0, 0, 0, 0),
 )
 
 CURVE_SHAPES = {
@@ -101,3 +90,5 @@ TRADE_ACTION_TYPE = {
     "PurchaseNTokenResidual": 4,
     "SettleCashDebt": 5,
 }
+
+ZERO_ADDRESS = HexString(0, type_str="bytes20")

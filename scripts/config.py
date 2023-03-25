@@ -26,7 +26,7 @@ CurrencyDefaults = {
     "maxMarketIndex": 2,
     "rateOracleTimeWindow": 20,
     "totalFee": 30,
-    "reserveFeeShare": 50,
+    "reserveFeeShare": 30,
     "debtBuffer": 150,
     "fCashHaircut": 150,
     "settlementPenalty": 40,
@@ -122,7 +122,7 @@ nTokenDefaults = {
     ],
     "Initialization": [
         # Annualized Anchor Rates
-        [int(0.02e9), int(0.02e9)],
+        [int(0), int(0)],
         # Target proportion
         [int(0.5e9), int(0.5e9)],
     ],
@@ -144,7 +144,7 @@ nTokenCryptoAssetConfig = {
     ],
     "Initialization": [
         # Annualized anchor rate
-        [int(1), int(1)],
+        [int(0), int(0)],
         # Target proportion
         [int(0.54e9), int(0.54e9)],
     ],
@@ -166,7 +166,7 @@ nTokenStablecoinConfig = {
     ],
     "Initialization": [
         # Annualized anchor rate
-        [int(0.03e9), int(0.03e9), int(0.03e9)],
+        [int(0), int(0), int(0)],
         # Target proportion
         [int(0.55e9), int(0.55e9), int(0.55e9)],
     ],
@@ -250,3 +250,14 @@ CompoundConfig = {
         },
     },
 }
+
+PrimeCashCurve = [
+    25,  # 0: 25% utilization
+    75,  # 1: 75% utilization
+    64,  # 2: 6.25% kink rate 1
+    128,  # 3: 12.5% kink rate 2
+    100,  # 4: 25% max interest rate
+    10,  # 5: 0.1% min fee
+    50,  # 6: 0.5% max fee
+    5,  # 7: 5% fee rate
+]

@@ -315,18 +315,22 @@ def test_upgrade_router_contract(environment, accounts, Router):
     environment.noteERC20.delegate(environment.multisig, {"from": environment.multisig})
     zeroAddress = HexString(0, "bytes20")
     newRouter = Router.deploy(
-        environment.router.GOVERNANCE(),
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
-        zeroAddress,
+        (
+            environment.router.GOVERNANCE(),
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+            zeroAddress,
+        ),
         {"from": environment.deployer},
     )
 

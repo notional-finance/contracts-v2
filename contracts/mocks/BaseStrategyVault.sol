@@ -38,17 +38,9 @@ abstract contract BaseStrategyVault is IStrategyVault {
         address account,
         uint256 strategyTokens,
         uint256 maturity,
+        uint256 underlyingToRepayDebt,
         bytes calldata data
     ) internal virtual returns (uint256 tokensFromRedeem);
-
-    // This can be overridden if the vault borrows in a secondary currency, but reverts by default.
-    function _repaySecondaryBorrowCallback(
-        address, /* token */
-        uint256, /* underlyingRequired */
-        bytes calldata /* data */
-    ) internal virtual returns (bytes memory /* returnData */) {
-        revert();
-    }
 
     uint16 internal immutable BORROW_CURRENCY_ID;
     ERC20 internal immutable UNDERLYING_TOKEN;
@@ -106,7 +98,9 @@ abstract contract BaseStrategyVault is IStrategyVault {
         uint256 underlyingToRepayDebt,
         bytes calldata data
     ) external onlyNotional returns (uint256 transferToReceiver) {
-        uint256 tokensFromRedeem = _redeemFromNotional(account, strategyTokens, maturity, data);
+        uint256 tokensFromRedeem = _redeemFromNotional(
+            account, strategyTokens, maturity, underlyingToRepayDebt, data
+        );
 
         uint256 transferToNotional;
         if (account == address(this) || tokensFromRedeem <= underlyingToRepayDebt) {
@@ -134,12 +128,21 @@ abstract contract BaseStrategyVault is IStrategyVault {
         }
     }
 
-    function repaySecondaryBorrowCallback(
-        address token,
-        uint256 underlyingRequired,
-        bytes calldata data
-    ) external onlyNotional returns (bytes memory returnData) {
-        return _repaySecondaryBorrowCallback(token, underlyingRequired, data);
+    function convertVaultSharesToPrimeMaturity(
+        address account,
+        uint256 strategyTokens,
+        uint256 maturity
+    ) external onlyNotional returns (uint256 primeStrategyTokens) {
+        return _convertVaultSharesToPrimeMaturity(account, strategyTokens, maturity);
+    }
+
+    function _convertVaultSharesToPrimeMaturity(
+        address account,
+        uint256 strategyTokens,
+        uint256 maturity
+    ) internal virtual returns (uint256 primeStrategyTokens) {
+        // Can be overridden if required
+        revert();
     }
 
     receive() external payable {

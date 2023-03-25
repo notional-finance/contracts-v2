@@ -1,5 +1,14 @@
+import math
 import random
 
+from brownie import (
+    UnderlyingHoldingsOracle,
+    MockAggregator,
+    MockERC20,
+    MockSetDeprecatedAssetToken,
+    accounts,
+)
+from brownie.network import Rpc
 from brownie.convert import to_bytes, to_uint
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
@@ -12,21 +21,38 @@ from tests.constants import (
     CASH_GROUP_PARAMETERS,
     CURVE_SHAPES,
     DEPOSIT_ACTION_TYPE,
-    MARKET_LENGTH,
     MARKETS,
     PORTFOLIO_FLAG_INT,
     RATE_PRECISION,
     SECONDS_IN_DAY,
     SECONDS_IN_QUARTER,
+    SETTLEMENT_DATE,
     START_TIME,
+    START_TIME_TREF,
     TRADE_ACTION_TYPE,
+    ZERO_ADDRESS,
 )
 
 chain = Chain()
+rpc = Rpc()
+
 timeToMaturityStrategy = strategy("uint", min_value=90, max_value=7200)
 impliedRateStrategy = strategy(
     "uint", min_value=0.01 * RATE_PRECISION, max_value=0.40 * RATE_PRECISION
 )
+
+
+def get_interest_rate_curve(**kwargs):
+    return [
+        kwargs.get("kinkUtilization1", 25),  # 0: 25% utilization
+        kwargs.get("kinkUtilization2", 75),  # 1: 75% utilization
+        kwargs.get("kinkRate1", 64),  # 2: 6.25% kink rate 1
+        kwargs.get("kinkRate2", 128),  # 3: 12.5% kink rate 2
+        kwargs.get("maxRate25BPS", 100),  # 4: 25% max interest rate
+        kwargs.get("minFeeRateBPS", 10),  # 5: 0.1% min fee
+        kwargs.get("maxFeeRateBPS", 50),  # 6: 0.5% max fee
+        kwargs.get("feeRatePercent", 5),  # 7: 5% fee rate
+    ]
 
 
 def get_balance_state(currencyId, **kwargs):
@@ -35,28 +61,26 @@ def get_balance_state(currencyId, **kwargs):
     storedNTokenBalance = (
         0 if "storedNTokenBalance" not in kwargs else kwargs["storedNTokenBalance"]
     )
-    netAssetTransferInternalPrecision = (
-        0
-        if "netAssetTransferInternalPrecision" not in kwargs
-        else kwargs["netAssetTransferInternalPrecision"]
-    )
+    primeCashWithdraw = 0 if "primeCashWithdraw" not in kwargs else kwargs["primeCashWithdraw"]
     netNTokenTransfer = 0 if "netNTokenTransfer" not in kwargs else kwargs["netNTokenTransfer"]
     netNTokenSupplyChange = (
         0 if "netNTokenSupplyChange" not in kwargs else kwargs["netNTokenSupplyChange"]
     )
     lastClaimTime = 0 if "lastClaimTime" not in kwargs else kwargs["lastClaimTime"]
     lastClaimSupply = 0 if "lastClaimSupply" not in kwargs else kwargs["lastClaimSupply"]
+    primeRate = (1e18, 1e18, 0) if "primeRate" not in kwargs else kwargs["primeRate"]
 
     return (
         currencyId,
         storedCashBalance,
         storedNTokenBalance,
         netCashChange,
-        netAssetTransferInternalPrecision,
+        primeCashWithdraw,
         netNTokenTransfer,
         netNTokenSupplyChange,
         lastClaimTime,
         lastClaimSupply,
+        primeRate,
     )
 
 
@@ -102,16 +126,16 @@ def get_market_state(maturity, **kwargs):
     totalLiquidity = 1e18 if "totalLiquidity" not in kwargs else kwargs["totalLiquidity"]
     if "proportion" in kwargs:
         assetRate = 1 if "assetRate" not in kwargs else kwargs["assetRate"]
-        # proportion = totalfCash / (totalfCash + totalAssetCash)
-        # totalfCash * p + totalAssetCash * p = totalfCash
-        # totalfCash * (1 - p) / p = totalAssetCash
+        # proportion = totalfCash / (totalfCash + totalPrimeCash)
+        # totalfCash * p + totalPrimeCash * p = totalfCash
+        # totalfCash * (1 - p) / p = totalPrimeCash
         totalfCash = 1e18
-        totalAssetCash = (
+        totalPrimeCash = (
             Wei(totalfCash * (1 - kwargs["proportion"]) / kwargs["proportion"]) * assetRate
         )
     else:
         totalfCash = 1e18 if "totalfCash" not in kwargs else kwargs["totalfCash"]
-        totalAssetCash = 1e18 if "totalAssetCash" not in kwargs else kwargs["totalAssetCash"]
+        totalPrimeCash = 1e18 if "totalPrimeCash" not in kwargs else kwargs["totalPrimeCash"]
 
     lastImpliedRate = 0.1e9 if "lastImpliedRate" not in kwargs else kwargs["lastImpliedRate"]
     oracleRate = 0.1e9 if "oracleRate" not in kwargs else kwargs["oracleRate"]
@@ -122,7 +146,7 @@ def get_market_state(maturity, **kwargs):
         storageSlot,
         maturity,
         Wei(totalfCash),
-        Wei(totalAssetCash),
+        Wei(totalPrimeCash),
         Wei(totalLiquidity),
         lastImpliedRate,
         oracleRate,
@@ -156,7 +180,7 @@ def get_settlement_date(asset, blockTime):
     if asset[2] == 1:
         return asset[1]
     else:
-        return asset[1] - MARKET_LENGTH[asset[2] - 2] + 90 * SECONDS_IN_DAY
+        return get_tref(blockTime) + 90 * SECONDS_IN_DAY
 
 
 def get_portfolio_array(length, cashGroups, **kwargs):
@@ -164,23 +188,25 @@ def get_portfolio_array(length, cashGroups, **kwargs):
     attempts = 0
     while len(portfolio) < length and attempts < 50:
         attempts += 1
-        isLiquidity = random.randint(0, 1)
+        isLiquidity = False if "noLiquidity" in kwargs else random.randint(0, 1)
         cashGroup = random.choice(cashGroups)
-        marketIndex = random.randint(1, cashGroup[0])
-
-        duplicate = False
+        marketIndex = random.randint(1, cashGroup[1])
+        maturity = MARKETS[marketIndex - 1]
         assetType = marketIndex + 1 if isLiquidity else 1
-        for a in portfolio:
-            if a[0] == cashGroup[0] and a[1] == MARKETS[marketIndex - 1] and a[2] == assetType:
-                duplicate = True
 
-        if duplicate:
+        def matchFilter(x):
+            return x[0] == cashGroup[0] and x[1] == maturity and x[2] == assetType
+
+        if len(list(filter(matchFilter, portfolio))) > 0:
             # No duplicate assets
             continue
         elif isLiquidity:
             lt = get_liquidity_token(marketIndex, currencyId=cashGroup[0])
             portfolio.append(lt)
-            if len(portfolio) < length and random.random() > 0.75:
+            assetType = 1
+            # Check if there is fCash before we append it or we get duplicates
+            hasfCash = len(list(filter(matchFilter, portfolio))) > 0
+            if len(portfolio) < length and random.random() > 0.75 and not hasfCash:
                 portfolio.append(
                     get_fcash_token(marketIndex, currencyId=cashGroup[0], notional=-lt[3])
                 )
@@ -286,7 +312,7 @@ def get_balance_action(currencyId, depositActionType, **kwargs):
         False if "withdrawEntireCashBalance" not in kwargs else kwargs["withdrawEntireCashBalance"]
     )
     redeemToUnderlying = (
-        False if "redeemToUnderlying" not in kwargs else kwargs["redeemToUnderlying"]
+        True if "redeemToUnderlying" not in kwargs else kwargs["redeemToUnderlying"]
     )
 
     return (
@@ -382,7 +408,8 @@ def get_trade_action(**kwargs):
         )
 
 
-def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
+def _enable_cash_group(currencyId, env, accounts, initialCash):
+    env.notional.updateInterestRateCurve(currencyId, [1, 2], [get_interest_rate_curve()] * 2)
     env.notional.updateDepositParameters(currencyId, *(nTokenDefaults["Deposit"]))
     env.notional.updateInitializationParameters(currencyId, *(nTokenDefaults["Initialization"]))
     env.notional.updateTokenCollateralParameters(currencyId, *(nTokenDefaults["Collateral"]))
@@ -392,10 +419,10 @@ def _enable_cash_group(currencyId, env, accounts, initialCash=50000000e8):
         accounts[0],
         [
             get_balance_action(
-                currencyId, "DepositAssetAndMintNToken", depositActionAmount=initialCash
+                currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=initialCash
             )
         ],
-        {"from": accounts[0]},
+        {"from": accounts[0], "value": initialCash if currencyId == 1 else 0},
     )
     env.notional.initializeMarkets(currencyId, True)
 
@@ -438,15 +465,32 @@ def initialize_environment(accounts):
     newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
     chain.mine(1, timestamp=newTime)
 
-    _enable_cash_group(1, env, accounts, initialCash=40000e8)
-    _enable_cash_group(2, env, accounts)
-    _enable_cash_group(3, env, accounts)
+    patchFix = MockSetDeprecatedAssetToken.deploy(
+        env.proxy.getImplementation(),
+        env.proxy.getImplementation(),
+        env.proxy.address,
+        env.cToken["ETH"],
+        env.cToken["DAI"],
+        env.cToken["USDC"],
+        env.cToken["WBTC"],
+        env.cTokenAggregator["ETH"],
+        env.cTokenAggregator["DAI"],
+        env.cTokenAggregator["USDC"],
+        env.cTokenAggregator["WBTC"],
+        {"from": accounts[0]},
+    )
+    env.notional.transferOwnership(patchFix.address, False, {"from": env.notional.owner()})
+    patchFix.atomicPatchAndUpgrade({"from": env.notional.owner()})
+
+    _enable_cash_group(1, env, accounts, 900e18)
+    _enable_cash_group(2, env, accounts, 1_000_000e18)
+    _enable_cash_group(3, env, accounts, 1_000_000e6)
 
     return env
 
 
 # Sets up a residual environment given the parameters:
-# - residualType: 0 = no residuals, 1 = positive, or 2=negative ifCash residuals
+# - residualType: 0 = no residuals, 1 = negative, or 2=positive ifCash residuals
 # - marketResiduals: true if there are residuals in the fCash markets
 # - canSellResiduals: true if the residuals can be sold
 def setup_residual_environment(
@@ -464,13 +508,21 @@ def setup_residual_environment(
         currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
     )
 
+    environment.notional.updateInterestRateCurve(
+        currencyId, [1, 2, 3], [get_interest_rate_curve()] * 3
+    )
     environment.notional.updateInitializationParameters(
-        currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9]
+        currencyId, [0, 0, 0], [0.5e9, 0.5e9, 0.5e9]
     )
 
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
+    # Need to initialize all markets every quarter
+    for (cid, _) in environment.nToken.items():
+        try:
+            environment.notional.initializeMarkets(cid, False)
+        except Exception:
+            pass
 
     if residualType == 0:
         # No Residuals
@@ -502,7 +554,12 @@ def setup_residual_environment(
     # Now settle the markets, should be some residual
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
+    # Need to initialize all markets every quarter
+    for (cid, _) in environment.nToken.items():
+        try:
+            environment.notional.initializeMarkets(cid, False)
+        except Exception:
+            pass
 
     # Creates fCash residuals that require selling fCash
     if marketResiduals:
@@ -538,6 +595,134 @@ def setup_residual_environment(
 
     if not canSellResiduals:
         # Redeem the vast majority of the nTokens
+        balance = environment.notional.getAccountBalance(currencyId, accounts[0])
         environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, 44_100_000e8, True, False, {"from": accounts[0]}
+            accounts[0].address,
+            currencyId,
+            math.floor(balance[1] * 0.9),
+            True,
+            True,
+            {"from": accounts[0]},
         )
+
+
+def setup_internal_mock(mock):
+    chain.mine(1, timestamp=START_TIME_TREF)
+    ethOracle = UnderlyingHoldingsOracle.deploy(mock.address, ZERO_ADDRESS, {"from": accounts[0]})
+    # 100_000e18 ETH
+    Rpc().backend._request(
+        "evm_setAccountBalance", [mock.address, "0x00000000000000000000000000000000000000000000152d02c7e14af6800000"]
+    )
+    mock.initPrimeCashCurve(
+        1, 100_000e8, 0, get_interest_rate_curve(), ethOracle, True, {"from": accounts[0]}
+    )
+
+    USDC = MockERC20.deploy("USDC", "USDC", 6, 0, {"from": accounts[0]})
+    usdcOracle = UnderlyingHoldingsOracle.deploy(mock.address, USDC.address, {"from": accounts[0]})
+    USDC.transfer(mock, 100_000e6, {"from": accounts[0]})
+    mock.initPrimeCashCurve(
+        2, 100_000e8, 5_000e8, get_interest_rate_curve(), usdcOracle, True, {"from": accounts[0]}
+    )
+
+    DAI = MockERC20.deploy("DAI", "DAI", 18, 0, {"from": accounts[0]})
+    daiOracle = UnderlyingHoldingsOracle.deploy(mock.address, DAI.address, {"from": accounts[0]})
+    DAI.transfer(mock, 100_000e18, {"from": accounts[0]})
+    mock.initPrimeCashCurve(
+        3, 5_000_000e8, 25_000e8, get_interest_rate_curve(), daiOracle, True, {"from": accounts[0]}
+    )
+
+    WBTC = MockERC20.deploy("WBTC", "WBTC", 8, 0, {"from": accounts[0]})
+    wbtcOracle = UnderlyingHoldingsOracle.deploy(mock.address, WBTC.address, {"from": accounts[0]})
+    WBTC.transfer(mock, 100_000e8, {"from": accounts[0]})
+    mock.initPrimeCashCurve(
+        4,
+        5_000_000e8,
+        500_000e8,
+        get_interest_rate_curve(),
+        wbtcOracle,
+        True,
+        {"from": accounts[0]},
+    )
+
+    # Set 3 markets per token
+    for i in range(1, 5):
+        cashGroup = get_cash_group_with_max_markets(3)
+        mock.setCashGroup(i, cashGroup)
+
+        for m in range(1, 5):
+            # Set parameters for each market
+            mock.setInterestRateParameters(i, m, get_interest_rate_curve())
+            market = list(
+                get_market_state(
+                    MARKETS[m - 1],
+                    totalfCash=100_000e8,
+                    totalPrimeCash=100_000e8,
+                    totalLiquidity=100_000e8,
+                )
+            )
+
+            interestRate = mock.getInterestRate(i, m, market)
+            market[5] = interestRate
+            market[6] = interestRate
+            mock.setMarket(i, SETTLEMENT_DATE, market)
+
+        # Set nToken
+        mock.setNToken(
+            i,
+            accounts[11 - i],
+            [
+                get_liquidity_token(1, currencyId=i, maturity=MARKETS[0], notional=100_000e8),
+                get_liquidity_token(2, currencyId=i, maturity=MARKETS[1], notional=100_000e8),
+                get_liquidity_token(3, currencyId=i, maturity=MARKETS[2], notional=100_000e8),
+            ],
+            [
+                get_fcash_token(1, currencyId=i, maturity=MARKETS[0], notional=-100_000e8),
+                get_fcash_token(2, currencyId=i, maturity=MARKETS[1], notional=-100_000e8),
+                get_fcash_token(3, currencyId=i, maturity=MARKETS[2], notional=-100_000e8),
+            ],
+            100_000e8,
+            0,
+            START_TIME_TREF,
+            84 + i,
+            89 + i,
+        )
+
+        # Set ETH Rate
+        aggregator = MockAggregator.deploy(18, {"from": accounts[0]})
+        if i == 1:
+            aggregator.setAnswer(1e18)
+            mock.setETHRate(
+                i, get_eth_rate_mapping(aggregator, haircut=70, buffer=130, discount=105)
+            )
+        elif i == 2:
+            aggregator.setAnswer(0.01e18)
+            mock.setETHRate(
+                i, get_eth_rate_mapping(aggregator, haircut=95, buffer=105, discount=106)
+            )
+        elif i == 3:
+            aggregator.setAnswer(0.011e18)
+            mock.setETHRate(
+                i, get_eth_rate_mapping(aggregator, haircut=90, buffer=110, discount=107)
+            )
+        elif i == 4:
+            aggregator.setAnswer(10e18)
+            mock.setETHRate(
+                i, get_eth_rate_mapping(aggregator, haircut=50, buffer=150, discount=102)
+            )
+
+    return {"DAI": DAI, "USDC": USDC, "WBTC": WBTC}
+
+
+def simulate_init_markets(mock, currencyId, additionalfCash=0):
+    tref = get_tref(chain.time())
+    market = list(mock.getMarket(currencyId, tref, tref))
+    # Net off the initial nToken fCash position
+    market[2] = market[2] - 100_000e8
+    # Set prime cash and liquidity to zero
+    market[3] = 0
+    market[4] = 0
+
+    totalDebt = mock.getTotalfCashDebtOutstanding(currencyId, tref)
+    # Clear the nToken fCash from total debt
+    mock.setTotalfCashDebtOutstanding(currencyId, tref, totalDebt + 100_000e8)
+    mock.setMarket(currencyId, tref, market)

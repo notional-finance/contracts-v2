@@ -2,17 +2,16 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
+import "../global/Types.sol";
 import "../internal/markets/CashGroup.sol";
 import "../global/StorageLayoutV1.sol";
+import "./valuation/AbstractSettingsRouter.sol";
 
-contract MockCashGroup is StorageLayoutV1 {
+contract MockCashGroup is AbstractSettingsRouter {
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
 
-    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
-        assetStore[id] = rs;
-    }
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
 
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
@@ -83,20 +82,6 @@ contract MockCashGroup is StorageLayoutV1 {
         assert(maturity > blockTime);
 
         return maturity;
-    }
-
-    function getRateScalar(
-        CashGroupParameters memory cashGroup,
-        uint256 marketIndex,
-        uint256 timeToMaturity
-    ) public pure returns (int256) {
-        int256 rateScalar = cashGroup.getRateScalar(marketIndex, timeToMaturity);
-
-        return rateScalar;
-    }
-
-    function getTotalFee(CashGroupParameters memory cashGroup) public pure returns (uint256) {
-        return cashGroup.getTotalFee();
     }
 
     function getReserveFeeShare(CashGroupParameters memory cashGroup) public pure returns (int256) {

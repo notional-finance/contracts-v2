@@ -1,8 +1,16 @@
 import math
 import random
 
-from brownie import MockAggregator, MockCToken, MockValuationLib, cTokenV2Aggregator
+from brownie import (
+    MockAggregator,
+    MockCToken,
+    MockSettingsLib,
+    MockValuationLib,
+    accounts,
+    cTokenV2Aggregator,
+)
 from brownie.convert.datatypes import HexString, Wei
+from brownie.network.contract import Contract
 from brownie.network.state import Chain
 from tests.constants import (
     BASIS_POINT,
@@ -18,6 +26,7 @@ from tests.helpers import (
     get_fcash_token,
     get_liquidity_token,
     get_market_curve,
+    setup_internal_mock,
 )
 
 chain = Chain()
@@ -26,37 +35,8 @@ chain = Chain()
 class ValuationMock:
     ethRates = {1: 1e18, 2: 0.01e18, 3: 0.011e18, 4: 10e18}
     underlyingDecimals = {1: 18, 2: 18, 3: 6, 4: 8}
-    cTokenRates = {
-        1: Wei(200000000000000000000000000),
-        2: Wei(210000000000000000000000000),
-        3: Wei(220000000000000),
-        4: Wei(23000000000000000),
-    }
-    nTokenAddress = {
-        1: HexString(1, "bytes20"),
-        2: HexString(2, "bytes20"),
-        3: HexString(3, "bytes20"),
-        4: HexString(4, "bytes20"),
-    }
-    nTokenTotalSupply = {
-        1: Wei(10_000_000e8),
-        2: Wei(20_000_000e8),
-        3: Wei(30_000_000e8),
-        4: Wei(40_000_000e8),
-    }
-    nTokenCashBalance = {
-        1: Wei(50_000_000e8),
-        2: Wei(60_000_000e8),
-        3: Wei(70_000_000e8),
-        4: Wei(80_000_000e8),
-    }
-    nTokenParameters = {1: (85, 90), 2: (86, 91), 3: (80, 88), 4: (75, 80)}
-    bufferHaircutDiscount = {
-        1: (130, 70, 105),
-        2: (105, 95, 106),
-        3: (110, 90, 107),
-        4: (150, 50, 102),
-    }
+    nTokenTotalSupply = {1: Wei(100_000e8), 2: Wei(100_000e8), 3: Wei(100_000e8), 4: Wei(100_000e8)}
+    nTokenParameters = {1: (85, 90), 2: (86, 91), 3: (87, 92), 4: (88, 93)}
 
     markets = {}
     cashGroups = {}
@@ -65,81 +45,56 @@ class ValuationMock:
     cTokens = {}
 
     def __init__(self, account, MockContract):
-        MockValuationLib.deploy({"from": account})
-        c = account.deploy(MockContract)
-        for i in range(1, 5):
-            self.cTokens[i] = account.deploy(MockCToken, 8)
-            self.cTokens[i].setAnswer(self.cTokenRates[i])
-            self.ethAggregators[i] = MockAggregator.deploy(18, {"from": account})
-            self.cTokenAdapters[i] = cTokenV2Aggregator.deploy(
-                self.cTokens[i].address, {"from": account}
-            )
-
-            c.setAssetRateMapping(i, (self.cTokenAdapters[i].address, self.underlyingDecimals[i]))
-            self.cashGroups[i] = get_cash_group_with_max_markets(3)
-            c.setCashGroup(i, self.cashGroups[i])
-
-            self.ethAggregators[i].setAnswer(self.ethRates[i])
-            c.setETHRateMapping(
-                i,
-                get_eth_rate_mapping(
-                    self.ethAggregators[i],
-                    buffer=self.bufferHaircutDiscount[i][0],
-                    haircut=self.bufferHaircutDiscount[i][1],
-                    discount=self.bufferHaircutDiscount[i][2],
-                ),
-            )
-
-            c.setNTokenValue(
-                i,
-                self.nTokenAddress[i],
-                self.nTokenTotalSupply[i],
-                self.nTokenCashBalance[i],
-                self.nTokenParameters[i][0],
-                self.nTokenParameters[i][1],
-                START_TIME,
-            )
-
-            # TODO: change the market curve...
-            self.markets[i] = get_market_curve(3, "flat")
-            for m in self.markets[i]:
-                c.setMarketStorage(i, SETTLEMENT_DATE, m)
-
-        chain.mine(1, timestamp=START_TIME)
-
-        self.mock = c
-
-    def calculate_to_underlying(self, currency, balance):
-        return math.trunc(
-            (balance * self.cTokenRates[currency] * Wei(1e8))
-            / (Wei(1e18) * Wei(10 ** self.underlyingDecimals[currency]))
+        settings = MockSettingsLib.deploy({"from": accounts[0]})
+        mock = MockContract.deploy(settings, {"from": accounts[0]})
+        mock = Contract.from_abi(
+            "mock", mock.address, MockSettingsLib.abi + mock.abi, owner=accounts[0]
         )
 
-    def calculate_from_underlying(self, currency, balance):
-        return math.trunc(
-            (balance * Wei(1e18) * Wei(10 ** self.underlyingDecimals[currency]))
-            / (self.cTokenRates[currency] * Wei(1e8))
+        setup_internal_mock(mock)
+
+        self.mock = mock
+
+    def enableBitmapForAccount(self, account, currency, nextSettleTime):
+        self.mock.setAccountContext(
+            account, (nextSettleTime, "0x00", 0, currency, HexString(0, "bytes18"), False)
         )
+
+    def calculate_to_underlying(self, currency, balance, time=chain.time() + 1):
+        try:
+            (pr, factors) = self.mock.buildPrimeRateView(currency, time)
+        except Exception:
+            (pr, factors) = self.mock.buildPrimeRateView(currency, chain.time() + 1)
+
+        return self.mock.convertToUnderlying(pr, balance)
+
+    def calculate_from_underlying(self, currency, balance, time=chain.time() + 1):
+        (pr, _) = self.mock.buildPrimeRateView(currency, time)
+        return self.mock.convertFromUnderlying(pr, balance)
 
     def calculate_exchange_rate(self, base, quote):
         return math.trunc(Wei(self.ethRates[base] * 1e18) / self.ethRates[quote])
 
     def get_discount(self, local, collateral):
-        return max(self.bufferHaircutDiscount[local][2], self.bufferHaircutDiscount[collateral][2])
+        localDiscount = self.mock.getETHRate(local)["liquidationDiscount"]
+        collateralDiscount = self.mock.getETHRate(collateral)["liquidationDiscount"]
+        return max(localDiscount, collateralDiscount)
 
     def calculate_from_eth(self, currency, underlying, rate=None):
+        ethRate = self.mock.getETHRate(currency)
+        aggregator = Contract.from_abi("agg", ethRate[0], MockAggregator.abi, owner=accounts[0])
+
         if rate:
             return math.trunc((underlying * Wei(1e18)) / rate)
         else:
-            return math.trunc((underlying * Wei(1e18)) / self.ethRates[currency])
+            return math.trunc((underlying * Wei(1e18)) / aggregator.latestAnswer())
 
     def calculate_to_eth(self, currency, underlying, valueType="haircut", rate=None):
+        ethRate = self.mock.getETHRate(currency)
+        aggregator = Contract.from_abi("agg", ethRate[0], MockAggregator.abi, owner=accounts[0])
+
         if valueType == "haircut":
-            multiple = (
-                self.bufferHaircutDiscount[currency][1]
-                if underlying > 0
-                else self.bufferHaircutDiscount[currency][0]
-            )
+            multiple = ethRate["haircut"] if underlying > 0 else ethRate["buffer"]
         elif valueType == "no-haircut":
             multiple = 100
 
@@ -147,55 +102,54 @@ class ValuationMock:
             return math.trunc((underlying * rate * Wei(multiple)) / (Wei(1e18) * Wei(100)))
         else:
             return math.trunc(
-                (underlying * self.ethRates[currency] * Wei(multiple)) / (Wei(1e18) * Wei(100))
+                (underlying * aggregator.latestAnswer() * Wei(multiple)) / (Wei(1e18) * Wei(100))
             )
 
-    def calculate_ntoken_to_asset(self, currency, nToken, valueType="haircut"):
+    def calculate_ntoken_to_asset(self, currency, nToken, time, valueType="haircut"):
+        nTokenPV = self.mock.getNTokenPV(currency, time)
         if valueType == "haircut":
             return math.trunc(
-                (nToken * self.nTokenCashBalance[currency] * self.nTokenParameters[currency][0])
+                (nToken * nTokenPV * self.nTokenParameters[currency][0])
                 / (self.nTokenTotalSupply[currency] * 100)
             )
         elif valueType == "no-haircut":
-            return math.trunc(
-                (nToken * self.nTokenCashBalance[currency]) / self.nTokenTotalSupply[currency]
-            )
+            return math.trunc((nToken * nTokenPV) / self.nTokenTotalSupply[currency])
         elif valueType == "liquidator":
             return math.trunc(
-                (nToken * self.nTokenCashBalance[currency] * self.nTokenParameters[currency][1])
+                (nToken * nTokenPV * self.nTokenParameters[currency][1])
                 / (self.nTokenTotalSupply[currency] * 100)
             )
 
-    def calculate_ntoken_from_asset(self, currency, asset, valueType="haircut"):
+    def calculate_ntoken_from_asset(self, currency, asset, time, valueType="haircut"):
+        nTokenPV = self.mock.getNTokenPV(currency, time)
         # asset = (nToken * cashBalance * param) / (totalSupply * 100)
         # nToken = (asset * totalSupply * 100) / (cashBalance * param)
         if valueType == "haircut":
             return math.trunc(
                 (asset * self.nTokenTotalSupply[currency] * 100)
-                / (self.nTokenCashBalance[currency] * self.nTokenParameters[currency][0])
+                / (nTokenPV * self.nTokenParameters[currency][0])
             )
         elif valueType == "no-haircut":
-            return math.trunc(
-                (asset * self.nTokenTotalSupply[currency]) / self.nTokenCashBalance[currency]
-            )
+            return math.trunc((asset * self.nTokenTotalSupply[currency]) / nTokenPV)
         elif valueType == "liquidator":
             return math.trunc(
                 (asset * self.nTokenTotalSupply[currency] * 100)
-                / (self.nTokenCashBalance[currency] * self.nTokenParameters[currency][1])
+                / (nTokenPV * self.nTokenParameters[currency][1])
             )
 
     def get_adjusted_oracle_rate(self, oracleRate, currency, isPositive, valueType):
+        cashGroup = self.mock.getCashGroup(currency)
         if valueType == "haircut" and isPositive:
-            adjustment = self.cashGroups[currency][5] * 5 * BASIS_POINT
+            adjustment = cashGroup[5] * 5 * BASIS_POINT
             adjustedOracleRate = oracleRate + adjustment
         elif valueType == "haircut" and not isPositive:
-            adjustment = self.cashGroups[currency][4] * 5 * BASIS_POINT
+            adjustment = cashGroup[4] * 5 * BASIS_POINT
             adjustedOracleRate = max(oracleRate - adjustment, 0)
         elif valueType == "liquidator" and isPositive:
-            adjustment = self.cashGroups[currency][7] * 5 * BASIS_POINT
+            adjustment = cashGroup[7] * 5 * BASIS_POINT
             adjustedOracleRate = oracleRate + adjustment
         elif valueType == "liquidator" and not isPositive:
-            adjustment = self.cashGroups[currency][8] * 5 * BASIS_POINT
+            adjustment = cashGroup[8] * 5 * BASIS_POINT
             adjustedOracleRate = max(oracleRate - adjustment, 0)
         else:
             adjustedOracleRate = oracleRate
@@ -363,70 +317,71 @@ class ValuationMock:
 
         return totalCashChange
 
-    def get_liquidation_factors(self, local, collateral, **kwargs):
-        account = 0 if "account" not in kwargs else kwargs["account"].address
-        netETHValue = 0 if "netETHValue" not in kwargs else kwargs["netETHValue"]
-        localAssetAvailable = (
-            0 if "localAssetAvailable" not in kwargs else kwargs["localAssetAvailable"]
-        )
-        collateralAssetAvailable = (
-            0 if "collateralAssetAvailable" not in kwargs else kwargs["collateralAssetAvailable"]
-        )
-        nTokenHaircutAssetValue = (
-            0 if "nTokenHaircutAssetValue" not in kwargs else kwargs["nTokenHaircutAssetValue"]
-        )
-        if collateral == 0:
-            nTokenParameters = "0x{}0000{}00".format(
-                hex(self.nTokenParameters[local][1])[2:], hex(self.nTokenParameters[local][0])[2:]
-            )
-        else:
-            nTokenParameters = "0x{}0000{}00".format(
-                hex(self.nTokenParameters[collateral][1])[2:],
-                hex(self.nTokenParameters[collateral][0])[2:],
-            )
+    # def get_liquidation_factors(self, local, collateral, **kwargs):
+    #     account = 0 if "account" not in kwargs else kwargs["account"].address
+    #     netETHValue = 0 if "netETHValue" not in kwargs else kwargs["netETHValue"]
+    #     localAssetAvailable = (
+    #         0 if "localAssetAvailable" not in kwargs else kwargs["localAssetAvailable"]
+    #     )
+    #     collateralAssetAvailable = (
+    #         0 if "collateralAssetAvailable" not in kwargs else kwargs["collateralAssetAvailable"]
+    #     )
+    #     nTokenHaircutAssetValue = (
+    #         0 if "nTokenHaircutAssetValue" not in kwargs else kwargs["nTokenHaircutAssetValue"]
+    #     )
+    #     if collateral == 0:
+    #         nTokenParameters = "0x{}0000{}00".format(
+    #             hex(self.nTokenParameters[local][1])[2:], hex(self.nTokenParameters[local][0])[2:]
+    #         )
+    #     else:
+    #         nTokenParameters = "0x{}0000{}00".format(
+    #             hex(self.nTokenParameters[collateral][1])[2:],
+    #             hex(self.nTokenParameters[collateral][0])[2:],
+    #         )
 
-        localETHRate = [1e18, self.ethRates[local]] + self.bufferHaircutDiscount[local]
-        collateralETHRate = [1e18, self.ethRates[collateral]] + self.bufferHaircutDiscount[
-            collateral
-        ]
-        localAssetRate = [
-            self.cTokenAdapters[local].address,
-            self.cTokenRates[local],
-            10 ** self.underlyingDecimals[local],
-        ]
-        collateralCashGroup = [
-            local if collateral == 0 else collateral,
-            3,
-            localAssetRate
-            if collateral == 0
-            else [
-                self.cTokenAdapters[collateral].address,
-                self.cTokenRates[collateral],
-                10 ** self.underlyingDecimals[collateral],
-            ],
-            0,  # TODO: need to fill this in for fCash
-        ]
-        isCalculation = False if "isCalculation" not in kwargs else kwargs["isCalculation"]
+    #     localETHRate = [1e18, self.ethRates[local]] + self.bufferHaircutDiscount[local]
+    #     collateralETHRate = [1e18, self.ethRates[collateral]] + self.bufferHaircutDiscount[
+    #         collateral
+    #     ]
+    #     localAssetRate = [
+    #         self.cTokenAdapters[local].address,
+    #         self.cTokenRates[local],
+    #         10 ** self.underlyingDecimals[local],
+    #     ]
+    #     collateralCashGroup = [
+    #         local if collateral == 0 else collateral,
+    #         3,
+    #         localAssetRate
+    #         if collateral == 0
+    #         else [
+    #             self.cTokenAdapters[collateral].address,
+    #             self.cTokenRates[collateral],
+    #             10 ** self.underlyingDecimals[collateral],
+    #         ],
+    #         0,  # TODO: need to fill this in for fCash
+    #     ]
+    #     isCalculation = False if "isCalculation" not in kwargs else kwargs["isCalculation"]
 
-        return [
-            account,
-            netETHValue,
-            localAssetAvailable,
-            collateralAssetAvailable,
-            nTokenHaircutAssetValue,
-            nTokenParameters,
-            localETHRate,
-            collateralETHRate,
-            localAssetRate,
-            collateralCashGroup,
-            isCalculation,
-        ]
+    #     return [
+    #         account,
+    #         netETHValue,
+    #         localAssetAvailable,
+    #         collateralAssetAvailable,
+    #         nTokenHaircutAssetValue,
+    #         nTokenParameters,
+    #         localETHRate,
+    #         collateralETHRate,
+    #         localAssetRate,
+    #         collateralCashGroup,
+    #         isCalculation,
+    #     ]
 
 
 # Returns initial factors to set fc to zero during collateral liquidation
 def setup_collateral_liquidation(liquidation, local, localDebt):
     collateral = random.choice([c for c in range(1, 5) if c != local])
-    collateralHaircut = liquidation.bufferHaircutDiscount[collateral][1]
+    collateralEthRate = liquidation.mock.getETHRate(collateral)
+    collateralHaircut = collateralEthRate["haircut"]
 
     # This test needs to work off of changes to exchange rates, set up first such that
     # we have collateral and local in alignment at zero free collateral
@@ -441,27 +396,38 @@ def setup_collateral_liquidation(liquidation, local, localDebt):
 # Now we change the exchange rates to simulate undercollateralization, decreasing
 # the exchange rate will also decrease the FC
 def move_collateral_exchange_rate(liquidation, local, collateral, ratio):
-    localBuffer = liquidation.bufferHaircutDiscount[local][0]
-    collateralHaircut = liquidation.bufferHaircutDiscount[collateral][1]
+    localEthRate = liquidation.mock.getETHRate(local)
+    collateralEthRate = liquidation.mock.getETHRate(collateral)
+
+    localBuffer = localEthRate["buffer"]
+    collateralHaircut = collateralEthRate["haircut"]
 
     # Exchange Rates can move by by a maximum of (1 / buffer) * haircut, this is insolvency
     # If ratio > 100 then we are insolvent
     # If ratio == 0 then fc is 0
     maxPercentDecrease = (1 / localBuffer) * collateralHaircut
     exchangeRateDecrease = 100 - ((ratio * maxPercentDecrease) / 100)
-    liquidationDiscount = liquidation.get_discount(local, collateral)
+    liquidationDiscount = max(
+        localEthRate["liquidationDiscount"], collateralEthRate["liquidationDiscount"]
+    )
 
     if collateral != 1:
-        newExchangeRate = liquidation.ethRates[collateral] * exchangeRateDecrease / 100
-        liquidation.ethAggregators[collateral].setAnswer(newExchangeRate)
+        aggregator = Contract.from_abi(
+            "agg", collateralEthRate[0], MockAggregator.abi, owner=accounts[0]
+        )
+        newExchangeRate = aggregator.latestAnswer() * exchangeRateDecrease / 100
+        aggregator.setAnswer(newExchangeRate)
         discountedExchangeRate = (
             ((liquidation.ethRates[local] * 1e18) / newExchangeRate) * liquidationDiscount / 100
         )
     else:
         # The collateral currency is ETH so we have to change the local currency
         # exchange rate instead
-        newExchangeRate = liquidation.ethRates[local] * 100 / exchangeRateDecrease
-        liquidation.ethAggregators[local].setAnswer(newExchangeRate)
+        aggregator = Contract.from_abi(
+            "agg", liquidation.mock.getETHRate(local)[0], MockAggregator.abi, owner=accounts[0]
+        )
+        newExchangeRate = aggregator.latestAnswer() * 100 / exchangeRateDecrease
+        aggregator.setAnswer(newExchangeRate)
         discountedExchangeRate = (
             ((newExchangeRate * 1e18) / liquidation.ethRates[collateral])
             * liquidationDiscount
@@ -496,8 +462,10 @@ def get_expected(
     #      collateralToSell * collateralHaircut
     # Solve for:
     # collateralToSell = collateralDenominatedFC / ((buffer / liquidationDiscount) - haircut)
-    buffer = liquidation.bufferHaircutDiscount[local][0]
-    haircut = liquidation.bufferHaircutDiscount[collateral][1]
+    localETHRate = liquidation.mock.getETHRate(local)
+    collateralETHRate = liquidation.mock.getETHRate(collateral)
+    buffer = localETHRate["buffer"]
+    haircut = collateralETHRate["haircut"]
     liquidationDiscount = liquidation.get_discount(local, collateral)
     denominator = math.trunc((buffer * 100 / liquidationDiscount) - haircut)
     collateralToSell = Wei((collateralDenominatedFC * 100) / denominator)
@@ -539,7 +507,9 @@ def get_expected(
     )
 
 
-def calculate_local_debt_cash_balance(liquidation, local, ratio, benefitAsset, haircutAsset):
+def calculate_local_debt_cash_balance(
+    liquidation, local, ratio, benefitAsset, haircutAsset, blockTime
+):
     # Choose a random currency for the debt to be in
     debtCurrency = random.choice([c for c in range(1, 5) if c != local])
 
@@ -547,7 +517,7 @@ def calculate_local_debt_cash_balance(liquidation, local, ratio, benefitAsset, h
     # debt in this liquidation type:
     # convertToETHWithHaircut(benefit) + convertToETHWithBuffer(debt)
     benefitInUnderlying = liquidation.calculate_to_underlying(
-        local, Wei((benefitAsset * ratio * 1e8) / 1e10)
+        local, Wei((benefitAsset * ratio * 1e8) / 1e10), blockTime
     )
     # Since this benefit is cross currency, apply the haircut here
     benefitInETH = liquidation.calculate_to_eth(local, benefitInUnderlying)
@@ -556,7 +526,7 @@ def calculate_local_debt_cash_balance(liquidation, local, ratio, benefitAsset, h
     # balance needs to be lower than the value of the haircut value:
     # convertToETHWithHaircut(haircut) = convertToETHWithBuffer(debt)
     haircutInETH = liquidation.calculate_to_eth(
-        local, liquidation.calculate_to_underlying(local, Wei(haircutAsset))
+        local, liquidation.calculate_to_underlying(local, Wei(haircutAsset), blockTime)
     )
 
     # This is the amount of debt post buffer we can offset with the benefit in ETH
@@ -566,9 +536,9 @@ def calculate_local_debt_cash_balance(liquidation, local, ratio, benefitAsset, h
         -(benefitInETH + haircutInETH),
     )
     # Undo the buffer when calculating the cash balance
+    debtBuffer = liquidation.mock.getETHRate(debtCurrency)["buffer"]
     debtCashBalance = liquidation.calculate_from_underlying(
-        debtCurrency,
-        Wei((debtInUnderlyingBuffered * 100) / liquidation.bufferHaircutDiscount[debtCurrency][0]),
+        debtCurrency, Wei((debtInUnderlyingBuffered * 100) / debtBuffer), blockTime
     )
 
     return (debtCurrency, debtCashBalance)

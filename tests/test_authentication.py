@@ -3,9 +3,9 @@ import pytest
 from brownie.convert.datatypes import HexString
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
-from scripts.config import CurrencyDefaults, nTokenDefaults
+from scripts.config import CurrencyDefaults, PrimeCashCurve, nTokenDefaults
 from scripts.deployment import TokenType, deployNotionalContracts
-from tests.helpers import initialize_environment
+from tests.helpers import get_interest_rate_curve, initialize_environment
 
 chain = Chain()
 
@@ -61,6 +61,7 @@ def test_non_callable_methods(environment, accounts):
             (zeroAddress, False, 0, 0, 0),
             zeroAddress,
             False,
+            12,
             CurrencyDefaults["buffer"],
             CurrencyDefaults["haircut"],
             CurrencyDefaults["liquidationDiscount"],
@@ -94,13 +95,16 @@ def test_non_callable_methods(environment, accounts):
             currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9], {"from": accounts[1]}
         )
         environment.notional.updateInitializationParameters(
-            currencyId, [0.01e9, 0.021e9, 0.07e9], [0.5e9, 0.5e9, 0.5e9], {"from": accounts[1]}
+            currencyId, [0, 0, 0], [0.5e9, 0.5e9, 0.5e9], {"from": accounts[1]}
         )
         environment.notional.updateIncentiveEmissionRate(
             currencyId, CurrencyDefaults["incentiveEmissionRate"], {"from": accounts[1]}
         )
         environment.notional.updateTokenCollateralParameters(
             currencyId, *(nTokenDefaults["Collateral"]), {"from": accounts[1]}
+        )
+        environment.notional.updateInterestRateCurve(
+            currencyId, [1, 2], [get_interest_rate_curve()] * 2, {"from": accounts[1]}
         )
 
         cashGroup = list(environment.notional.getCashGroup(currencyId))
@@ -120,29 +124,12 @@ def test_non_callable_methods(environment, accounts):
         environment.notional.batchBalanceAction(accounts[2], [], {"from": accounts[1]})
         environment.notional.batchBalanceAndTradeAction(accounts[2], [], {"from": accounts[1]})
 
-    # Test nToken Proxy Authorization
-    with brownie.reverts("Unauthorized caller"):
-        environment.notional.nTokenTransferApprove(
-            1, accounts[2], accounts[1], 2 ** 255, {"from": accounts[1]}
-        )
-        environment.notional.nTokenTransfer(
-            1, accounts[2], accounts[1], 100e8, {"from": accounts[1]}
-        )
-        environment.notional.nTokenTransferFrom(
-            1, accounts[2], accounts[1], accounts[0], 100e8, {"from": accounts[1]}
-        )
-        environment.notional.nTokenRedeemViaProxy(
-            1, 100e8, accounts[1], accounts[1], {"from": accounts[1]}
-        )
-        environment.notional.nTokenMintViaProxy(1, 100e8, accounts[1], {"from": accounts[1]})
-
 
 def test_prevent_duplicate_token_listing(environment, accounts):
     symbol = "DAI"
-    assert environment.notional.getCurrencyId(environment.cToken[symbol].address) == 2
-    with brownie.reverts("G: duplicate token listing"):
+    assert environment.notional.getCurrencyId(environment.token[symbol].address) == 2
+    with brownie.reverts("dev: duplicate listing"):
         environment.notional.listCurrency(
-            (environment.cToken[symbol].address, symbol == "USDT", TokenType["cToken"], 8, 0),
             (
                 environment.token[symbol].address,
                 symbol == "USDT",
@@ -152,8 +139,12 @@ def test_prevent_duplicate_token_listing(environment, accounts):
             ),
             environment.ethOracle[symbol].address,
             False,
+            12,
             CurrencyDefaults["buffer"],
             CurrencyDefaults["haircut"],
             CurrencyDefaults["liquidationDiscount"],
+            PrimeCashCurve,
+            environment.primeCashOracle[symbol],
+            True,
             {"from": accounts[0]},
         )

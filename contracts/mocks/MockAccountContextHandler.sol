@@ -3,6 +3,29 @@ pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "../internal/AccountContextHandler.sol";
+import "../internal/portfolio/BitmapAssetsHandler.sol";
+
+interface IAccountContext {
+    struct AccountContextOld {
+        uint40 nextSettleTime;
+        bytes1 hasDebt;
+        uint8 assetArrayLength;
+        uint16 bitmapCurrencyId;
+        bytes18 activeCurrencies;
+    }
+
+    function getAccountContext(address account) external view returns (AccountContextOld memory);
+}
+
+contract MockAccountContextReader {
+    function getAccountContext(address account) external view returns (IAccountContext.AccountContextOld memory) {
+        // This is just here to get the signature
+    }
+
+    function getAccountContextTest(address account, address proxy) external view returns (IAccountContext.AccountContextOld memory) {
+        return IAccountContext(proxy).getAccountContext(account);
+    }
+}
 
 contract MockAccountContextHandler {
     using AccountContextHandler for AccountContext;
@@ -53,7 +76,7 @@ contract MockAccountContextHandler {
         uint16 bitmapId
     ) external pure returns (bytes18) {
         AccountContext memory accountContext =
-            AccountContext(0, 0x00, 0, bitmapId, activeCurrencies);
+            AccountContext(0, 0x00, 0, bitmapId, activeCurrencies, false);
         accountContext.setActiveCurrency(currencyId, isActive, flags);
 
         // Assert that the currencies are in order

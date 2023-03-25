@@ -4,7 +4,7 @@ from brownie.convert import to_bytes, to_uint
 from brownie.convert.datatypes import Wei
 from brownie.network import web3
 from brownie.network.state import Chain
-from tests.constants import RATE_PRECISION, SECONDS_IN_DAY
+from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_MONTH
 from tests.helpers import (
     get_balance_action,
     get_balance_trade_action,
@@ -198,26 +198,6 @@ def test_set_account_approval(environment, accounts):
     assert environment.notional.isApprovedForAll(accounts[0], accounts[1])
     environment.notional.setApprovalForAll(accounts[1], False, {"from": accounts[0]})
     assert not environment.notional.isApprovedForAll(accounts[0], accounts[1])
-
-
-def test_set_global_approval(environment, accounts, MockTransferOperator):
-    transferOp = MockTransferOperator.deploy(environment.notional.address, {"from": accounts[0]})
-    assert not environment.notional.isApprovedForAll(accounts[0], transferOp.address)
-
-    txn = environment.notional.updateGlobalTransferOperator(
-        transferOp.address, True, {"from": accounts[0]}
-    )
-
-    assert txn.events["UpdateGlobalTransferOperator"]["operator"] == transferOp.address
-    assert txn.events["UpdateGlobalTransferOperator"]["approved"]
-    assert environment.notional.isApprovedForAll(accounts[0], transferOp.address)
-
-    txn = environment.notional.updateGlobalTransferOperator(
-        transferOp.address, False, {"from": accounts[0]}
-    )
-    assert txn.events["UpdateGlobalTransferOperator"]["operator"] == transferOp.address
-    assert not txn.events["UpdateGlobalTransferOperator"]["approved"]
-    assert not environment.notional.isApprovedForAll(accounts[0], transferOp.address)
 
 
 def test_transfer_has_fcash(environment, accounts):
@@ -505,7 +485,7 @@ def test_transfer_borrow_fcash_deposit_collateral(environment, accounts):
     assert toAssets[0][3] == -fromAssets[0][3]
 
     (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
-    assert cashBalance == 5000e8
+    assert environment.approxInternal("DAI", cashBalance, 100e8)
     assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
     check_system_invariants(environment, accounts)
@@ -532,7 +512,7 @@ def test_transfer_borrow_fcash_borrow_market(environment, accounts):
                     ],
                     depositActionAmount=5000e8,
                     withdrawEntireCashBalance=False,
-                    redeemToUnderlying=False,
+                    redeemToUnderlying=True,
                 )
             ],
         ],
@@ -574,8 +554,11 @@ def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
     environment, accounts, MockTransferOperator
 ):
     transferOp = MockTransferOperator.deploy(environment.notional.address, {"from": accounts[0]})
-    environment.notional.updateGlobalTransferOperator(
+    environment.notional.setApprovalForAll(
         transferOp.address, True, {"from": accounts[0]}
+    )
+    environment.notional.setApprovalForAll(
+        transferOp.address, True, {"from": accounts[1]}
     )
     markets = environment.notional.getActiveMarkets(2)
     erc1155id = environment.notional.encodeToId(2, markets[0][1], 1)
@@ -601,7 +584,7 @@ def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
     assert toAssets[0][3] == -fromAssets[0][3]
 
     (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
-    assert cashBalance == 5000e8
+    assert environment.approxInternal("DAI", cashBalance, 100e8)
     assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
     check_system_invariants(environment, accounts)
@@ -668,8 +651,11 @@ def test_bidirectional_fcash_transfer_to_account_will_trade(
     environment, accounts, MockTransferOperator
 ):
     transferOp = MockTransferOperator.deploy(environment.notional.address, {"from": accounts[0]})
-    environment.notional.updateGlobalTransferOperator(
+    environment.notional.setApprovalForAll(
         transferOp.address, True, {"from": accounts[0]}
+    )
+    environment.notional.setApprovalForAll(
+        transferOp.address, True, {"from": accounts[1]}
     )
     markets = environment.notional.getActiveMarkets(2)
     erc1155ids = [
@@ -763,5 +749,44 @@ def test_batch_transfer_and_batch_lend(environment, accounts):
     (cashBalance, _, _) = environment.notional.getAccountBalance(2, accounts[1])
     assert cashBalance <= 50e8
     assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
+
+    check_system_invariants(environment, accounts)
+
+def test_create_and_settle_one_month_fcash(environment, accounts):
+    maturity = chain.time() - chain.time() % SECONDS_IN_DAY + SECONDS_IN_MONTH
+    erc1155id = environment.notional.encodeToId(2, maturity, 1)
+
+    environment.notional.depositUnderlyingToken(
+        accounts[1], 1, 10e18, {"from": accounts[1], "value": 10e18}
+    )
+    # account[1] will incur fCash debt. account[0] will have fCash
+    environment.notional.safeTransferFrom(
+        accounts[1], accounts[0], erc1155id, 100e8, "", {"from": accounts[1]}
+    )
+
+    fcBefore = environment.notional.getFreeCollateral(accounts[1])[0]
+
+    # Borrow a significant amount from the DAI market to increase the 1 month interest rate
+    environment.notional.enablePrimeBorrow(True, {'from': accounts[0]})
+    environment.notional.withdraw(2, 40_000_000e8, True, {"from": accounts[0]})
+
+    # FC does not change immediately after
+    fcAfter1 = environment.notional.getFreeCollateral(accounts[1])[0]
+    assert pytest.approx(fcBefore, abs=100) == fcAfter1
+
+    # Mine 6 hours to increase the oracle rate
+    chain.mine(1, timedelta=360 * 6)
+
+    # FC increases as a result of a higher discount rate on debt
+    fcAfter2 = environment.notional.getFreeCollateral(accounts[1])[0]
+    assert fcAfter2 - fcAfter1 > 50_000
+
+    chain.mine(1, timestamp=maturity)
+    txn = environment.notional.settleAccount(accounts[1])
+    environment.notional.settleAccount(accounts[0])
+    assert "SetPrimeSettlementRate" in txn.events
+    assert len(environment.notional.getAccountPortfolio(accounts[1])) == 0
+    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
+    assert environment.approxInternal('DAI', environment.notional.getAccountBalance(2, accounts[1])['cashBalance'], -100e8)
 
     check_system_invariants(environment, accounts)

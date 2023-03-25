@@ -34,9 +34,10 @@ class TestAccountContext:
         hasDebt=strategy("uint8", min_value=0, max_value=3),
         arrayLength=strategy("uint8"),
         bitmapId=strategy("uint16"),
+        allowPrimeDebt=strategy("bool"),
     )
     def test_get_and_set_account_context(
-        self, accountContext, accounts, length, hasDebt, arrayLength, bitmapId
+        self, accountContext, accounts, length, hasDebt, arrayLength, bitmapId, allowPrimeDebt
     ):
         currencies = [get_random_flags(random.randint(1, 2 ** 14)) for i in range(0, length)]
         currenciesHex = HexString(currencies_list_to_active_currency_bytes(currencies), "bytes18")
@@ -46,6 +47,7 @@ class TestAccountContext:
             arrayLength,
             bitmapId,
             currenciesHex,
+            allowPrimeDebt,
         )
 
         accountContext.setAccountContext(expectedContext, accounts[0])
@@ -54,7 +56,7 @@ class TestAccountContext:
     @given(length=strategy("uint", min_value=0, max_value=9))
     def test_is_active_in_balances(self, accountContext, length):
         currencies = [get_random_flags(random.randint(1, 2 ** 14)) for i in range(0, length)]
-        ac = (0, "0x00", 0, 0, currencies_list_to_active_currency_bytes(currencies))
+        ac = (0, "0x00", 0, 0, currencies_list_to_active_currency_bytes(currencies), False)
 
         for (c, _, balanceActive) in currencies:
             assert accountContext.isActiveInBalances(ac, c) == balanceActive
@@ -449,12 +451,16 @@ class TestAccountContext:
         activeCurrencies = HexString(
             currencies_list_to_active_currency_bytes([(1, False, True)]), "bytes18"
         )
-        accountContext.setAccountContext((START_TIME, "0x00", 0, 0, activeCurrencies), accounts[0])
+        accountContext.setAccountContext(
+            (START_TIME, "0x00", 0, 0, activeCurrencies, False), accounts[0]
+        )
         accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
         context = accountContext.getAccountContext(accounts[0])
-        assert context[3] == 1
-        assert context[0] != 0
-        assert context[-1] == HexString(currencies_list_to_active_currency_bytes([]), "bytes18")
+        assert context["bitmapCurrencyId"] == 1
+        assert context["nextSettleTime"] != 0
+        assert context["activeCurrencies"] == HexString(
+            currencies_list_to_active_currency_bytes([]), "bytes18"
+        )
 
     def test_fail_enable_bitmap_currency(self, accountContext, accounts):
         with brownie.reverts("Invalid currency id"):
@@ -462,18 +468,30 @@ class TestAccountContext:
             accountContext.enableBitmapForAccount(accounts[0], 0, START_TIME)
 
         with brownie.reverts("Cannot change bitmap"):
-            accountContext.setAccountContext((START_TIME, "0x00", 0, 1, "0x00"), accounts[0])
+            accountContext.setAccountContext((START_TIME, "0x00", 0, 1, "0x00", False), accounts[0])
             accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
 
         with brownie.reverts("Cannot have assets"):
-            accountContext.setAccountContext((START_TIME, "0x00", 1, 0, "0x00"), accounts[0])
+            accountContext.setAccountContext((START_TIME, "0x00", 1, 0, "0x00", False), accounts[0])
             accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
 
         with brownie.reverts("Cannot change bitmap"):
-            accountContext.setAccountContext((START_TIME, "0x00", 0, 5, "0x00"), accounts[0])
+            accountContext.setAccountContext((START_TIME, "0x00", 0, 5, "0x00", False), accounts[0])
             accountContext.setAssetBitmap(accounts[0], 5, "0x1")
             accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
 
         with brownie.reverts("Cannot have debt"):
-            accountContext.setAccountContext((START_TIME, "0x01", 0, 0, "0x4001"), accounts[0])
+            accountContext.setAccountContext(
+                (START_TIME, "0x01", 0, 0, "0x4001", False), accounts[0]
+            )
             accountContext.enableBitmapForAccount(accounts[0], 1, START_TIME)
+
+    def test_change_account_context(self, accountContext, accounts, MockAccountContextReader):
+        r = MockAccountContextReader.deploy({"from": accounts[0]})
+        a = r.getAccountContextTest(accounts[0], accountContext)
+
+        # Test that changing the return type does not change the method signature
+        assert r.getAccountContext.signature == accountContext.getAccountContext.signature
+        # Asserts that updating the account context struct does not impact contracts
+        # that are reading it via the old ABI
+        assert a == (0, "0x00", 0, 0, "0x000000000000000000000000000000000000")

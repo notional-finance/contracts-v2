@@ -2,11 +2,13 @@ import random
 
 import brownie
 import pytest
+from brownie import Contract
 from brownie.test import given, strategy
-from tests.constants import MARKETS, RATE_PRECISION, SETTLEMENT_DATE, START_TIME, START_TIME_TREF
+from tests.constants import MARKETS, RATE_PRECISION, SETTLEMENT_DATE, START_TIME, START_TIME_TREF, ZERO_ADDRESS
 from tests.helpers import (
     get_bitstring_from_bitmap,
     get_cash_group_with_max_markets,
+    get_interest_rate_curve,
     get_market_state,
     random_asset_bitmap,
 )
@@ -15,8 +17,9 @@ from tests.helpers import (
 @pytest.mark.portfolio
 class TestBitmapAssets:
     @pytest.fixture(scope="module", autouse=True)
-    def bitmapAssets(self, MockBitmapAssetsHandler, accounts):
-        handler = MockBitmapAssetsHandler.deploy({"from": accounts[0]})
+    def bitmapAssets(self, MockBitmapAssetsHandler, MockSettingsLib, accounts):
+        settings = MockSettingsLib.deploy({"from": accounts[0]})
+        handler = MockBitmapAssetsHandler.deploy(settings.address, {"from": accounts[0]})
         handler.setMarketStorage(
             1, SETTLEMENT_DATE, get_market_state(MARKETS[0], oracleRate=0.01 * RATE_PRECISION)
         )
@@ -39,18 +42,7 @@ class TestBitmapAssets:
             1, SETTLEMENT_DATE, get_market_state(MARKETS[6], oracleRate=0.07 * RATE_PRECISION)
         )
 
-        return handler
-
-    @pytest.fixture(scope="module", autouse=True)
-    def mockAssetRate(self, MockCToken, cTokenV2Aggregator, accounts):
-        # Deploy 8 different aggregators for each currency
-        mockToken = MockCToken.deploy(8, {"from": accounts[0]})
-        mockAggregator = cTokenV2Aggregator.deploy(mockToken.address, {"from": accounts[0]})
-        # Set the settlement rate to be set
-        mockToken.setSupplyRate(0.01e18)
-        mockToken.setAnswer(0.01e18)
-
-        return mockAggregator
+        return Contract.from_abi("mock", handler.address, MockSettingsLib.abi + MockBitmapAssetsHandler.abi, owner=accounts[0])
 
     @pytest.fixture(autouse=True)
     def isolation(self, fn_isolation):
@@ -82,24 +74,41 @@ class TestBitmapAssets:
         bitmapAssets.setAssetsBitmap(accounts[0], 1, bitmap)
 
         txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, notional)
-        (newBitmap, returnVal) = txn.return_value
+        (newBitmap, finalNotional) = txn.return_value
 
-        setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
+        setNotionalValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
         newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
-        assert setValue == returnVal
-        assert setValue == notional
+        if notional < 0:
+            assert len(txn.events["TotalfCashDebtOutstandingChanged"]) == 1
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["currencyId"] == 1
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["maturity"] == maturity
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["totalfCashDebt"] == notional
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["netDebtChange"] == notional
+            assert bitmapAssets.getTotalfCashDebtOutstanding(1, maturity) == notional
+        else:
+            assert "TotalfCashDebtOutstandingChanged" not in txn.events
+        assert setNotionalValue == finalNotional
+        assert setNotionalValue == notional
         assert newBitlist[bitNum - 1] == "1"
 
-        # This should net off the value
         txn = bitmapAssets.addifCashAsset(accounts[0], 1, maturity, START_TIME, -notional)
-        (newBitmap, returnVal) = txn.return_value
+        (newBitmap, finalNotional) = txn.return_value
 
-        setValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
+        setNotionalValue = bitmapAssets.getifCashAsset(accounts[0], 1, maturity)
         newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
-        assert setValue == returnVal
-        assert setValue == 0
+        if notional < 0:
+            assert len(txn.events["TotalfCashDebtOutstandingChanged"]) == 1
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["currencyId"] == 1
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["maturity"] == maturity
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["totalfCashDebt"] == 0
+            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["netDebtChange"] == -notional
+            assert bitmapAssets.getTotalfCashDebtOutstanding(1, maturity) == 0
+        else:
+            assert "TotalfCashDebtOutstandingChanged" not in txn.events
+        assert setNotionalValue == finalNotional
+        assert setNotionalValue == 0
         assert newBitlist[bitNum - 1] == "0"
 
     def test_set_ifcash_asset_set_zero(self, bitmapAssets, accounts):
@@ -132,19 +141,21 @@ class TestBitmapAssets:
             assert asset[2] == 1
             assert asset[3] == 1e8
 
-    def test_ifcash_npv(self, bitmapAssets, mockAssetRate, accounts):
+    def test_ifcash_npv(self, bitmapAssets, UnderlyingHoldingsOracle, accounts):
+        oracle = UnderlyingHoldingsOracle.deploy(bitmapAssets.address, ZERO_ADDRESS, {"from": accounts[0]})
+        accounts[0].transfer(bitmapAssets, 1_000e18)
+
         cg = get_cash_group_with_max_markets(7)
-        bitmapAssets.setAssetRateMapping(1, (mockAssetRate.address, 18))
         bitmapAssets.setCashGroup(1, cg)
+        bitmapAssets.initPrimeCashCurve(
+            1, 1_000e8, 0, get_interest_rate_curve(), oracle, True, {"from": accounts[0]}
+        )
 
         cashGroup = bitmapAssets.buildCashGroupView(1)
-
-        # TODO: test a random negative offset to next maturing asset to simulate an unsettled
-        # perpetual token
         nextSettleTime = START_TIME_TREF
         # Get the max bit given the time offset
         (maxBit, _) = bitmapAssets.getBitNumFromMaturity(nextSettleTime, MARKETS[6])
-        (assetsBitmap, assetsBitmapList) = random_asset_bitmap(10, maxBit)
+        (_, assetsBitmapList) = random_asset_bitmap(10, maxBit)
         computedPV = 0
         computedRiskPV = 0
 

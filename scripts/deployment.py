@@ -1,11 +1,11 @@
 import json
 from copy import copy
 
+import pytest
 from brownie import (
     AccountAction,
     BatchAction,
     CalculationViews,
-    EmptyProxy,
     ERC1155Action,
     FreeCollateralExternal,
     GovernanceAction,
@@ -15,6 +15,7 @@ from brownie import (
     LiquidatefCashAction,
     MigrateIncentives,
     MockAggregator,
+    CompoundV2HoldingsOracle,
     MockERC20,
     MockWETH,
     NoteERC20,
@@ -23,9 +24,10 @@ from brownie import (
     SettleAssetsExternal,
     TradingAction,
     TreasuryAction,
-    UpgradeableBeacon,
     VaultAccountAction,
+    VaultAccountHealth,
     VaultAction,
+    VaultLiquidationAction,
     Views,
     accounts,
     cTokenV2Aggregator,
@@ -36,15 +38,26 @@ from brownie import (
     nTokenERC20Proxy,
     nTokenMintAction,
     nTokenRedeemAction,
+    PrimeCashProxy,
+    PrimeDebtProxy,
+    UpgradeableBeaconFactory
 )
 from brownie.convert.datatypes import HexString
-from brownie.network import web3
+from brownie.network import Rpc, web3
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
 from brownie.project import ContractsV2Project
-from scripts.config import CompoundConfig, CurrencyDefaults, GovernanceConfig, TokenConfig
+from scripts.config import (
+    CompoundConfig,
+    CurrencyDefaults,
+    GovernanceConfig,
+    PrimeCashCurve,
+    TokenConfig,
+)
+from tests.constants import ZERO_ADDRESS
 
 chain = Chain()
+rpc = Rpc()
 
 TokenType = {
     "UnderlyingToken": 0,
@@ -54,6 +67,7 @@ TokenType = {
     "NonMintable": 4,
     "aToken": 5,
 }
+zeroAddress = HexString(0, type_str="bytes20")
 
 
 def deployNoteERC20(deployer):
@@ -88,10 +102,30 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
         {"from": deployer},
     )
 
+def deployBeacons(deployer, proxy):
+    factoryDeployer = "0x284CbC48848F8eB19c9aF5A3750059D22f148739"
+    deployer.transfer(factoryDeployer, 1e18)
+
+    # NOTE: the contract address still depends on the impl address
+    nTokenImpl = nTokenERC20Proxy.deploy(proxy.address, {"from": factoryDeployer})
+    pCashImpl = PrimeCashProxy.deploy(proxy.address, {"from": factoryDeployer})
+    pDebtImpl = PrimeDebtProxy.deploy(proxy.address, {"from": factoryDeployer})
+    factory = UpgradeableBeaconFactory.deploy({"from": factoryDeployer})
+
+    nTokenBeacon = factory.deployBeacon(proxy, nTokenImpl, 1).return_value
+    pCashBeacon = factory.deployBeacon(proxy, pCashImpl, 2).return_value
+    pDebtBeacon = factory.deployBeacon(proxy, pDebtImpl, 3).return_value
+    print("factory: ", factory.address)
+    print("nToken: ", nTokenBeacon)
+    print("pCash: ", pCashBeacon)
+    print("pDebt: ", pDebtBeacon)
+
+    # NOTE: in testing these beacon addresses are hardcoded in Deployments.sol
+    return (nTokenBeacon, pCashBeacon, pDebtBeacon)
 
 def deployNotionalContracts(deployer, **kwargs):
     contracts = {}
-    if network.show_active() in ["kovan", "mainnet"]:
+    if network.show_active() in ["goerli", "mainnet"]:
         raise Exception("update governance deployment!")
 
     # Deploy Libraries
@@ -105,7 +139,7 @@ def deployNotionalContracts(deployer, **kwargs):
     # Deploy logic contracts
     contracts["Governance"] = GovernanceAction.deploy({"from": deployer})
 
-    if network.show_active() in ["kovan", "mainnet"]:
+    if network.show_active() in ["goerli", "mainnet"]:
         raise Exception("update governance deployment!")
     # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
     # deployment. Therefore, when we deploy to mainnet we actually deploy the artifact generated
@@ -122,9 +156,11 @@ def deployNotionalContracts(deployer, **kwargs):
     contracts["LiquidateCurrencyAction"] = LiquidateCurrencyAction.deploy({"from": deployer})
     contracts["CalculationViews"] = CalculationViews.deploy({"from": deployer})
     contracts["LiquidatefCashAction"] = LiquidatefCashAction.deploy({"from": deployer})
-    contracts["TreasuryAction"] = TreasuryAction.deploy(kwargs["Comptroller"], {"from": deployer})
+    contracts["TreasuryAction"] = TreasuryAction.deploy(kwargs["Comptroller"], kwargs["RebalancingStrategy"], {"from": deployer})
     contracts["VaultAction"] = VaultAction.deploy({"from": deployer})
     contracts["VaultAccountAction"] = VaultAccountAction.deploy({"from": deployer})
+    contracts["VaultLiquidationAction"] = VaultLiquidationAction.deploy({"from": deployer})
+    contracts["VaultAccountHealth"] = VaultAccountHealth.deploy({"from": deployer})
 
     # Deploy Pause Router
     pauseRouter = PauseRouter.deploy(
@@ -132,6 +168,7 @@ def deployNotionalContracts(deployer, **kwargs):
         contracts["LiquidateCurrencyAction"].address,
         contracts["LiquidatefCashAction"].address,
         contracts["CalculationViews"].address,
+        contracts["VaultAccountHealth"].address,
         {"from": deployer},
     )
 
@@ -147,11 +184,12 @@ def deployNotionalContracts(deployer, **kwargs):
             contracts["ERC1155Action"].address,
             contracts["LiquidateCurrencyAction"].address,
             contracts["LiquidatefCashAction"].address,
-            kwargs["cETH"],
             contracts["TreasuryAction"].address,
             contracts["CalculationViews"].address,
             contracts["VaultAccountAction"].address,
             contracts["VaultAction"].address,
+            contracts["VaultLiquidationAction"].address,
+            contracts["VaultAccountHealth"].address,
         ),
         {"from": deployer},
     )
@@ -159,9 +197,10 @@ def deployNotionalContracts(deployer, **kwargs):
     return (router, pauseRouter, contracts)
 
 
-def deployNotional(deployer, cETHAddress, guardianAddress, comptroller, COMP, WETH):
+def deployNotional(deployer, guardianAddress, comptroller):
+    # NOTE: rebalancing strategy is only tested on mainnet fork
     (router, pauseRouter, contracts) = deployNotionalContracts(
-        deployer, cETH=cETHAddress, COMP=COMP, WETH=WETH, Comptroller=comptroller
+        deployer, Comptroller=comptroller, RebalancingStrategy=ZERO_ADDRESS
     )
 
     initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
@@ -171,6 +210,8 @@ def deployNotional(deployer, cETHAddress, guardianAddress, comptroller, COMP, WE
     proxy = nProxy.deploy(
         router.address, initializeData, {"from": deployer}  # Deployer is set to owner
     )
+
+    deployBeacons(deployer, proxy)
 
     notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi(
@@ -209,21 +250,29 @@ class TestEnvironment:
         self.comptroller._setMaxAssets(20)
         self.comptroller._setPriceOracle(self.compPriceOracle.address)
         self.currencyId = {}
-        self.token = {}
-        self.ethOracle = {}
+        self.token = {"ETH": zeroAddress}
+        self.ethOracle = {"ETH": zeroAddress}
         self.cToken = {}
         self.cTokenAggregator = {}
         self.nToken = {}
         self.router = {}
+        self.primeCashOracle = {}
         self.multisig = multisig
+        self.primeCashScalars = {"ETH": 50, "DAI": 49, "USDC": 48, "WBTC": 47}
+        self.symbol = {}
 
         if withGovernance:
             self._deployGovernance()
         else:
             self._deployNoteERC20()
 
-        # Deploy these for treasury manager
-        self.WETH = MockWETH.deploy({"from": self.deployer})
+        # Deploys WETH using the same account and nonce so that we get the proper WETH address
+        # on mainnet
+        wethDeployer = accounts.at("0x4f26ffbe5f04ed43630fdc30a87638d53d0b0876", force=True)
+        rpc.backend._request(
+            "evm_setAccountNonce", ["0x4f26ffbe5f04ed43630fdc30a87638d53d0b0876", 446]
+        )
+        self.WETH = MockWETH.deploy({"from": wethDeployer})
         self.COMP = MockERC20.deploy("Compound", "COMP", 18, 0, {"from": self.deployer})
 
         # First deploy tokens to ensure they are available
@@ -317,7 +366,6 @@ class TestEnvironment:
             cToken = deployArtifact("scripts/artifacts/nCErc20.json", [], self.deployer, "cErc20")
 
             # Super hack but only way to initialize the cToken given the ABI
-            zeroAddress = HexString(0, type_str="bytes20")
             zero = accounts.at(zeroAddress, force=True)
             cToken.initialize(
                 underlyingToken.address,
@@ -361,71 +409,52 @@ class TestEnvironment:
 
     def _deployNotional(self):
         (self.pauseRouter, self.router, self.proxy, self.notional, _) = deployNotional(
-            self.deployer,
-            self.cToken["ETH"].address,
-            accounts[8].address,
-            self.comptroller,
-            self.COMP,
-            self.WETH,
+            self.deployer, accounts[8].address, self.comptroller
         )
         self.enableCurrency("ETH", CurrencyDefaults)
 
     def enableCurrency(self, symbol, config):
-        currencyId = 1
-        if symbol == "NOMINT":
-            zeroAddress = HexString(0, "bytes20")
-            decimals = self.token[symbol].decimals()
-            txn = self.notional.listCurrency(
-                (
-                    self.token[symbol].address,
-                    symbol == "USDT",
-                    TokenType["NonMintable"],
-                    decimals,
-                    0,
-                ),
-                (zeroAddress, False, 0, 0, 0),
-                self.ethOracle[symbol].address,
-                False,
-                config["buffer"],
-                config["haircut"],
-                config["liquidationDiscount"],
-            )
-            currencyId = txn.events["ListCurrency"]["newCurrencyId"]
-
-        elif symbol != "ETH":
-            cTokenDecimals = self.cToken[symbol].decimals()
-            tokenDecimals = self.token[symbol].decimals()
-            txn = self.notional.listCurrency(
-                (
-                    self.cToken[symbol].address,
-                    symbol == "USDT",
-                    TokenType["cToken"],
-                    cTokenDecimals,
-                    0,
-                ),
-                (
-                    self.token[symbol].address,
-                    symbol == "USDT",
-                    TokenType["UnderlyingToken"],
-                    tokenDecimals,
-                    0,
-                ),
-                self.ethOracle[symbol].address,
-                False,
-                config["buffer"],
-                config["haircut"],
-                config["liquidationDiscount"],
-            )
-            currencyId = txn.events["ListCurrency"]["newCurrencyId"]
-
-        if symbol == "NOMINT":
-            assetRateAddress = HexString(0, "bytes20")
+        if symbol == "ETH":
+            tokenDecimals = 18
+            # need to init the list currency with some amount of tokens
+            self.deployer.transfer(self.notional, 1e18)
         else:
-            assetRateAddress = self.cTokenAggregator[symbol].address
+            tokenDecimals = self.token[symbol].decimals()
+            # need to init the list currency with some amount of tokens
+            self.token[symbol].transfer(self.notional, 10 ** tokenDecimals, {"from": self.deployer})
+
+        self.primeCashOracle[symbol] = CompoundV2HoldingsOracle.deploy(
+            [self.notional.address, self.token[symbol], self.cToken[symbol].address, self.cTokenAggregator[symbol].address],
+            {"from": self.deployer},
+        )
+
+        txn = self.notional.listCurrency(
+            (
+                self.token[symbol],
+                symbol == "USDT",
+                TokenType["UnderlyingToken"] if symbol != "ETH" else TokenType["Ether"],
+                tokenDecimals,
+                0,
+            ),
+            (
+                self.ethOracle[symbol],
+                18,
+                False,
+                config["buffer"],
+                config["haircut"],
+                config["liquidationDiscount"],
+            ),
+            PrimeCashCurve,
+            self.primeCashOracle[symbol],
+            True,  # allowDebt
+            12,
+            symbol,
+            symbol
+        )
+        currencyId = txn.events["ListCurrency"]["newCurrencyId"]
 
         self.notional.enableCashGroup(
             currencyId,
-            assetRateAddress,
             (
                 config["maxMarketIndex"],
                 config["rateOracleTimeWindow"],
@@ -444,10 +473,27 @@ class TestEnvironment:
         )
 
         self.currencyId[symbol] = currencyId
+        self.symbol[currencyId] = symbol
         nTokenAddress = self.notional.nTokenAddress(currencyId)
         self.nToken[currencyId] = Contract.from_abi(
             "nToken", nTokenAddress, abi=nTokenERC20Proxy.abi, owner=self.deployer
         )
+
+    def approxInternal(self, symbol, primeCash, underlyingInternal, abs=150):
+        currencyId = self.currencyId[symbol]
+        decimals = 18 if symbol == "ETH" else self.token[symbol].decimals()
+        expectedInternal = (
+            self.notional.convertCashBalanceToExternal(currencyId, primeCash, True)
+            * 1e8
+            / (10 ** decimals)
+        )
+        return pytest.approx(expectedInternal, abs=abs) == underlyingInternal
+
+    def approxExternal(self, symbol, primeCash, underlyingExternal):
+        currencyId = self.currencyId[symbol]
+        precision = 5e10 if symbol == "ETH" or self.token[symbol].decimals() > 8 else 5
+        expectedExternal = self.notional.convertCashBalanceToExternal(currencyId, primeCash, True)
+        return pytest.approx(expectedExternal, abs=precision) == underlyingExternal
 
 
 def main():

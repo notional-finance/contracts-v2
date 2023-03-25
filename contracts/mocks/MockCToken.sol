@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0-only
-pragma solidity =0.8.11;
+pragma solidity >=0.8.11;
 
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
+import {Deployments} from "../global/Deployments.sol";
 
 contract MockCToken is ERC20 {
     uint private _answer;
@@ -14,6 +15,10 @@ contract MockCToken is ERC20 {
     constructor(uint8 decimals_) ERC20("cMock", "cMock") {
         _decimals = decimals_;
         _mint(msg.sender, type(uint80).max);
+    }
+
+    function balanceOfUnderlying(address owner) external view returns (uint256) {
+        return (balanceOf(owner) * _answer) / 1e18;
     }
 
     function setUnderlying(address underlying_) external {
@@ -66,9 +71,52 @@ contract MockCToken is ERC20 {
     function redeem(uint redeemTokens) external returns (uint) {
         _burn(msg.sender, redeemTokens);
         uint redeemed = (redeemTokens * _answer) / 1e18;
-        ERC20(underlying).transfer(msg.sender, redeemed);
+        if (underlying == address(0)) {
+            payable(msg.sender).transfer(redeemed);
+        } else {
+            ERC20(underlying).transfer(msg.sender, redeemed);
+        }
         // This is the error code
         return 0;
+    }
+
+    function redeemUnderlying(uint redeemAmount) external returns (uint) {
+        uint redeemTokens = (redeemAmount * 1e18) / _answer;
+        _burn(msg.sender, redeemTokens);
+        if (underlying == address(0)) {
+            payable(msg.sender).transfer(redeemAmount);
+        } else {
+            ERC20(underlying).transfer(msg.sender, redeemAmount);
+        }
+        // This is the error code
+        return 0;
+    }
+
+    // Not an actual Compound method, but used for testing WETH unwrapping during
+    // redemption
+    function redeemUnderlyingToWETH(uint redeemAmount) external returns (uint) {
+        uint redeemTokens = (redeemAmount * 1e18) / _answer;
+        _burn(msg.sender, redeemTokens);
+        if (underlying == address(0)) {
+            Deployments.WETH.deposit{value: redeemAmount}();
+            ERC20(address(Deployments.WETH)).transfer(msg.sender, redeemAmount);
+        }
+        // This is the error code
+        return 0;
+    }
+
+    receive() external payable { }
+}
+
+
+contract MockCTokenAssetRateAdapter {
+    uint8 public constant decimals = 18;
+    MockCToken cToken;
+
+    constructor (MockCToken _cToken) { cToken = _cToken; }
+
+    function getExchangeRateView() external view returns (int256) {
+        return int256(cToken.exchangeRateStored());
     }
 }
 

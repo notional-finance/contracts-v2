@@ -1,10 +1,14 @@
 import math
 import random
 
+import brownie
 import pytest
-from brownie.convert.datatypes import Wei
+from brownie.convert.datatypes import HexString, Wei
+from brownie.network import Chain
+from brownie.network.contract import Contract
 from brownie.test import given, strategy
 from tests.constants import (
+    MARKETS,
     RATE_PRECISION,
     SECONDS_IN_DAY,
     SECONDS_IN_QUARTER,
@@ -14,69 +18,55 @@ from tests.constants import (
 )
 from tests.helpers import (
     get_bitmap_from_bitlist,
-    get_cash_group_with_max_markets,
     get_fcash_token,
+    get_interest_rate_curve,
     get_liquidity_token,
-    get_market_curve,
     random_asset_bitmap,
+    setup_internal_mock,
 )
 
+chain = Chain()
 currencyId = 1
 tokenAddress = None
-marketStates = []
+marketStates = None
+nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
 
 
-def setup_fixture(mock, aggregator):
+@pytest.fixture(scope="module", autouse=True)
+def nTokenRedeem(MockNTokenRedeem, MockSettingsLib, accounts):
+    global tokenAddress
     global marketStates
-    # set cash group and asset rate mapping
-    cashGroup = get_cash_group_with_max_markets(3)
+    settings = MockSettingsLib.deploy({"from": accounts[0]})
+    mock = MockNTokenRedeem.deploy(settings, {"from": accounts[0]})
+    mock = Contract.from_abi(
+        "mock", mock.address, MockSettingsLib.abi + mock.abi, owner=accounts[0]
+    )
+    tokenAddress = accounts[10]
+    setup_internal_mock(mock)
+
     # Turn off fees
-    cashGroup[2] = 0
-    mock.setCashGroup(currencyId, cashGroup, (aggregator.address, 18))
-    # set markets
-    marketStates = get_market_curve(3, "flat", assetRate=50)
-    for m in marketStates:
-        mock.setMarketStorage(1, SETTLEMENT_DATE, m)
-        # set matching fCash assets
-        mock.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, -m[2])  # maturity  # fCash
+    mock.setInterestRateParameters(
+        currencyId, 1, get_interest_rate_curve(minFeeRateBPS=0, maxFeeRateBPS=1, feeRatePercent=0)
+    )
+    mock.setInterestRateParameters(
+        currencyId, 2, get_interest_rate_curve(minFeeRateBPS=0, maxFeeRateBPS=1, feeRatePercent=0)
+    )
+    mock.setInterestRateParameters(
+        currencyId, 3, get_interest_rate_curve(minFeeRateBPS=0, maxFeeRateBPS=1, feeRatePercent=0)
+    )
 
-    # set nToken portfolio
-    tokens = [get_liquidity_token(1), get_liquidity_token(2), get_liquidity_token(3)]
+    marketStates = [
+        mock.getMarket(1, MARKETS[0], SETTLEMENT_DATE),
+        mock.getMarket(1, MARKETS[1], SETTLEMENT_DATE),
+        mock.getMarket(1, MARKETS[2], SETTLEMENT_DATE),
+    ]
 
-    mock.setNToken(
-        1,
-        tokenAddress,
-        ([], tokens, 0, 0),
-        1e18,
-        1000e8,  # TODO: vary this cash balance a bit
-        START_TIME_TREF,
+    # Set this so that bitmap assets can be set
+    mock.setAccountContext(
+        tokenAddress, (START_TIME_TREF, "0x00", 0, currencyId, HexString(0, "bytes18"), False)
     )
 
     return mock
-
-
-@pytest.fixture(scope="module", autouse=True)
-def nTokenRedeem1(MockNTokenRedeem1, MockCToken, cTokenV2Aggregator, accounts):
-    global tokenAddress
-    cToken = MockCToken.deploy(8, {"from": accounts[0]})
-    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
-    cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
-    tokenAddress = accounts[9]
-
-    mock = MockNTokenRedeem1.deploy({"from": accounts[0]})
-    return setup_fixture(mock, aggregator)
-
-
-@pytest.fixture(scope="module", autouse=True)
-def nTokenRedeem2(MockNTokenRedeem2, MockCToken, cTokenV2Aggregator, accounts):
-    global tokenAddress
-    cToken = MockCToken.deploy(8, {"from": accounts[0]})
-    aggregator = cTokenV2Aggregator.deploy(cToken.address, {"from": accounts[0]})
-    cToken.setAnswer(200000000000000000000000000, {"from": accounts[0]})
-    tokenAddress = accounts[9]
-
-    mock = MockNTokenRedeem2.deploy({"from": accounts[0]})
-    return setup_fixture(mock, aggregator)
 
 
 @pytest.fixture(scope="module", autouse=True)
@@ -111,30 +101,91 @@ def test_get_ifCash_bits(nTokenRedeemPure, accounts, initalizedTimeOffset):
     )
 
 
-def test_add_residuals_to_assets(nTokenRedeemPure, accounts):
-    ifCash = [get_fcash_token(0, maturity=(START_TIME_TREF + 3 * SECONDS_IN_QUARTER))]
+@given(hasifCash=strategy("bool"))
+def test_add_residuals_to_assets(nTokenRedeemPure, accounts, hasifCash):
+    if hasifCash:
+        # 9 month fCash
+        ifCash = [
+            get_fcash_token(0, maturity=(START_TIME_TREF + 3 * SECONDS_IN_QUARTER), notional=200e8)
+        ]
+    else:
+        ifCash = []
 
     liquidityTokens = [get_liquidity_token(1), get_liquidity_token(2), get_liquidity_token(3)]
 
+    # Has no net fCash
+    finalAssets = nTokenRedeemPure.addResidualsToAssets(liquidityTokens, ifCash, [0, 0, 0])
+    assert len(finalAssets) == (1 if hasifCash else 0)
+    if hasifCash:
+        assert ifCash[0] in finalAssets
+
+    # Has single net fCash
     finalAssets = nTokenRedeemPure.addResidualsToAssets(liquidityTokens, ifCash, [0, 100e8, 0])
-    assert len(finalAssets) == 2
-    assert ifCash[0] in finalAssets
-    assert list(filter(lambda a: a[1] == liquidityTokens[1][1], finalAssets))[0][3] == 100e8
+    assert len(finalAssets) == (2 if hasifCash else 1)
+    if hasifCash:
+        assert ifCash[0] in finalAssets
 
+    # Has two net fCash
+    finalAssets = nTokenRedeemPure.addResidualsToAssets(liquidityTokens, ifCash, [-100e8, 100e8, 0])
+    assert len(finalAssets) == (3 if hasifCash else 2)
+    if hasifCash:
+        assert ifCash[0] in finalAssets
 
-def test_reduce_ifcash_assets_proportional(nTokenRedeemPure, accounts):
-    pass
+    # Has three net fCash
+    finalAssets = nTokenRedeemPure.addResidualsToAssets(
+        liquidityTokens, ifCash, [-100e8, 100e8, 150e8]
+    )
+    assert len(finalAssets) == (4 if hasifCash else 3)
+    if hasifCash:
+        assert ifCash[0] in finalAssets
 
 
 # END PURE METHODS
 
 
+def test_reduce_ifcash_assets_proportional(nTokenRedeem, accounts):
+    totalDebtBefore = [
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[0]),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[1]),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, nineMonth),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[2]),
+    ]
+
+    # reduce proportional to total supply
+    txn = nTokenRedeem.reduceifCashAssetsProportional(
+        tokenAddress, currencyId, START_TIME_TREF, 50_000e8, 100_000e8
+    )
+    assets = txn.return_value
+    # check that total debt outstanding is reduced
+    totalDebtInterim = [
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[0]),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[1]),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, nineMonth),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[2]),
+    ]
+
+    # write into a clean account, check that total debt outstanding increases again
+    state = list(nTokenRedeem.buildPortfolioState(accounts[1]))
+    state[1] = assets
+    nTokenRedeem.setPortfolio(accounts[1], state)
+    totalDebtAfter = [
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[0]),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[1]),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, nineMonth),
+        nTokenRedeem.getTotalfCashDebtOutstanding(currencyId, MARKETS[2]),
+    ]
+
+    # check total debt outstanding after
+    assert totalDebtBefore == totalDebtAfter
+    assert totalDebtInterim == [-50_000e8, -50_000e8, 0, -50_000e8]
+
+
 @given(
-    lt1=strategy("uint256", min_value=0.1e18, max_value=1e18),
-    lt2=strategy("uint256", min_value=0.1e18, max_value=1e18),
-    lt3=strategy("uint256", min_value=0.1e18, max_value=1e18),
+    lt1=strategy("uint256", min_value=1000e8, max_value=100_000e8),
+    lt2=strategy("uint256", min_value=1000e8, max_value=100_000e8),
+    lt3=strategy("uint256", min_value=1000e8, max_value=100_000e8),
 )
-def test_ntoken_market_value(nTokenRedeem1, accounts, lt1, lt2, lt3):
+def test_ntoken_market_value(nTokenRedeem, accounts, lt1, lt2, lt3):
     ltNotional = [lt1, lt2, lt3]
     tokens = [
         get_liquidity_token(1, notional=ltNotional[0]),
@@ -142,36 +193,46 @@ def test_ntoken_market_value(nTokenRedeem1, accounts, lt1, lt2, lt3):
         get_liquidity_token(3, notional=ltNotional[2]),
     ]
 
-    nTokenRedeem1.setNToken(
+    nTokenRedeem.setNToken(
         1,
         tokenAddress,
-        ([], tokens, 0, 0),
-        1e18,
-        1000e8,  # NOTE: cash balance irrelevant here
+        tokens,
+        [],
+        100_000e8,
+        0,  # cash balance irrelevant
         START_TIME_TREF,
+        85,
+        90,  # valuation irrelevant
     )
 
-    nToken = nTokenRedeem1.getNToken(1)
-    (totalAssetValue, netfCash) = nTokenRedeem1.getNTokenMarketValue(nToken, START_TIME_TREF)
+    nToken = nTokenRedeem.getNToken(1)
+    (totalAssetValue, netfCash) = nTokenRedeem.getNTokenMarketValue(nToken, START_TIME_TREF)
+    (pr, _) = nTokenRedeem.buildPrimeRateView(1, chain.time())
 
     netAssetValue = 0
     for (i, m) in enumerate(marketStates):
         # netfCash is claim - what is in portfolio (set to the market fCash here)
-        fCash = Wei(Wei(m[2] * ltNotional[i]) / 1e18 - Wei(m[2]))
+        fCash = Wei(
+            Wei(m["totalfCash"] * ltNotional[i]) / m["totalLiquidity"] - Wei(m["totalfCash"])
+        )
         assert pytest.approx(fCash, rel=1e-9) == netfCash[i]
 
-        timeToMaturity = m[1] - START_TIME_TREF
+        timeToMaturity = m["maturity"] - START_TIME_TREF
         # Discount fCash to PV
-        fCashPV = fCash / math.exp(m[6] * (timeToMaturity / SECONDS_IN_YEAR) / RATE_PRECISION)
-        netAssetValue += Wei(m[3] * ltNotional[i]) / 1e18 + Wei(fCashPV * 50)
+        fCashPV = fCash / math.exp(
+            m["oracleRate"] * (timeToMaturity / SECONDS_IN_YEAR) / RATE_PRECISION
+        )
+        netAssetValue += Wei(m["totalPrimeCash"] * ltNotional[i]) / m["totalLiquidity"]
+        # Convert fCash to prime cash
+        netAssetValue += nTokenRedeem.convertFromUnderlying(pr, fCashPV)
 
     assert pytest.approx(totalAssetValue, rel=1e-6) == netAssetValue
 
 
-@given(tokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18))
-def test_get_liquidity_token_withdraw_proportional(nTokenRedeem1, accounts, tokensToRedeem):
-    nToken = nTokenRedeem1.getNToken(1)
-    (tokensToWithdraw, netfCash) = nTokenRedeem1.getLiquidityTokenWithdraw(
+@given(tokensToRedeem=strategy("uint256", min_value=1_000e8, max_value=99_000e8))
+def test_get_liquidity_token_withdraw_proportional(nTokenRedeem, accounts, tokensToRedeem):
+    nToken = nTokenRedeem.getNToken(1)
+    (tokensToWithdraw, netfCash) = nTokenRedeem.getLiquidityTokenWithdraw(
         nToken, tokensToRedeem, START_TIME_TREF, 0
     )
 
@@ -183,47 +244,39 @@ def test_get_liquidity_token_withdraw_proportional(nTokenRedeem1, accounts, toke
 
 
 @given(
-    ifCashNotional=strategy("uint256", min_value=0.01e18, max_value=0.50e18),
-    nTokensToRedeem=strategy("uint256", min_value=0.1e18, max_value=0.99e18),
+    ifCashNotional=strategy("int256", min_value=-50_000e8, max_value=50_000e8),
+    nTokensToRedeem=strategy("uint256", min_value=1_000e8, max_value=99_000e8),
 )
 def test_get_liquidity_token_withdraw_with_residual(
-    nTokenRedeem1, ifCashNotional, nTokensToRedeem, accounts
+    nTokenRedeem, ifCashNotional, nTokensToRedeem, accounts
 ):
-    nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
-
     # Set ifCash asset
-    nTokenRedeem1.setfCash(
-        currencyId, tokenAddress, nineMonth, START_TIME_TREF, ifCashNotional  # maturity  # fCash
+    nTokenRedeem.setBitmapAssets(
+        tokenAddress, [get_fcash_token(currencyId, maturity=nineMonth, notional=ifCashNotional)]
     )
     bitmapList = ["0"] * 256
     bitmapList[119] = "1"  # Set the nine month to 1
     bitmap = get_bitmap_from_bitlist(bitmapList)
 
-    nTokenRedeem1.setfCash(
-        currencyId,
-        tokenAddress,
-        marketStates[0][1],  # 3 mo maturity
-        START_TIME_TREF,
-        0.25e18,  # fCash
-    )
-
-    nToken = nTokenRedeem1.getNToken(1)
+    nToken = nTokenRedeem.getNToken(1)
     if ifCashNotional > 0:
-        oracleRate = (marketStates[1][6] + marketStates[2][6]) / 2 + (0.015e9)
+        # 0.015e9 is the penalty rate
+        oracleRate = (marketStates[1]["oracleRate"] + marketStates[2]["oracleRate"]) / 2 + (0.015e9)
     else:
-        oracleRate = (marketStates[1][6] + marketStates[2][6]) / 2 - (0.015e9)
+        oracleRate = (marketStates[1]["oracleRate"] + marketStates[2]["oracleRate"]) / 2 - (0.015e9)
 
-    ifCashAssetValue = (ifCashNotional / math.exp(oracleRate * 0.75 / RATE_PRECISION)) * 50
-
-    (tokensToWithdraw, netfCash) = nTokenRedeem1.getLiquidityTokenWithdraw(
+    (pr, _) = nTokenRedeem.buildPrimeRateView(1, chain.time())
+    (tokensToWithdraw, netfCash) = nTokenRedeem.getLiquidityTokenWithdraw(
         nToken, nTokensToRedeem, START_TIME_TREF, bitmap
     )
 
-    (totalAssetValueInMarkets, totalNetfCash) = nTokenRedeem1.getNTokenMarketValue(
+    (totalPrimeValueInMarkets, totalNetfCash) = nTokenRedeem.getNTokenMarketValue(
         nToken, START_TIME_TREF
     )
 
-    scalar = totalAssetValueInMarkets / (ifCashAssetValue + totalAssetValueInMarkets)
+    ifCashPV = ifCashNotional / math.exp(oracleRate * 0.75 / RATE_PRECISION)
+    ifCashPrimeValue = nTokenRedeem.convertFromUnderlying(pr, ifCashPV)
+    scalar = totalPrimeValueInMarkets / (ifCashPrimeValue + totalPrimeValueInMarkets)
 
     for (i, t) in enumerate(tokensToWithdraw):
         # Test that fCash share is correct
@@ -231,93 +284,99 @@ def test_get_liquidity_token_withdraw_with_residual(
             assert pytest.approx((netfCash[i] / totalNetfCash[i]) * 1e18, rel=1e-9) == t
         assert pytest.approx(t * scalar, rel=1e-9) == nTokensToRedeem
 
-
 @given(
-    tokensToRedeem=strategy("uint256", min_value=0.01e18, max_value=0.30e18),
+    tokensToRedeem=strategy("uint256", min_value=1000e8, max_value=90_000e8),
     setResidual=strategy("bool"),
 )
-def test_redeem_sell_assets(nTokenRedeem2, tokensToRedeem, accounts, setResidual):
+def test_redeem_sell_assets(nTokenRedeem, tokensToRedeem, setResidual):
+    netfCashAssets = [
+        get_fcash_token(1, currencyId=currencyId, notional=10_000e8),
+        get_fcash_token(2, currencyId=currencyId, notional=-10_000e8),
+        get_fcash_token(3, currencyId=currencyId, notional=10_000e8),
+    ]
     ifCash = []
-    for (i, m) in enumerate(marketStates):
-        residual = m[2] * 0.1
-        if i == 2:
-            # Negative residual for the second market
-            residual = -residual
-
-        # Add some fCash residual for selling back to markets
-        nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
-        ifCash.append(-m[2] + residual)
 
     if setResidual:
         # Set a residual asset
-        nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
-        nTokenRedeem2.setfCash(currencyId, tokenAddress, nineMonth, START_TIME_TREF, 0.01e18)
+        ifCash.append(
+            get_fcash_token(0, maturity=nineMonth, currencyId=currencyId, notional=10_000e8)
+        )
 
-    nToken = nTokenRedeem2.getNToken(currencyId)
-    txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, False, START_TIME_TREF)
-    (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
+    nTokenRedeem.setBitmapAssets(tokenAddress, netfCashAssets + ifCash)
+    nToken = nTokenRedeem.getNToken(currencyId)
+    chain.mine(1, timestamp=START_TIME_TREF + 30)
+    txn = nTokenRedeem.redeem(currencyId, tokensToRedeem, True, False)
+    (hasResidual, assets) = inspect_results(
+        nTokenRedeem, txn, netfCashAssets, tokensToRedeem, nToken[3]
+    )
 
     assert not hasResidual
     assert assets == ()
 
 
 @given(setResidual=strategy("bool"))
-def test_redeem_sell_assets_fail(nTokenRedeem2, accounts, setResidual):
-    tokensToRedeem = 0.5e18
+def test_redeem_sell_assets_fail(nTokenRedeem, setResidual):
+    tokensToRedeem = 99_000e8
+    netfCashAssets = [
+        get_fcash_token(1, currencyId=currencyId, notional=0),
+        get_fcash_token(2, currencyId=currencyId, notional=-10_000e8),
+        get_fcash_token(3, currencyId=currencyId, notional=0),
+    ]
     ifCash = []
-    for (i, m) in enumerate(marketStates):
-        residual = m[2] * 0.1
-        if i == 2:
-            # Put a large residual in the 1 year market to fail the selling
-            residual = m[2] * 3
-
-        # Add some fCash residual for selling back to markets
-        nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
-        ifCash.append(-m[2] + residual)
 
     if setResidual:
         # Set a residual asset
-        nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
-        nTokenRedeem2.setfCash(currencyId, tokenAddress, nineMonth, START_TIME_TREF, 0.01e18)
+        ifCash.append(
+            get_fcash_token(0, maturity=nineMonth, currencyId=currencyId, notional=1_000e8)
+        )
 
-    nToken = nTokenRedeem2.getNToken(currencyId)
+    nTokenRedeem.setBitmapAssets(tokenAddress, netfCashAssets + ifCash)
+    nToken = nTokenRedeem.getNToken(currencyId)
+    chain.mine(1, timestamp=START_TIME_TREF + 30)
+    with brownie.reverts("Residuals"):
+        # Transaction reverts because there is a residual
+        nTokenRedeem.redeem.call(currencyId, tokensToRedeem, True, False)
 
-    # TODO: ganache fails here
-    # with brownie.reverts():
-    #     nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, False, START_TIME_TREF)
-
-    txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, True, True, START_TIME_TREF)
-    (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
+    txn = nTokenRedeem.redeem(currencyId, tokensToRedeem, True, True)
+    (hasResidual, assets) = inspect_results(
+        nTokenRedeem, txn, netfCashAssets, tokensToRedeem, nToken[3]
+    )
 
     # Assert that if selling the fCash fails, the redeem method will return the fcash asset to
     # either place into the portfolio or revert
     assert hasResidual
     if setResidual:
         assert len(assets) == 2
-        assert assets[1][1] == marketStates[2][1]
+        assert assets[0][1] == nineMonth
+        assert assets[1][1] == marketStates[1][1]
     else:
         assert len(assets) == 1
-        assert assets[0][1] == marketStates[2][1]
+        assert assets[0][1] == marketStates[1][1]
 
 
 @given(setResidual=strategy("bool"))
-def test_redeem_keep_assets(nTokenRedeem2, accounts, setResidual):
-    tokensToRedeem = 0.5e18
+def test_redeem_keep_assets(nTokenRedeem, accounts, setResidual):
+    tokensToRedeem = 50_000e8
+    netfCashAssets = [
+        get_fcash_token(1, currencyId=currencyId, notional=10_000e8),
+        get_fcash_token(2, currencyId=currencyId, notional=-10_000e8),
+        get_fcash_token(3, currencyId=currencyId, notional=10_000e8),
+    ]
     ifCash = []
-    for (i, m) in enumerate(marketStates):
-        residual = m[2] * 0.1
-        # Add some fCash residual for selling back to markets
-        nTokenRedeem2.setfCash(currencyId, tokenAddress, m[1], START_TIME_TREF, residual)
-        ifCash.append(-m[2] + residual)
 
     if setResidual:
         # Set a residual asset
-        nineMonth = START_TIME_TREF + 3 * SECONDS_IN_QUARTER
-        nTokenRedeem2.setfCash(currencyId, tokenAddress, nineMonth, START_TIME_TREF, 0.01e18)
+        ifCash.append(
+            get_fcash_token(0, maturity=nineMonth, currencyId=currencyId, notional=10_000e8)
+        )
 
-    nToken = nTokenRedeem2.getNToken(currencyId)
-    txn = nTokenRedeem2.redeem(currencyId, tokensToRedeem, False, True, START_TIME_TREF)
-    (hasResidual, assets) = inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, nToken[3])
+    nTokenRedeem.setBitmapAssets(tokenAddress, netfCashAssets + ifCash)
+    nToken = nTokenRedeem.getNToken(currencyId)
+    chain.mine(1, timestamp=START_TIME_TREF)
+    txn = nTokenRedeem.redeem(currencyId, tokensToRedeem, False, True)
+    (hasResidual, assets) = inspect_results(
+        nTokenRedeem, txn, netfCashAssets, tokensToRedeem, nToken[3]
+    )
 
     # In this case we are keeping all the residuals
     assert hasResidual
@@ -327,22 +386,21 @@ def test_redeem_keep_assets(nTokenRedeem2, accounts, setResidual):
         assert len(assets) == 3
 
 
-def inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, cashBalanceBefore):
-    assetCash = txn.events["Redeem"]["assetCash"]
+def inspect_results(nTokenRedeem, txn, ifCash, tokensToRedeem, cashBalanceBefore):
+    assetCash = txn.events["Redeem"]["primeCash"]
     hasResidual = txn.events["Redeem"]["hasResidual"]
     assets = txn.events["Redeem"]["assets"]
 
     # Cash balance share
-    calculatedAssetCash = cashBalanceBefore * tokensToRedeem / 1e18
+    calculatedAssetCash = cashBalanceBefore * tokensToRedeem / 100_000e8
+    portfolio = nTokenRedeem.getBitmapAssets(tokenAddress)
+
     for (i, m) in enumerate(marketStates):
-        newMarketState = nTokenRedeem2.getMarket(
-            currencyId, m[1], START_TIME_TREF + SECONDS_IN_QUARTER, START_TIME_TREF
-        )
+        newMarketState = nTokenRedeem.getMarket(currencyId, m["maturity"], SETTLEMENT_DATE)
+        postRedeemfCash = list(filter(lambda a: a[1] == m["maturity"], portfolio))[0]
 
-        postRedeemfCash = nTokenRedeem2.getfCashNotional(tokenAddress, currencyId, m[1])
-
-        netAssetCash = m[3] - newMarketState[3]
-        netMarketfCash = newMarketState[2] - m[2]
+        netAssetCash = m["totalPrimeCash"] - newMarketState["totalPrimeCash"]
+        netMarketfCash = newMarketState["totalfCash"] - m["totalfCash"]
         # netAssetCash will include any fCash sold to the market, must net off with what is coming
         # back to the account
         calculatedAssetCash += netAssetCash
@@ -350,7 +408,8 @@ def inspect_results(nTokenRedeem2, txn, ifCash, tokensToRedeem, cashBalanceBefor
         # Assert that all fCash taken from the nToken has been sold into the market. fCash must
         # net off between the market, account and nToken account
         matchingfCash = list(filter(lambda a: a[1] == m[1], assets))
-        netfCash = ifCash[i] - postRedeemfCash
+        # 100_000e8 is the starting balance of the fCash
+        netfCash = ifCash[i][3] - (postRedeemfCash[3] + 100_000e8)
         if matchingfCash:
             netfCash -= matchingfCash[0][3]
         assert pytest.approx(netMarketfCash, abs=100) == netfCash

@@ -92,65 +92,39 @@ class TestLiquidateCollateral:
         local=strategy("uint", min_value=1, max_value=4),
         localDebt=strategy("int", min_value=-100_000e8, max_value=-1e8),
         ratio=strategy("uint", min_value=5, max_value=150),
-        numTokens=strategy("uint", min_value=0, max_value=3),
         balanceShare=strategy("uint", min_value=0, max_value=100),
+        acceptNToken=strategy("bool"),
     )
-    def test_liquidate_cash_and_liquidity_tokens(
-        self, liquidation, accounts, local, localDebt, ratio, numTokens, balanceShare
+    def test_liquidate_cash_and_ntokens(
+        self, liquidation, accounts, local, localDebt, ratio, balanceShare, acceptNToken
     ):
         blockTime = chain.time()
 
         # Set the local debt amount
-        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt)
-        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
+        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt, blockTime)
 
         # Get the collateral required for the liquidation
         (collateral, collateralUnderlying) = setup_collateral_liquidation(
             liquidation, local, localDebt
         )
         collateralAssetRequired = liquidation.calculate_from_underlying(
-            collateral, collateralUnderlying
+            collateral, collateralUnderlying, blockTime
         )
-        marketsBefore = liquidation.mock.getActiveMarkets(collateral)
-
-        # Set up balance share, split between cash and nTokens
-        if numTokens == 0:
-            balanceShare = 100
 
         # Splits the required cash between cash and nTokens. Use the haircut nToken value to
         # determine the nToken balance so that the collateral value sums properly
-        assetBalanceShare = Wei(collateralAssetRequired * balanceShare / 100)
-        nTokenShare = random.randint(0, 100)
-        nTokenAssetHaircut = assetBalanceShare * nTokenShare / 100
+        collateralCashAsset = Wei(collateralAssetRequired * balanceShare / 100)
+        nTokenAssetHaircut = collateralAssetRequired * (100 - balanceShare) / 100
         nTokenBalance = liquidation.calculate_ntoken_from_asset(
-            collateral, nTokenAssetHaircut, valueType="haircut"
+            collateral, nTokenAssetHaircut, blockTime, valueType="haircut"
         )
-        collateralCashAsset = assetBalanceShare - nTokenAssetHaircut
+
         liquidation.mock.setBalance(accounts[0], collateral, collateralCashAsset, nTokenBalance)
-
-        # Set up liquidity token share
-        tokenCashShare = collateralAssetRequired - assetBalanceShare
-        (
-            assets,
-            totalCashClaim,  # This is recalculated from the tokens
-            totalHaircutCashClaim,
-            totalfCashResidual,
-            totalHaircutfCashResidual,
-            benefitsPerAsset,
-        ) = liquidation.get_liquidity_tokens(collateral, tokenCashShare, numTokens, blockTime)
-        liquidation.mock.setPortfolio(accounts[0], assets)
-
-        # This is the haircut due to the liquidity tokens from collateralAssetRequired,
-        # need to adjust our FC expectation accordingly
-        cashDiff = tokenCashShare - (totalHaircutCashClaim + totalHaircutfCashResidual)
-        # This is the ETH denominated value of the cash diff
-        fcDiff = liquidation.calculate_to_eth(
-            collateral, liquidation.calculate_to_underlying(collateral, cashDiff)
-        )
+        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
 
         # There should be a FC ~ 0 at this point accounting for the fcDiff due to LTs
-        (fc, _) = liquidation.mock.getFreeCollateralAtTime(accounts[0], blockTime)
-        assert pytest.approx(fc, rel=1e-6, abs=100) == -fcDiff
+        (fc, _) = liquidation.mock.getFreeCollateralAtTime(accounts[0], chain.time() + 1)
+        assert pytest.approx(fc, rel=1e-6, abs=0.01e8) == 0
 
         # Moves the exchange rate based on the ratio
         (newExchangeRate, discountedExchangeRate) = move_collateral_exchange_rate(
@@ -158,7 +132,7 @@ class TestLiquidateCollateral:
         )
 
         # FC is be negative at this point
-        (fc, netLocal) = liquidation.mock.getFreeCollateralAtTime(accounts[0], blockTime)
+        (fc, netLocal) = liquidation.mock.getFreeCollateralAtTime(accounts[0], chain.time() + 1)
         collateralAvailable = netLocal[1 if collateral > local else 0]
 
         (
@@ -173,17 +147,17 @@ class TestLiquidateCollateral:
             collateral,
             newExchangeRate,
             discountedExchangeRate,
-            liquidation.calculate_to_underlying(collateral, collateralAvailable),
+            liquidation.calculate_to_underlying(collateral, collateralAvailable, blockTime),
             fc,
         )
 
         # Convert to asset cash
-        # expectedCollateralTradeAsset = liquidation.calculate_from_underlying(
-        #     collateral, expectedCollateralTrade
-        # )
+        expectedCollateralTradeAsset = liquidation.calculate_from_underlying(
+            collateral, expectedCollateralTrade
+        )
 
         txn = liquidation.mock.calculateCollateralCurrencyTokens(
-            accounts[0], local, collateral, 0, 0, {"from": accounts[1]}
+            accounts[0], local, collateral, 0, 0 if acceptNToken else 1, {"from": accounts[1]}
         )
 
         (
@@ -197,53 +171,46 @@ class TestLiquidateCollateral:
         totalCollateralValueToLiquidator = (
             collateralAssetCashToLiquidator
             + liquidation.calculate_ntoken_to_asset(
-                collateral, nTokensPurchased, valueType="liquidator"
+                collateral, nTokensPurchased, chain.time(), valueType="liquidator"
             )
         )
 
-        # TODO: this is a flaky assertion
-        # assert (
-        #     pytest.approx(expectedCollateralTradeAsset, rel=1e-6, abs=100)
-        #     == totalCollateralValueToLiquidator
-        # )
+        assert (
+            pytest.approx(expectedCollateralTradeAsset, rel=1e-2)
+            == totalCollateralValueToLiquidator
+        )
 
         # IN UNDERLYING #
         # Check that the price is correct (underlying)
         collateralCashFinal = liquidation.calculate_to_underlying(
-            collateral, totalCollateralValueToLiquidator
+            collateral, totalCollateralValueToLiquidator, blockTime
         )
-        localCashFinal = liquidation.calculate_to_underlying(local, localAssetCashFromLiquidator)
+        localCashFinal = liquidation.calculate_to_underlying(
+            local, localAssetCashFromLiquidator, blockTime
+        )
         assert (
             pytest.approx((localCashFinal * discountedExchangeRate) / 1e18, rel=1e-6)
             == collateralCashFinal
         )
         # END UNDERLYING #
         # ASSET VALUES
-        liquidation.mock.setPortfolioState(accounts[0], portfolio)
         liquidation.mock.setBalance(
             accounts[0], local, localDebtAsset + localAssetCashFromLiquidator, 0
         )
 
-        # Cannot liquidate to negative cash balances
-        assert (collateralCashAsset - collateralAssetCashToLiquidator + netCashWithdrawn) >= 0
         assert (nTokenBalance - nTokensPurchased) >= 0
+        # This value is disabled now
+        assert netCashWithdrawn == 0
         liquidation.mock.setBalance(
             accounts[0],
             collateral,
+            # Can liquidate to negative cash balances
             collateralCashAsset - collateralAssetCashToLiquidator + netCashWithdrawn,
             nTokenBalance - nTokensPurchased,
         )
         # ASSET VALUES
 
-        (_, _, portfolioAfter) = liquidation.mock.getAccount(accounts[0])
-        marketsAfter = liquidation.mock.getActiveMarkets(collateral)
-
-        # This checks that the tokens and fCash withdrawn align with markets exactly
-        totalCashChange = liquidation.validate_market_changes(
-            assets, portfolioAfter, marketsBefore, marketsAfter
-        )
-        assert pytest.approx(totalCashChange, abs=5) == netCashWithdrawn
-
+        blockTime = chain.time() + 1
         (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateralAtTime(accounts[0], blockTime)
         collateralAvailable = netLocalAfter[1 if collateral > local else 0]
         localAvailable = netLocalAfter[0 if collateral > local else 1]
@@ -255,10 +222,14 @@ class TestLiquidateCollateral:
             # The nToken haircut is split between a discount given to the liquidator,
             # and a collateral benefit given to the liquidated account
             liquidate = liquidation.calculate_ntoken_to_asset(
-                collateral, nTokensPurchased, "liquidator"
+                collateral, nTokensPurchased, blockTime, "liquidator"
             )
-            haircut = liquidation.calculate_ntoken_to_asset(collateral, nTokensPurchased, "haircut")
-            collateralDiff = liquidation.calculate_to_underlying(collateral, liquidate - haircut)
+            haircut = liquidation.calculate_ntoken_to_asset(
+                collateral, nTokensPurchased, blockTime, "haircut"
+            )
+            collateralDiff = liquidation.calculate_to_underlying(
+                collateral, liquidate - haircut, blockTime
+            )
 
             if collateral == 1:
                 collateralETHHaircutDiff = liquidation.calculate_to_eth(collateral, collateralDiff)
@@ -267,14 +238,104 @@ class TestLiquidateCollateral:
                     collateral, collateralDiff, rate=newExchangeRate
                 )
 
-        if netCashWithdrawn == 0:
-            finalExpectedFC = (
-                fc - collateralETHHaircutValue - debtETHBufferValue + collateralETHHaircutDiff
-            )
-            # TODO: this does not work, need to include haircut from removed tokens
-            assert pytest.approx(finalExpectedFC, rel=1e-6, abs=100) == fcAfter
-
+        finalExpectedFC = (
+            fc - collateralETHHaircutValue - debtETHBufferValue + collateralETHHaircutDiff
+        )
+        assert pytest.approx(finalExpectedFC, rel=1e-6, abs=100) == fcAfter
         assert fcAfter > fc
 
-    # def test_liquidate_limits(self, liquidation, accounts, local, localDebt, ratio):
-    #     pass
+    @given(
+        local=strategy("uint", min_value=1, max_value=4),
+        maxCollateralLiquidation=strategy("uint", min_value=10, max_value=100),
+        maxNTokenBalance=strategy("uint", min_value=5, max_value=100),
+    )
+    def test_liquidate_limits(
+        self, liquidation, accounts, local, maxCollateralLiquidation, maxNTokenBalance
+    ):
+        blockTime = chain.time()
+
+        # Set the local debt amount
+        localDebt = -10_000e8
+        localDebtAsset = liquidation.calculate_from_underlying(local, localDebt, blockTime)
+
+        # Get the collateral required for the liquidation
+        (collateral, collateralUnderlying) = setup_collateral_liquidation(
+            liquidation, local, localDebt
+        )
+        collateralAssetRequired = liquidation.calculate_from_underlying(
+            collateral, collateralUnderlying, blockTime
+        )
+
+        # Splits the required cash between cash and nTokens. Use the haircut nToken value to
+        # determine the nToken balance so that the collateral value sums properly
+        collateralCashAsset = Wei(collateralAssetRequired / 2)
+        nTokenAssetHaircut = Wei(collateralAssetRequired / 2)
+        nTokenBalance = liquidation.calculate_ntoken_from_asset(
+            collateral, nTokenAssetHaircut, blockTime, valueType="haircut"
+        )
+
+        liquidation.mock.setBalance(accounts[0], collateral, collateralCashAsset, nTokenBalance)
+        liquidation.mock.setBalance(accounts[0], local, localDebtAsset, 0)
+        (_, discountedExchangeRate) = move_collateral_exchange_rate(
+            liquidation, local, collateral, 10
+        )
+
+        maxCollateral = collateralAssetRequired * maxCollateralLiquidation / 100
+        maxNToken = nTokenBalance * maxNTokenBalance / 100
+
+        (fcBefore, _) = liquidation.mock.getFreeCollateralAtTime(accounts[0], chain.time() + 1)
+
+        txn = liquidation.mock.calculateCollateralCurrencyTokens(
+            accounts[0], local, collateral, maxCollateral, maxNToken, {"from": accounts[1]}
+        )
+
+        (
+            localAssetCashFromLiquidator,
+            collateralAssetCashToLiquidator,
+            nTokensPurchased,
+            _,
+            _,
+        ) = txn.events["CollateralLiquidationTokens"][0].values()
+
+        assert (nTokenBalance - nTokensPurchased) >= 0
+        liquidation.mock.setBalance(
+            accounts[0], local, localDebtAsset + localAssetCashFromLiquidator, 0
+        )
+        liquidation.mock.setBalance(
+            accounts[0],
+            collateral,
+            # Can liquidate to negative cash balances
+            collateralCashAsset - collateralAssetCashToLiquidator,
+            nTokenBalance - nTokensPurchased,
+        )
+        (fcAfter, netLocalAfter) = liquidation.mock.getFreeCollateralAtTime(
+            accounts[0], chain.time() + 1
+        )
+        collateralAvailable = netLocalAfter[1 if collateral > local else 0]
+        localAvailable = netLocalAfter[0 if collateral > local else 1]
+        assert collateralAvailable >= 0
+        assert localAvailable <= 0
+        assert fcAfter > fcBefore
+
+        # Check that boundaries are respected
+
+        assert nTokensPurchased <= maxNToken
+        totalCollateralValueToLiquidator = (
+            collateralAssetCashToLiquidator
+            + liquidation.calculate_ntoken_to_asset(
+                collateral, nTokensPurchased, chain.time(), valueType="liquidator"
+            )
+        )
+        assert totalCollateralValueToLiquidator <= maxCollateral
+
+        # Assert that the cash paid by the liquidator is correct
+        collateralCashFinal = liquidation.calculate_to_underlying(
+            collateral, totalCollateralValueToLiquidator, blockTime
+        )
+        localCashFinal = liquidation.calculate_to_underlying(
+            local, localAssetCashFromLiquidator, blockTime
+        )
+        assert (
+            pytest.approx((localCashFinal * discountedExchangeRate) / 1e18, rel=1e-6)
+            == collateralCashFinal
+        )

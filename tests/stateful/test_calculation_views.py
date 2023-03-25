@@ -46,12 +46,14 @@ def isolation(fn_isolation):
 
 
 def upscale_precision(amount, currencyId, useUnderlying):
-    if not useUnderlying:
-        return Wei(amount * 1e8)
-    elif currencyId == 2:
+    if currencyId == 2 and useUnderlying:
         return Wei(amount * 1e18)
-    elif currencyId == 3:
+    elif currencyId == 2 and not useUnderlying:
+        return Wei(amount * 49e8)
+    elif currencyId == 3 and useUnderlying:
         return Wei(amount * 1e6)
+    elif currencyId == 3 and not useUnderlying:
+        return Wei(amount * 48e8)
 
 
 def get_token(environment, currencyId, useUnderlying):
@@ -105,17 +107,18 @@ def test_borrow_from_fcash_using_calculation_view(
             # Deposit sufficient collateral
             get_balance_action(1, "DepositUnderlying", depositActionAmount=500e18) + tuple([[]]),
             get_balance_action(
-                currencyId, "None", withdrawEntireCashBalance=True, redeemToUnderlying=useUnderlying
+                currencyId, "None", withdrawEntireCashBalance=True, redeemToUnderlying=True
             )
             + tuple([[encodedTrade]]),
         ],
         {"from": accounts[3], "value": 500e18},
     )
 
-    token = get_token(environment, currencyId, useUnderlying)
+    # Borrows must be in underlying post upgrade
+    token = get_token(environment, currencyId, True)
     borrowedBalance = token.balanceOf(accounts[3])
-
-    assert pytest.approx(borrowedBalance, rel=1e-8, abs=1000) == principalAmount
+    principalAmount = upscale_precision(principal, currencyId, True)
+    assert pytest.approx(borrowedBalance, rel=1e-6, abs=1000) == principalAmount
     check_system_invariants(environment, accounts)
 
 
@@ -150,7 +153,9 @@ def test_lend_from_fcash_asset_using_calculation_view(
     )
     balanceAfter = token.balanceOf(accounts[0])
 
-    assert pytest.approx(balanceBefore - balanceAfter, rel=1e-8, abs=1000) == depositAmount
+    if useUnderlying:
+        assert pytest.approx(balanceBefore - balanceAfter, rel=1e-8, abs=1000) == depositAmount
+    # Don't check asset cash deposit amount since after the upgrade these are in prime cash
     check_system_invariants(environment, accounts)
 
 
@@ -166,7 +171,7 @@ def test_borrow_principal_using_calculation_view(
     maxSlippage = 0.1e9
     (
         borrowAmountUnderlying,
-        borrowAmountAsset,
+        borrowAmountPrimeCash,
         marketIndex_,
         encodedTrade,
     ) = environment.notional.getPrincipalFromfCashBorrow(
@@ -187,17 +192,16 @@ def test_borrow_principal_using_calculation_view(
         accounts[3],
         [
             get_balance_action(1, "DepositUnderlying", depositActionAmount=100e18) + tuple([[]]),
-            get_balance_action(currencyId, "None", withdrawEntireCashBalance=True)
+            get_balance_action(
+                currencyId, "None", withdrawEntireCashBalance=True, redeemToUnderlying=True
+            )
             + tuple([[encodedTrade]]),
         ],
         {"from": accounts[3], "value": 100e18},
     )
 
+    # Borrow amounts are always in underlying after the upgrade
     underlying = get_token(environment, currencyId, True)
-    asset = get_token(environment, currencyId, False)
-
-    assert pytest.approx(asset.balanceOf(accounts[3]), rel=1e-8, abs=1000) == borrowAmountAsset
-    asset.redeem(asset.balanceOf(accounts[3]), {"from": accounts[3]})
     assert (
         pytest.approx(underlying.balanceOf(accounts[3]), rel=1e-8, abs=1000)
         == borrowAmountUnderlying
@@ -218,7 +222,7 @@ def test_lend_asset_using_calculation_view(
     maturity = environment.notional.getActiveMarkets(currencyId)[marketIndex - 1][1]
     (
         depositAmountUnderlying,
-        depositAmountAsset,
+        depositAmountPrimeCash,
         marketIndex_,
         encodedTrade,
     ) = environment.notional.getDepositFromfCashLend(currencyId, fCash, maturity, 0, chain.time())
@@ -243,13 +247,16 @@ def test_lend_asset_using_calculation_view(
             pytest.approx(balanceBefore - balanceAfter, rel=1e-8, abs=1000)
             == depositAmountUnderlying
         )
-    else:
-        assert pytest.approx(balanceBefore - balanceAfter, rel=1e-8, abs=1000) == depositAmountAsset
+
     check_system_invariants(environment, accounts)
 
 
 def test_convert_cash_balance_using_calculation_view(environment):
-    assert environment.notional.convertCashBalanceToExternal(2, 5000e8, True) == 100e18
-    assert environment.notional.convertCashBalanceToExternal(2, -5000e8, True) == -100e18
-    assert environment.notional.convertCashBalanceToExternal(2, 5000e8, False) == 5000e8
-    assert environment.notional.convertCashBalanceToExternal(2, -5000e8, False) == -5000e8
+    assert (
+        pytest.approx(environment.notional.convertCashBalanceToExternal(2, 4900e8, True), abs=1e13)
+        == 100e18
+    )
+    assert (
+        pytest.approx(environment.notional.convertCashBalanceToExternal(2, -4900e8, True), abs=1e13)
+        == -100e18
+    )

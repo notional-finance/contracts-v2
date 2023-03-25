@@ -2,28 +2,25 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
+import "../global/Types.sol";
 import "../internal/markets/CashGroup.sol";
-import "../internal/markets/AssetRate.sol";
+import {PrimeRateLib} from "../internal/pCash/PrimeRateLib.sol";
 import "../internal/markets/Market.sol";
+import "../internal/markets/InterestRateCurve.sol";
 import "../global/StorageLayoutV1.sol";
+import {IPrimeCashHoldingsOracle} from "../../interfaces/notional/IPrimeCashHoldingsOracle.sol";
+import "./valuation/AbstractSettingsRouter.sol";
 
-contract MockMarket is StorageLayoutV1 {
+contract MockMarket is StorageLayoutV1, AbstractSettingsRouter {
     using CashGroup for CashGroupParameters;
     using Market for MarketParameters;
-    using AssetRate for AssetRateParameters;
+    using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
+
+    constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
 
     function getUint64(uint256 value) public pure returns (int128) {
         return ABDKMath64x64.fromUInt(value);
-    }
-
-    function setAssetRateMapping(uint256 id, AssetRateStorage calldata rs) external {
-        mapping(uint256 => AssetRateStorage) storage assetStore = LibStorage.getAssetRateStorage();
-        assetStore[id] = rs;
-    }
-
-    function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
-        CashGroup.setCashGroupStorage(id, cg);
     }
 
     function buildCashGroupView(uint16 currencyId)
@@ -32,61 +29,6 @@ contract MockMarket is StorageLayoutV1 {
         returns (CashGroupParameters memory)
     {
         return CashGroup.buildCashGroupView(currencyId);
-    }
-
-    function getExchangeRate(
-        int256 totalfCash,
-        int256 totalCashUnderlying,
-        int256 rateScalar,
-        int256 rateAnchor,
-        int256 fCashAmount
-    ) external pure returns (int256, bool) {
-        return
-            Market._getExchangeRate(
-                totalfCash,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                fCashAmount
-            );
-    }
-
-    function logProportion(int256 proportion) external pure returns (int256, bool) {
-        return Market._logProportion(proportion);
-    }
-
-    function getImpliedRate(
-        int256 totalfCash,
-        int256 totalCashUnderlying,
-        int256 rateScalar,
-        int256 rateAnchor,
-        uint256 timeToMaturity
-    ) external pure returns (uint256) {
-        return
-            Market.getImpliedRate(
-                totalfCash,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                timeToMaturity
-            );
-    }
-
-    function getRateAnchor(
-        int256 totalfCash,
-        uint256 lastImpliedRate,
-        int256 totalCashUnderlying,
-        int256 rateScalar,
-        uint256 timeToMaturity
-    ) external pure returns (int256, bool) {
-        return
-            Market._getRateAnchor(
-                totalfCash,
-                lastImpliedRate,
-                totalCashUnderlying,
-                rateScalar,
-                timeToMaturity
-            );
     }
 
     function calculateTrade(
@@ -104,10 +46,10 @@ contract MockMarket is StorageLayoutV1 {
             int256
         )
     {
-        (int256 primeCash, int256 fee) =
+        (int256 primeCash, int256 cashToReserve) =
             InterestRateCurve.calculatefCashTrade(marketState, cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
-        return (marketState, primeCash, fee);
+        return (marketState, primeCash, cashToReserve);
     }
 
     function addLiquidity(MarketParameters memory marketState, int256 primeCash)
@@ -168,38 +110,33 @@ contract MockMarket is StorageLayoutV1 {
         return market;
     }
 
-    function getExchangeRateFactors(
-        MarketParameters memory market,
-        CashGroupParameters memory cashGroup,
-        uint256 marketIndex,
-        uint256 timeToMaturity
-    ) external pure returns (int256, int256, int256) {
-        return Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
-    }
-
     function getfCashAmountGivenCashAmount(
-        MarketParameters memory market,
-        CashGroupParameters memory cashGroup,
+        uint16 currencyId,
+        int256 totalfCash,
+        int256 totalCashUnderlying,
         int256 netCashToAccount,
         uint256 marketIndex,
-        uint256 timeToMaturity,
-        int256 maxfCashDelta
-    ) external pure returns (int256) {
-        (int256 rateScalar, int256 totalCashUnderlying, int256 rateAnchor) =
-            Market.getExchangeRateFactors(market, cashGroup, timeToMaturity, marketIndex);
-        // Rate scalar can never be zero so this signifies a failure and we return zero
-        if (rateScalar == 0) revert();
-        int256 fee = Market.getExchangeRateFromImpliedRate(cashGroup.getTotalFee(), timeToMaturity);
+        uint256 timeToMaturity
+    ) external view returns (int256) {
+        InterestRateParameters memory irParams = InterestRateCurve.getActiveInterestRateParameters(currencyId, marketIndex);
+        return InterestRateCurve.getfCashGivenCashAmount(
+            irParams,
+            totalfCash,
+            netCashToAccount,
+            totalCashUnderlying,
+            timeToMaturity
+        );
+    }
 
-        return
-            Market.getfCashGivenCashAmount(
-                market.totalfCash,
-                netCashToAccount,
-                totalCashUnderlying,
-                rateScalar,
-                rateAnchor,
-                fee,
-                maxfCashDelta
-            );
+    function getInterestRateFromUtilization(
+        uint16 currencyId,
+        uint8 marketIndex,
+        uint256 utilization
+    ) external view returns (uint256 preFeeInterestRate) {
+        InterestRateParameters memory irParams = InterestRateCurve.getActiveInterestRateParameters(
+            currencyId, marketIndex
+        );
+
+        return InterestRateCurve.getInterestRate(irParams, utilization);
     }
 }

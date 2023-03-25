@@ -1,3 +1,5 @@
+import math
+
 import brownie
 import pytest
 from brownie.convert.datatypes import Wei
@@ -44,7 +46,7 @@ class TestLiquidationFactors:
 
     def test_revert_on_sufficient_portfolio_value(self, liquidation, accounts):
         mock = liquidation.mock
-        mock.setPortfolio(accounts[1], [get_fcash_token(1, notional=100e8)])
+        mock.setPortfolio(accounts[1], ([], [get_fcash_token(1, notional=100e8)], 0, 0))
         mock.setBalance(accounts[1], 2, 100e8, 0)
 
         with brownie.reverts("Sufficient collateral"):
@@ -53,8 +55,15 @@ class TestLiquidationFactors:
 
     def test_revert_on_sufficient_bitmap_value(self, liquidation, accounts):
         mock = liquidation.mock
-        mock.enableBitmapForAccount(accounts[0], 1, START_TIME_TREF)
-        mock.setifCashAsset(accounts[0], 1, START_TIME_TREF + SECONDS_IN_DAY * 30, 100e8)
+        liquidation.enableBitmapForAccount(accounts[0], 1, START_TIME_TREF)
+        mock.setBitmapAssets(
+            accounts[0],
+            [
+                get_fcash_token(
+                    0, currencyId=1, maturity=START_TIME_TREF + SECONDS_IN_DAY * 30, notional=100e8
+                )
+            ],
+        )
         mock.setBalance(accounts[0], 2, 100e8, 200e8)
 
         with brownie.reverts("Sufficient collateral"):
@@ -63,7 +72,7 @@ class TestLiquidationFactors:
 
     def test_revert_on_invalid_currencies(self, liquidation, accounts):
         mock = liquidation.mock
-        mock.enableBitmapForAccount(accounts[0], 1, START_TIME_TREF)
+        liquidation.enableBitmapForAccount(accounts[0], 1, START_TIME_TREF)
 
         with brownie.reverts():
             # Equal currency ids
@@ -100,13 +109,41 @@ class TestLiquidationFactors:
         assert amount <= userSpecifiedMaximum
 
     def test_ntoken_cannot_liquidate(self, liquidation, accounts):
-        for currency, address in liquidation.nTokenAddress.items():
+        for currency in range(1, 5):
+            address = liquidation.mock.getNTokenAddress(currency)
             (fc, _) = liquidation.mock.getFreeCollateral(address)
             assert fc == 0
 
             with brownie.reverts():
                 liquidation.mock.preLiquidationActions(address, currency, 0)
 
-    @pytest.mark.todo
-    def test_local_to_purchase(self, liquidation, accounts):
-        pass
+    @given(localPrimeAvailable=strategy("int", min_value=-120e8, max_value=-20e8))
+    def test_local_to_purchase(self, liquidation, accounts, localPrimeAvailable):
+        localETHRate = (1e18, 1e18, 100, 100, 105)
+        collateralETHRate = (1e18, 0.01e18, 100, 100, 106)
+        localPrimeRate = (1.025e36, 1.01e36, 0)
+
+        discount = max(localETHRate[4], collateralETHRate[4])
+        exchangeRate = localETHRate[1] * collateralETHRate[0] / collateralETHRate[1]
+        (
+            collateralBalanceToSell,
+            localAssetFromLiquidator,
+        ) = liquidation.mock.calculateLocalToPurchase(
+            localETHRate,
+            collateralETHRate,
+            localPrimeRate,
+            localPrimeAvailable,
+            discount,
+            100e8,
+            100e8,
+        )
+        localUnderlying = liquidation.mock.convertToUnderlying(
+            localPrimeRate, localAssetFromLiquidator
+        )
+
+        # No matter what the inputs are, we should expect that the exchange rate
+        # between local and collateral is equal to the liquidation discount
+        assert (
+            pytest.approx(collateralBalanceToSell / localUnderlying)
+            == (exchangeRate * discount) / 1e20
+        )

@@ -16,9 +16,10 @@ networks:
       accounts: 20
       mnemonic: owner dignity sense
       default_balance: 100000
+      unlimited_contract_size: true
   mainnet-fork:
     cmd_settings:
-      fork_block: 15463465
+      fork_block: 16721445
 reports:
   exclude_paths:
     - interfaces/**/*.*

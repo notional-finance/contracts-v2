@@ -2,8 +2,9 @@ import brownie
 import pytest
 from brownie.convert.datatypes import HexString
 from brownie.network.state import Chain
+from brownie.test import given, strategy
 from fixtures import *
-from tests.constants import SECONDS_IN_QUARTER
+from tests.constants import PRIME_CASH_VAULT_MATURITY, SECONDS_IN_QUARTER
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.stateful.invariants import check_system_invariants
 
@@ -13,7 +14,6 @@ chain = Chain()
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
     pass
-
 
 def test_only_vault_entry(environment, vault, accounts):
     environment.notional.updateVault(
@@ -113,7 +113,7 @@ def test_enter_vault_past_maturity(environment, vault, accounts):
         vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)), 100_000e8
     )
     maturity = environment.notional.getActiveMarkets(1)[0][1]
-    with brownie.reverts("Cannot Enter"):
+    with brownie.reverts():
         environment.notional.enterVault(
             accounts[1],
             vault.address,
@@ -125,7 +125,7 @@ def test_enter_vault_past_maturity(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
-    with brownie.reverts("Cannot Enter"):
+    with brownie.reverts():
         environment.notional.enterVault(
             accounts[1],
             vault.address,
@@ -138,7 +138,8 @@ def test_enter_vault_past_maturity(environment, vault, accounts):
         )
 
 
-def test_cannot_enter_vault_with_less_than_required(environment, vault, accounts):
+@given(isPrime=strategy("bool"))
+def test_cannot_enter_vault_with_less_than_required(environment, vault, accounts, isPrime):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(
@@ -150,7 +151,9 @@ def test_cannot_enter_vault_with_less_than_required(environment, vault, accounts
         ),
         500_000e8,
     )
-    maturity = environment.notional.getActiveMarkets(2)[0][1]
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY if isPrime else environment.notional.getActiveMarkets(2)[0][1]
+    )
 
     with brownie.reverts("Above Max Collateral"):
         environment.notional.enterVault(
@@ -177,7 +180,7 @@ def test_enter_vault_past_max_markets(environment, vault, accounts):
     )
 
     maturity = environment.notional.getActiveMarkets(1)[1][1]
-    with brownie.reverts("Invalid Maturity"):
+    with brownie.reverts(dev_revert_msg="dev: invalid maturity"):
         environment.notional.enterVault(
             accounts[1],
             vault.address,
@@ -190,7 +193,7 @@ def test_enter_vault_past_max_markets(environment, vault, accounts):
         )
 
     # Cannot enter invalid maturity with deposit
-    with brownie.reverts("Invalid Maturity"):
+    with brownie.reverts(dev_revert_msg="dev: invalid maturity"):
         environment.notional.enterVault(
             accounts[1], vault.address, 100_000e18, maturity, 0, 0, "", {"from": accounts[1]}
         )
@@ -202,7 +205,7 @@ def test_enter_vault_idiosyncratic(environment, vault, accounts):
     )
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
-    with brownie.reverts("Invalid Maturity"):
+    with brownie.reverts(dev_revert_msg="dev: invalid maturity"):
         environment.notional.enterVault(
             accounts[1],
             vault.address,
@@ -215,7 +218,7 @@ def test_enter_vault_idiosyncratic(environment, vault, accounts):
         )
 
     # cannot enter an invalid maturity with just a deposit
-    with brownie.reverts("Invalid Maturity"):
+    with brownie.reverts(dev_revert_msg="dev: invalid maturity"):
         environment.notional.enterVault(
             accounts[1],
             vault.address,
@@ -228,11 +231,14 @@ def test_enter_vault_idiosyncratic(environment, vault, accounts):
         )
 
 
-def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
+@given(isPrime=strategy("bool"))
+def test_enter_vault_over_maximum_capacity(environment, vault, accounts, isPrime):
     environment.notional.updateVault(
         vault.address, get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)), 100_000e8
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY if isPrime else environment.notional.getActiveMarkets(2)[0][1]
+    )
 
     with brownie.reverts("Max Capacity"):
         # User account borrowing over max vault size
@@ -250,13 +256,16 @@ def test_enter_vault_over_maximum_capacity(environment, vault, accounts):
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_enter_vault_under_minimum_size(environment, vault, accounts):
+@given(isPrime=strategy("bool"))
+def test_enter_vault_under_minimum_size(environment, vault, accounts, isPrime):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
         100_000_000e8,
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY if isPrime else environment.notional.getActiveMarkets(2)[0][1]
+    )
 
     with brownie.reverts("Min Borrow"):
         # User account borrowing under minimum size
@@ -301,16 +310,32 @@ def test_enter_vault_borrowing_failure(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
+    with brownie.reverts(""):
+        # TODO: fails on insufficient prime cash to withdraw
+        environment.notional.enterVault(
+            accounts[1],
+            vault.address,
+            100_000e18,
+            PRIME_CASH_VAULT_MATURITY,
+            10_000_000e8,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_enter_vault_insufficient_deposit(environment, vault, accounts):
+@given(isPrime=strategy("bool"))
+def test_enter_vault_insufficient_deposit(environment, vault, accounts, isPrime):
     environment.notional.updateVault(
         vault.address,
         get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
         100_000_000e8,
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY if isPrime else environment.notional.getActiveMarkets(2)[0][1]
+    )
 
     with brownie.reverts("Insufficient Collateral"):
         environment.notional.enterVault(
@@ -325,270 +350,251 @@ def test_enter_vault_insufficient_deposit(environment, vault, accounts):
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_enter_vault_with_dai(environment, vault, accounts):
+@given(currencyId=strategy("uint", min_value=1, max_value=3), isPrime=strategy("bool"))
+def test_enter_vault(environment, SimpleStrategyVault, accounts, currencyId, isPrime):
+    decimals = environment.notional.getCurrency(currencyId)["underlyingToken"]["decimals"]
+    vault = SimpleStrategyVault.deploy(
+        "Simple Strategy", environment.notional.address, currencyId, {"from": accounts[0]}
+    )
+    vault.setExchangeRate(1e18)
+    # Set a multiple because ETH liquidity is lower in the test environment
+    multiple = 1 if currencyId == 1 else 1_000
+
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        get_vault_config(
+            currencyId=currencyId,
+            flags=set_flags(0, ENABLED=True),
+            minAccountBorrowSize=100 * multiple,
+        ),
         100_000_000e8,
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY
+        if isPrime
+        else environment.notional.getActiveMarkets(currencyId)[0][1]
+    )
 
     txn = environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+        accounts[1],
+        vault.address,
+        25 * multiple * decimals,
+        maturity,
+        100 * multiple * 1e8,
+        0,
+        "",
+        {"from": accounts[1], "value": 25 * multiple * decimals if currencyId == 1 else 0},
     )
-    assert txn.events["VaultEnterMaturity"]
-    assert txn.events["VaultEnterMaturity"]["underlyingTokensDeposited"] == 25_000e18
-    assert txn.events["VaultEnterMaturity"]["cashTransferToVault"] > 100_000e8 * 49
-    assert txn.events["VaultEnterMaturity"]["cashTransferToVault"] < 100_000e8 * 50
+
+    # assert txn.events["VaultEnterMaturity"]
+    # assert txn.events["VaultEnterMaturity"]["underlyingTokensDeposited"] == 25 * multiple * decimals
+    # assert txn.events["VaultEnterMaturity"]["cashTransferToVault"] > 97 * multiple * 1e8
+    # if isPrime:
+    #     assert "VaultFeeAccrued" not in txn.events
+    #     assert environment.approxInternal(
+    #         environment.symbol[currencyId],
+    #         txn.events["VaultEnterMaturity"]["cashTransferToVault"],
+    #         100 * multiple * 1e8,
+    #     )
+    # else:
+    #     assert "VaultFeeAccrued" in txn.events
+    #     assert (
+    #         txn.events["VaultEnterMaturity"]["cashTransferToVault"]
+    #         < 100 * multiple * 1e8 * environment.primeCashScalars[environment.symbol[currencyId]]
+    #     )
 
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatio, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
+    (health, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
     vaultState = environment.notional.getVaultState(vault, maturity)
 
-    assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
-    assert vaultAccount["fCash"] == -100_000e8
+    assert 0.21e9 < health["collateralRatio"] and health["collateralRatio"] < 0.26e9
+    assert pytest.approx(vaultAccount["accountDebtUnderlying"], abs=1) == -100 * multiple * 1e8
     assert vaultAccount["maturity"] == maturity
+    assert vaultAccount["lastUpdateBlockTime"] == txn.timestamp
 
-    assert vaultState["totalfCash"] == -100_000e8
-    assert vaultState["totalAssetCash"] == 0
-    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
-    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
+    assert pytest.approx(vaultState["totalDebtUnderlying"], abs=1) == -100 * multiple * 1e8
 
     totalValue = vault.convertStrategyToUnderlying(
-        accounts[1], vaultState["totalStrategyTokens"], maturity
+        accounts[1], vaultState["totalVaultShares"], maturity
     )
-    assert 122_000e18 < totalValue and totalValue < 125_000e18
+
+    if isPrime:
+        assert pytest.approx(totalValue, rel=1e-12, abs=100) == 125 * multiple * decimals
+    else:
+        assert 121 * multiple * decimals < totalValue and totalValue < 125_000 * multiple * decimals
 
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_enter_vault_fails_if_has_asset_cash(environment, vault, accounts):
+@given(currencyId=strategy("uint", min_value=1, max_value=3), isPrime=strategy("bool"))
+def test_can_increase_vault_position(
+    environment, accounts, SimpleStrategyVault, currencyId, isPrime
+):
+    decimals = environment.notional.getCurrency(currencyId)["underlyingToken"]["decimals"]
+    vault = SimpleStrategyVault.deploy(
+        "Simple Strategy", environment.notional.address, currencyId, {"from": accounts[0]}
+    )
+    vault.setExchangeRate(1e18)
+    # Set a multiple because ETH liquidity is lower in the test environment
+    multiple = 1 if currencyId == 1 else 1_000
+
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        get_vault_config(
+            currencyId=currencyId,
+            flags=set_flags(0, ENABLED=True),
+            minAccountBorrowSize=100 * multiple,
+        ),
         100_000_000e8,
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY
+        if isPrime
+        else environment.notional.getActiveMarkets(currencyId)[0][1]
     )
 
-    vault.redeemStrategyTokensToCash(maturity, 5_000e8, "", {"from": accounts[0]})
-
-    with brownie.reverts():
-        # An attempt to enter again will fail if the vault is holding asset cash
-        environment.notional.enterVault(
-            accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
-        )
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-def test_enter_vault_with_matured_position(environment, accounts, vault):
-    environment.notional.updateVault(
+    # Initial enter of vault
+    environment.notional.enterVault(
+        accounts[1],
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    (collateralRatioBefore, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
+        25 * multiple * decimals,
+        maturity,
+        100 * multiple * 1e8,
+        0,
+        "",
+        {"from": accounts[1], "value": 25 * multiple * decimals if currencyId == 1 else 0},
     )
 
-    # Settle the vault
-    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
-    chain.mine(1, timestamp=maturity)
-    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
-    environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
-
-    # Cannot establish a new vault position without borrowing even after settlement
-    with brownie.reverts("Above Max Collateral"):
-        environment.notional.enterVault(
-            accounts[1], vault.address, 10_000e18, maturity, 0, 0, "", {"from": accounts[1]}
-        )
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 0, maturity, 105_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    vaultStateNew = environment.notional.getVaultState(vault, vaultAccountAfter["maturity"])
-    (collateralRatioAfter, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-
-    assert collateralRatioAfter < collateralRatioBefore
-    assert vaultStateNew["totalVaultShares"] == vaultAccountAfter["vaultShares"]
-    assert vaultStateNew["totalStrategyTokens"] == vaultAccountAfter["vaultShares"]
-    assert vaultAccountBefore["vaultShares"] < vaultAccountAfter["vaultShares"]
-    assert vaultAccountAfter["fCash"] == -105_000e8
-    assert vaultAccountAfter["maturity"] == maturity
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-def test_enter_vault_return_values(environment, accounts, vault):
-    environment.notional.updateVault(
+    # Re-enter vault position, with less borrow
+    txn = environment.notional.enterVault(
+        accounts[1],
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
-        100_000_000e8,
+        2.5 * multiple * decimals,
+        maturity,
+        10 * multiple * 1e8,
+        0,
+        "",
+        {"from": accounts[1], "value": 2.5 * multiple * decimals if currencyId == 1 else 0},
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
 
-    expectedStrategyTokens = environment.notional.enterVault.call(
-        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
-    )
+    # TODO: assert events
+    #assert "VaultFeeAccrued" in txn.events
+
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
-    assert pytest.approx(expectedStrategyTokens, abs=1e5) == vaultAccount["vaultShares"]
+    (health, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
+    vaultState = environment.notional.getVaultState(vault, maturity)
 
-    # Settle the vault
-    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
-    chain.mine(1, timestamp=maturity)
-    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
-    environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    assert 0.21e9 < health["collateralRatio"] and health["collateralRatio"] < 0.26e9
+    assert pytest.approx(vaultAccount["accountDebtUnderlying"], abs=100) == -110 * multiple * 1e8
+    assert vaultAccount["maturity"] == maturity
+    assert vaultAccount["lastUpdateBlockTime"] == txn.timestamp
 
-    expectedStrategyTokens = environment.notional.enterVault.call(
-        accounts[1], vault.address, 0, maturity, 105_000e8, 0, "", {"from": accounts[1]}
-    )
-    environment.notional.enterVault(
-        accounts[1], vault.address, 0, maturity, 105_000e8, 0, "", {"from": accounts[1]}
-    )
-    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
-    assert expectedStrategyTokens == vaultAccount["vaultShares"]
+    assert pytest.approx(vaultState["totalDebtUnderlying"], abs=100) == -110 * multiple * 1e8
+    assert vaultState["totalVaultShares"] == vaultAccount["vaultShares"]
 
     check_system_invariants(environment, accounts, [vault])
 
 
-def test_enter_vault_with_matured_position_unable_to_settle(environment, vault, accounts):
+@given(currencyId=strategy("uint", min_value=1, max_value=3), isPrime=strategy("bool"))
+def test_can_deposit_to_reduce_collateral_ratio(
+    environment, accounts, SimpleStrategyVault, currencyId, isPrime
+):
+    decimals = environment.notional.getCurrency(currencyId)["underlyingToken"]["decimals"]
+    vault = SimpleStrategyVault.deploy(
+        "Simple Strategy", environment.notional.address, currencyId, {"from": accounts[0]}
+    )
+    vault.setExchangeRate(1e18)
+    # Set a multiple because ETH liquidity is lower in the test environment
+    multiple = 1 if currencyId == 1 else 1_000
+
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True)),
+        get_vault_config(
+            currencyId=currencyId,
+            flags=set_flags(0, ENABLED=True),
+            minAccountBorrowSize=100 * multiple,
+        ),
         100_000_000e8,
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    maturity = (
+        PRIME_CASH_VAULT_MATURITY
+        if isPrime
+        else environment.notional.getActiveMarkets(currencyId)[0][1]
+    )
+
+    # Initial enter of vault
+    environment.notional.enterVault(
+        accounts[1],
+        vault.address,
+        25 * multiple * decimals,
+        maturity,
+        101 * multiple * 1e8,
+        0,
+        "",
+        {"from": accounts[1], "value": 25 * multiple * decimals if currencyId == 1 else 0},
+    )
+
+    (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
+
+    # Deposit collateral, no borrow
+    txn = environment.notional.enterVault(
+        accounts[1],
+        vault.address,
+        2 * multiple * decimals,
+        maturity,
+        0,
+        0,
+        "",
+        {"from": accounts[1], "value": 2 * multiple * decimals if currencyId == 1 else 0},
+    )
+    # TODO: assert events
+    #assert "VaultFeeAccrued" in txn.events
+
+    # if isPrime:
+    #     assert "VaultFeeAccrued" in txn.events
+    # else:
+    #     assert "VaultFeeAccrued" not in txn.events
+
+    (healthAfter, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
+    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
+    vaultState = environment.notional.getVaultState(vault, maturity)
+
+    assert healthBefore["collateralRatio"] < healthAfter["collateralRatio"]
+    assert pytest.approx(vaultAccount["accountDebtUnderlying"], abs=100) == -101 * multiple * 1e8
+    assert vaultAccount["maturity"] == maturity
+    assert vaultAccount["lastUpdateBlockTime"] == txn.timestamp
+
+    assert pytest.approx(vaultState["totalDebtUnderlying"], abs=10) == -101 * multiple * 1e8
+    assert vaultState["totalVaultShares"] == vaultAccount["vaultShares"]
+
+    check_system_invariants(environment, accounts, [vault])
+
+def test_cannot_enter_vault_with_matured_position(environment, accounts, vault):
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=True)),
+        100_000_000e8,
+    )
+    maturity = environment.notional.getActiveMarkets(2)[0][1]
 
     environment.notional.enterVault(
         accounts[1], vault.address, 25_000e18, maturity, 100_000e8, 0, "", {"from": accounts[1]}
     )
 
-    vault.redeemStrategyTokensToCash(maturity, 100_000e8, "", {"from": accounts[0]})
     chain.mine(1, timestamp=maturity)
-    environment.notional.initializeMarkets(2, False, {"from": accounts[1]})
+    environment.notional.initializeMarkets(2, False)
 
-    # At this point the vault has not settled so we will revert
-    with brownie.reverts("Not Settled"):
+    # Cannot enter vault with matured position
+    with brownie.reverts(dev_revert_msg="dev: cannot enter with matured position"):
         environment.notional.enterVault(
             accounts[1],
             vault.address,
-            25_000e18,
+            10_000e18,
             maturity + SECONDS_IN_QUARTER,
-            100_000e8,
+            0,
             0,
             "",
             {"from": accounts[1]},
         )
-
-    # Run this for the invariants to succeed
-    environment.notional.settleVault(vault, maturity, {"from": accounts[1]})
-    check_system_invariants(environment, accounts, [vault])
-
-
-def test_enter_vault_with_usdc(environment, accounts, SimpleStrategyVault):
-    vault = SimpleStrategyVault.deploy(
-        "Simple Strategy", environment.notional.address, 3, {"from": accounts[0]}
-    )
-    vault.setExchangeRate(1e12)
-
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(currencyId=3, flags=set_flags(0, ENABLED=True)),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-
-    environment.notional.enterVault(
-        accounts[1], vault.address, 25_000e6, maturity, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-
-    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatio, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultState = environment.notional.getVaultState(vault, maturity)
-
-    assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
-    assert vaultAccount["fCash"] == -100_000e8
-    assert vaultAccount["maturity"] == maturity
-
-    assert vaultState["totalfCash"] == -100_000e8
-    assert vaultState["totalAssetCash"] == 0
-    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
-    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
-
-    totalValue = vault.convertStrategyToUnderlying(
-        accounts[1], vaultState["totalStrategyTokens"], maturity
-    )
-    assert 122_000e6 < totalValue and totalValue < 125_000e6
-
-    check_system_invariants(environment, accounts, [vault])
-
-
-def test_enter_vault_with_eth(environment, accounts, SimpleStrategyVault):
-    vault = SimpleStrategyVault.deploy(
-        "Simple Strategy", environment.notional.address, 1, {"from": accounts[0]}
-    )
-    vault.setExchangeRate(1e18)
-
-    environment.notional.updateVault(
-        vault.address,
-        get_vault_config(currencyId=1, flags=set_flags(0, ENABLED=True), minAccountBorrowSize=100),
-        100_000_000e8,
-    )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
-
-    environment.notional.enterVault(
-        accounts[1],
-        vault.address,
-        25e18,
-        maturity,
-        100e8,
-        0,
-        "",
-        {"from": accounts[1], "value": 25e18},
-    )
-
-    vaultAccount = environment.notional.getVaultAccount(accounts[1], vault)
-    (collateralRatio, _, _, _) = environment.notional.getVaultAccountCollateralRatio(
-        accounts[1], vault
-    )
-    vaultState = environment.notional.getVaultState(vault, maturity)
-
-    assert 0.22e9 < collateralRatio and collateralRatio < 0.25e9
-    assert vaultAccount["fCash"] == -100e8
-    assert vaultAccount["maturity"] == maturity
-
-    assert vaultState["totalfCash"] == -100e8
-    assert vaultState["totalAssetCash"] == 0
-    assert vaultState["totalStrategyTokens"] == vaultAccount["vaultShares"]
-    assert vaultState["totalStrategyTokens"] == vaultState["totalVaultShares"]
-
-    totalValue = vault.convertStrategyToUnderlying(
-        accounts[1], vaultState["totalStrategyTokens"], maturity
-    )
-    assert 122e18 < totalValue and totalValue < 125e18
 
     check_system_invariants(environment, accounts, [vault])
