@@ -90,6 +90,22 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         if (newImplementation == pauseRouter) rollbackRouterImplementation = _getImplementation();
     }
 
+    /// @notice Allows Notional governance to upgrade various Beacon proxies external to the system
+    function upgradeBeacon(Deployments.BeaconType proxy, address newBeacon) external override onlyOwner {
+        IUpgradeableBeacon beacon;
+        if (proxy == Deployments.BeaconType.NTOKEN) {
+            beacon = Deployments.NTOKEN_BEACON;
+        } else if (proxy == Deployments.BeaconType.PCASH) {
+            beacon = Deployments.PCASH_BEACON;
+        } else if (proxy == Deployments.BeaconType.WRAPPED_FCASH) {
+            beacon = Deployments.WRAPPED_FCASH_BEACON;
+        } else {
+            revert();
+        }
+
+        beacon.upgradeTo(newBeacon);
+    }
+
     /// @notice Sets a new pause router and guardian address.
     function setPauseRouterAndGuardian(
         address pauseRouter_,
@@ -103,115 +119,161 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
 
     /// @notice Lists a new currency along with its exchange rate to ETH
     /// @dev emit:ListCurrency emit:UpdateETHRate
-    /// @param assetToken the token parameters for the asset token
     /// @param underlyingToken the underlying token (if asset token is an interest bearing wrapper)
-    /// @param rateOracle ETH to underlying rate oracle
-    /// @param mustInvert if the rate from the oracle needs to be inverted
-    /// @param buffer multiplier (>= 100) for negative balances when calculating free collateral
-    /// @param haircut multiplier (<= 100) for positive balances when calculating free collateral
-    /// @param liquidationDiscount multiplier (>= 100) for exchange rate when liquidating
     /// @return the new currency id
     function listCurrency(
-        TokenStorage calldata assetToken,
         TokenStorage calldata underlyingToken,
-        AggregatorV2V3Interface rateOracle,
-        bool mustInvert,
-        uint8 buffer,
-        uint8 haircut,
-        uint8 liquidationDiscount
+        ETHRateStorage memory ethRate,
+        InterestRateCurveSettings calldata primeDebtCurve,
+        IPrimeCashHoldingsOracle primeCashHoldingsOracle,
+        bool allowPrimeCashDebt,
+        uint8 rateOracleTimeWindow5Min,
+        string calldata underlyingName,
+        string calldata underlyingSymbol
     ) external override onlyOwner returns (uint16) {
         uint16 currencyId = maxCurrencyId + 1;
         // Set the new max currency id
         maxCurrencyId = currencyId;
-        require(currencyId <= Constants.MAX_CURRENCIES, "G: max currency overflow");
-        // NOTE: this allows multiple asset tokens that have the same underlying. That is ok from a protocol
-        // perspective. For example, we may choose list cDAI, yDAI and aDAI as asset currencies and each can
-        // trade as different forms of fDAI.
-        require(
-            tokenAddressToCurrencyId[assetToken.tokenAddress] == 0,
-            "G: duplicate token listing"
+        require(currencyId <= Constants.MAX_CURRENCIES);
+        require(tokenAddressToCurrencyId[underlyingToken.tokenAddress] == 0); // dev: duplicate listing
+        tokenAddressToCurrencyId[underlyingToken.tokenAddress] = currencyId;
+
+        // NOTE: set token will enforce the restriction that Ether can only be set once as the zero
+        // address. This sets the underlying token
+        TokenHandler.setToken(currencyId, underlyingToken);
+
+        // rateDecimalPlaces will be set inside this method
+        _updateETHRate(currencyId, ethRate);
+
+        // Since we use internal balance tracking to mitigate donation type exploits,
+        // the first time a prime cash curve is initialized we have to set the initial
+        // balances in order to get currentTotalUnderlying.
+        PrimeCashExchangeRate.initTokenBalanceStorage(currencyId, primeCashHoldingsOracle);
+
+        // This must return some positive amount of the given token in order to initialize
+        // the total supply value
+        (/* */, uint256 initialPrimeSupply) = primeCashHoldingsOracle
+            .getTotalUnderlyingValueStateful();
+
+        PrimeCashExchangeRate.initPrimeCashCurve(
+            currencyId,
+            SafeUint256.toUint88(initialPrimeSupply),
+            primeDebtCurve,
+            primeCashHoldingsOracle,
+            allowPrimeCashDebt,
+            rateOracleTimeWindow5Min
         );
-        tokenAddressToCurrencyId[assetToken.tokenAddress] = currencyId;
 
-        // Set the underlying first because the asset token may set an approval using the underlying
-        if (
-            underlyingToken.tokenAddress != address(0) ||
-            // Ether has a token address of zero
-            underlyingToken.tokenType == TokenType.Ether
-        ) {
-            // NOTE: set token will enforce the restriction that Ether can only be set once as the zero
-            // address. This sets the underlying token
-            TokenHandler.setToken(currencyId, true, underlyingToken);
+        // Set the reserve cash balance to the initial donation
+        // no overflow possible due to toUint88 check above
+        BalanceHandler.setReserveCashBalance(currencyId, int256(initialPrimeSupply));
+
+        bytes memory initCallData = abi.encodeWithSignature(
+            "initialize(uint16,address,string,string)",
+            currencyId,
+            underlyingToken.tokenAddress, 
+            underlyingName,
+            underlyingSymbol
+        );
+
+        // A beacon proxy gets its implementation via the UpgradeableBeacon set here.
+        nBeaconProxy cashProxy = new nBeaconProxy(address(Deployments.PCASH_BEACON), initCallData);
+        PrimeCashExchangeRate.setProxyAddress({
+            currencyId: currencyId, proxy: address(cashProxy), isCashProxy: true
+        });
+
+        if (allowPrimeCashDebt) {
+            nBeaconProxy debtProxy = new nBeaconProxy(address(Deployments.PDEBT_BEACON), initCallData);
+            PrimeCashExchangeRate.setProxyAddress({
+                currencyId: currencyId, proxy: address(debtProxy), isCashProxy: false
+            });
         }
-
-        // This sets the asset token
-        TokenHandler.setToken(currencyId, false, assetToken);
-
-        _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
 
         emit ListCurrency(currencyId);
 
         return currencyId;
     }
 
-    /// @notice Sets a maximum balance on a given currency. Max collateral balance cannot be set on a
-    /// currency that is actively used in trading, this may cause issues with liquidation. Also, max
-    /// collateral balance is only set on asset tokens (not underlying tokens) because underlying tokens
-    /// are not held as contract balances.
-    /// @dev emit:UpdateMaxCollateralBalance
-    /// @param currencyId id of the currency to set the max collateral balance on
-    /// @param maxCollateralBalanceInternalPrecision amount of collateral balance that can be held
-    /// in this currency denominated in internal token precision
-    function updateMaxCollateralBalance(
-        uint16 currencyId,
-        uint72 maxCollateralBalanceInternalPrecision
-    ) external override onlyOwner {
-        _checkValidCurrency(currencyId);
-        // Cannot turn on max collateral balance for a currency that is trading
-        if (maxCollateralBalanceInternalPrecision > 0) require(CashGroup.getMaxMarketIndex(currencyId) == 0);
-        TokenHandler.setMaxCollateralBalance(currencyId, maxCollateralBalanceInternalPrecision);
-        emit UpdateMaxCollateralBalance(currencyId, maxCollateralBalanceInternalPrecision);
-    }
-
     /// @notice Enables a cash group on a given currency so that it can have lend and borrow markets. Will
     /// also deploy an nToken contract so that markets can be initialized.
     /// @dev emit:UpdateCashGroup emit:UpdateAssetRate emit:DeployNToken
     /// @param currencyId id of the currency to enable
-    /// @param assetRateOracle address of the rate oracle for converting interest bearing assets to
-    /// underlying values
     /// @param cashGroup parameters for the cash group
     /// @param underlyingName underlying token name for seeding nToken name
     /// @param underlyingSymbol underlying token symbol for seeding nToken symbol (i.e. nDAI)
     function enableCashGroup(
         uint16 currencyId,
-        AssetRateAdapter assetRateOracle,
         CashGroupSettings calldata cashGroup,
         string calldata underlyingName,
         string calldata underlyingSymbol
     ) external override onlyOwner {
         _checkValidCurrency(currencyId);
-        {
-            // Cannot enable fCash trading on a token with a max collateral balance
-            Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-            Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
-            require(
-                assetToken.maxCollateralBalance == 0 &&
-                underlyingToken.maxCollateralBalance == 0
-            ); // dev: cannot enable trading, collateral cap
-        }
-
         _updateCashGroup(currencyId, cashGroup);
-        _updateAssetRate(currencyId, assetRateOracle);
+
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
+
+        // This must be set to true to enable cash groups.
+        require(PrimeCashExchangeRate.doesAllowPrimeDebt(currencyId));
 
         // Creates the nToken erc20 proxy that routes back to the main contract
-        nTokenERC20Proxy proxy = new nTokenERC20Proxy(
-            nTokenERC20(address(this)),
+        bytes memory initCallData = abi.encodeWithSignature(
+            "initialize(uint16,address,string,string)",
             currencyId,
+            underlyingToken.tokenAddress,
             underlyingName,
             underlyingSymbol
         );
+
+        // A beacon proxy gets its implementation via the UpgradeableBeacon set here.
+        nBeaconProxy proxy = new nBeaconProxy(address(Deployments.NTOKEN_BEACON), initCallData);
         nTokenHandler.setNTokenAddress(currencyId, address(proxy));
+
         emit DeployNToken(currencyId, address(proxy));
+    }
+
+    function setMaxUnderlyingSupply(
+        uint16 currencyId,
+        uint256 maxUnderlyingSupply
+    ) external override onlyOwner {
+        PrimeCashExchangeRate.setMaxUnderlyingSupply(currencyId, maxUnderlyingSupply);
+    }
+
+    function updatePrimeCashHoldingsOracle(
+        uint16 currencyId,
+        IPrimeCashHoldingsOracle primeCashHoldingsOracle
+    ) external override onlyOwner {
+        PrimeCashExchangeRate.updatePrimeCashHoldingsOracle(currencyId, primeCashHoldingsOracle);
+    }
+
+    function updatePrimeCashCurve(
+        uint16 currencyId,
+        InterestRateCurveSettings calldata primeDebtCurve
+    ) external override onlyOwner {
+        PrimeCashExchangeRate.updatePrimeCashCurve(currencyId, primeDebtCurve);
+    }
+
+    function enablePrimeDebt(
+        uint16 currencyId,
+        string calldata underlyingName,
+        string calldata underlyingSymbol
+    ) external override onlyOwner {
+        PrimeCashExchangeRate.allowPrimeDebt(currencyId);
+
+        // Deploy the prime debt proxy
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
+
+        bytes memory initCallData = abi.encodeWithSignature(
+            "initialize(uint16,address,string,string)",
+            currencyId,
+            underlyingToken.tokenAddress, 
+            underlyingName,
+            underlyingSymbol
+        );
+
+        nBeaconProxy debtProxy = new nBeaconProxy(address(Deployments.PDEBT_BEACON), initCallData);
+        PrimeCashExchangeRate.setProxyAddress({
+            currencyId: currencyId, proxy: address(debtProxy), isCashProxy: false
+        });
     }
 
     /// @notice Updates the deposit parameters for an nToken
@@ -232,6 +294,39 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         _checkValidCurrency(currencyId);
         nTokenHandler.setDepositParameters(currencyId, depositShares, leverageThresholds);
         emit UpdateDepositParameters(currencyId);
+    }
+
+    /// @notice Updates the interest rate curve parameters that will take effect after the next market
+    /// initialization.
+    /// @dev emit:UpdateInterestRateCurve
+    /// @param currencyId the currency id to update
+    /// @param marketIndices a list of market indices to update the settings for
+    /// @param settings the settings for the interest rate curve that will be set on the next
+    /// market initialization for the interest rate curve, corresponding to the marketIndices
+    function updateInterestRateCurve(
+        uint16 currencyId,
+        uint8[] calldata marketIndices,
+        InterestRateCurveSettings[] calldata settings
+    ) external override onlyOwner {
+        _checkValidCurrency(currencyId);
+        uint8 maxMarketIndex = CashGroup.getMaxMarketIndex(currencyId);
+        require(marketIndices.length == settings.length);
+
+        for (uint256 i = 0; i < marketIndices.length; i++) {
+            require(0 < marketIndices[i]);
+            require(marketIndices[i] <= maxMarketIndex);
+            // Require that marketIndices are sorted so that we do not get
+            // any duplicates on accident.
+            if (i > 0) require(marketIndices[i - 1] < marketIndices[i]);
+
+            InterestRateCurve.setNextInterestRateParameters(
+                currencyId,
+                marketIndices[i],
+                settings[i]
+            );
+
+            emit UpdateInterestRateCurve(currencyId, marketIndices[i]);
+        }
     }
 
     /// @notice Updates the market initialization parameters for an nToken
@@ -284,7 +379,7 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
     ) external override onlyOwner {
         _checkValidCurrency(currencyId);
         address nTokenAddress = nTokenHandler.nTokenAddress(currencyId);
-        require(nTokenAddress != address(0), "Invalid currency");
+        require(nTokenAddress != address(0));
 
         nTokenHandler.setNTokenCollateralParameters(
             nTokenAddress,
@@ -310,15 +405,6 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         _updateCashGroup(currencyId, cashGroup);
     }
 
-    /// @notice Updates asset rate oracle
-    /// @dev emit:UpdateAssetRate
-    /// @param currencyId id of the currency
-    /// @param rateOracle new rate oracle for the asset
-    function updateAssetRate(uint16 currencyId, AssetRateAdapter rateOracle) external override onlyOwner {
-        _checkValidCurrency(currencyId);
-        _updateAssetRate(currencyId, rateOracle);
-    }
-
     /// @notice Updates ETH exchange rate or related parameters
     /// @dev emit:UpdateETHRate
     /// @param currencyId id of the currency
@@ -337,24 +423,17 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         uint8 liquidationDiscount
     ) external override onlyOwner {
         _checkValidCurrency(currencyId);
-        _updateETHRate(currencyId, rateOracle, mustInvert, buffer, haircut, liquidationDiscount);
-    }
-
-    /// @notice Sets a global transfer operator that can do authenticated ERC1155 transfers. This enables
-    /// OTC trading or other use cases such as layer 2 authenticated transfers.
-    /// @dev emit:UpdateGlobalTransferOperator
-    /// @param operator address of the operator
-    /// @param approved true if the operator is allowed to transfer globally
-    function updateGlobalTransferOperator(address operator, bool approved)
-        external
-        override
-        onlyOwner
-    {
-        // Sanity check to ensure that operator is a contract, not an EOA
-        require(Address.isContract(operator), "Operator must be a contract");
-
-        globalTransferOperator[operator] = approved;
-        emit UpdateGlobalTransferOperator(operator, approved);
+        _updateETHRate(
+            currencyId,
+            ETHRateStorage({
+                rateOracle: rateOracle,
+                mustInvert: mustInvert,
+                buffer: buffer,
+                haircut: haircut,
+                liquidationDiscount: liquidationDiscount,
+                rateDecimalPlaces: 0 // This will be set inside updateETHRate
+            })
+        );
     }
 
     /// @notice Approves contracts that can call `batchTradeActionWithCallback`. These contracts can
@@ -370,37 +449,9 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         onlyOwner
     {
         // Sanity check to ensure that operator is a contract, not an EOA
-        require(Address.isContract(operator), "Operator must be a contract");
+        require(Address.isContract(operator));
         authorizedCallbackContract[operator] = approved;
         emit UpdateAuthorizedCallbackContract(operator, approved);
-    }
-
-    /// @notice Sets a secondary incentive rewarder for a currency. This contract will
-    /// be called whenever an nToken balance changes and allows a secondary contract to
-    /// mint incentives to the account. This will override any previous rewarder, if set.
-    /// Will have no effect if there is no nToken corresponding to the currency id.
-    /// @dev emit:UpdateSecondaryIncentiveRewarder
-    /// @param currencyId currency id of the nToken
-    /// @param rewarder rewarder contract
-    function setSecondaryIncentiveRewarder(uint16 currencyId, IRewarder rewarder)
-        external
-        override
-        onlyOwner
-    {
-        _checkValidCurrency(currencyId);
-        require(Address.isContract(address(rewarder)), "Rewarder must be a contract");
-        nTokenHandler.setSecondaryRewarder(currencyId, rewarder);
-        emit UpdateSecondaryIncentiveRewarder(currencyId, address(rewarder));
-    }
-
-    /// @notice Updates the lending pool address used by AaveHandler
-    /// @dev emit:UpdateLendingPool
-    /// @param pool lending pool address
-    function setLendingPool(ILendingPool pool) external override onlyOwner {
-        LendingPoolStorage storage store = LibStorage.getLendingPool();
-        require(address(pool) != address(0) && address(store.lendingPool) == address(0), "Invalid lending pool");
-        store.lendingPool = pool;
-        emit UpdateLendingPool(address(pool));
     }
 
     function _updateCashGroup(uint16 currencyId, CashGroupSettings calldata cashGroup) internal {
@@ -408,77 +459,26 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         emit UpdateCashGroup(currencyId);
     }
 
-    function _updateAssetRate(uint16 currencyId, AssetRateAdapter rateOracle) internal {
-        // If rate oracle refers to address zero then do not apply any updates here, this means
-        // that a token is non mintable.
-        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
-        if (address(rateOracle) == address(0)) {
-            // Sanity check that unset rate oracles are only for non mintable tokens
-            require(assetToken.tokenType == TokenType.NonMintable, "G: invalid asset rate");
-        } else {
-            // Sanity check that the rate oracle refers to the proper asset token
-            address token = AssetRateAdapter(rateOracle).token();
-            require(assetToken.tokenAddress == token, "G: invalid rate oracle");
-
-            uint8 underlyingDecimals;
-            if (currencyId == Constants.ETH_CURRENCY_ID) {
-                // If currencyId is one then this is referring to cETH and there is no underlying() to call
-                underlyingDecimals = Constants.ETH_DECIMAL_PLACES;
-            } else {
-                address underlyingTokenAddress = AssetRateAdapter(rateOracle).underlying();
-                Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
-                // Sanity check to ensure that the asset rate adapter refers to the correct underlying
-                require(underlyingTokenAddress == underlyingToken.tokenAddress, "G: invalid adapter");
-                underlyingDecimals = ERC20(underlyingTokenAddress).decimals();
-            }
-
-            // Perform this check to ensure that decimal calculations don't overflow
-            require(underlyingDecimals <= Constants.MAX_DECIMAL_PLACES);
-            mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
-            store[currencyId] = AssetRateStorage({
-                rateOracle: rateOracle,
-                underlyingDecimalPlaces: underlyingDecimals
-            });
-
-            emit UpdateAssetRate(currencyId);
-        }
-    }
-
     function _updateETHRate(
         uint16 currencyId,
-        AggregatorV2V3Interface rateOracle,
-        bool mustInvert,
-        uint8 buffer,
-        uint8 haircut,
-        uint8 liquidationDiscount
+        ETHRateStorage memory ethRate
     ) internal {
-        uint8 rateDecimalPlaces;
         if (currencyId == Constants.ETH_CURRENCY_ID) {
             // ETH to ETH exchange rate is fixed at 1 and has no rate oracle
-            rateOracle = AggregatorV2V3Interface(address(0));
-            rateDecimalPlaces = Constants.ETH_DECIMAL_PLACES;
+            ethRate.rateOracle = AggregatorV2V3Interface(address(0));
+            ethRate.rateDecimalPlaces = Constants.ETH_DECIMAL_PLACES;
         } else {
-            require(address(rateOracle) != address(0), "G: zero rate oracle address");
-            rateDecimalPlaces = rateOracle.decimals();
+            require(address(ethRate.rateOracle) != address(0));
+            ethRate.rateDecimalPlaces = ethRate.rateOracle.decimals();
         }
-        require(buffer >= Constants.PERCENTAGE_DECIMALS, "G: buffer must be gte decimals");
-        require(haircut <= Constants.PERCENTAGE_DECIMALS, "G: buffer must be lte decimals");
-        require(
-            liquidationDiscount > Constants.PERCENTAGE_DECIMALS,
-            "G: discount must be gt decimals"
-        );
+        require(ethRate.buffer >= Constants.PERCENTAGE_DECIMALS);
+        require(ethRate.haircut <= Constants.PERCENTAGE_DECIMALS);
+        require(ethRate.liquidationDiscount > Constants.PERCENTAGE_DECIMALS);
 
         // Perform this check to ensure that decimal calculations don't overflow
-        require(rateDecimalPlaces <= Constants.MAX_DECIMAL_PLACES);
+        require(ethRate.rateDecimalPlaces <= Constants.MAX_DECIMAL_PLACES);
         mapping(uint256 => ETHRateStorage) storage store = LibStorage.getExchangeRateStorage();
-        store[currencyId] = ETHRateStorage({
-            rateOracle: rateOracle,
-            rateDecimalPlaces: rateDecimalPlaces,
-            mustInvert: mustInvert,
-            buffer: buffer,
-            haircut: haircut,
-            liquidationDiscount: liquidationDiscount
-        });
+        store[currencyId] = ethRate;
 
         emit UpdateETHRate(currencyId);
     }
