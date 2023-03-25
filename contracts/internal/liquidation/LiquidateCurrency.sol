@@ -180,8 +180,7 @@ library LiquidateCurrency {
 
         (
             int256 requiredCollateralPrimeCash,
-            int256 localPrimeCashFromLiquidator,
-            int256 liquidationDiscount
+            int256 localPrimeCashFromLiquidator
         ) = _calculateCollateralToRaise(factors, maxCollateralLiquidation);
 
         int256 collateralPrimeRemaining = requiredCollateralPrimeCash;
@@ -193,7 +192,7 @@ library LiquidateCurrency {
             } else {
                 // Sell off all cash balance and calculate remaining collateral
                 balanceState.netCashChange = balanceState.storedCashBalance.neg();
-                // Collateral asset remaining cannot be negative
+                // Collateral prime remaining cannot be negative
                 collateralPrimeRemaining = collateralPrimeRemaining.subNoNeg(
                     balanceState.storedCashBalance
                 );
@@ -232,20 +231,14 @@ library LiquidateCurrency {
         }
 
         if (collateralPrimeRemaining > 0) {
-            // If there is any collateral asset remaining then recalculate the localPrimeCashFromLiquidator.
-            int256 actualCollateralPrimeSold = requiredCollateralPrimeCash.sub(collateralPrimeRemaining);
-            int256 collateralUnderlyingPresentValue =
-                factors.collateralCashGroup.assetRate.convertToUnderlying(actualCollateralPrimeSold);
-            // prettier-ignore
-            (
-                /* collateralToRaise */,
-                localPrimeCashFromLiquidator
-            ) = LiquidationHelpers.calculateLocalToPurchase(
-                factors,
-                liquidationDiscount,
-                collateralUnderlyingPresentValue,
-                actualCollateralPrimeSold
-            );
+            // Any remaining collateral required will be left on the account as a prime cash debt
+            // position. This effectively takes all of the cross currency risk off of the account
+            // and turns it into local currency interest rate risk. The account will be eligible for
+            // local currency liquidation against nTokens or fCash held in the collateral currency.
+            // The reasoning for this is that cross currency risk poses volatile exogenous risk
+            // to the system, whereas local currency interest rate is internal to the system and capped
+            // at by the tradable interest rate range and duration of the fCash and nToken assets.
+            balanceState.netCashChange = balanceState.netCashChange.sub(collateralPrimeRemaining);
         }
 
         return localPrimeCashFromLiquidator;
@@ -256,17 +249,15 @@ library LiquidateCurrency {
     function _calculateCollateralToRaise(
         LiquidationFactors memory factors,
         int256 maxCollateralLiquidation
-    )
-        private
-        pure
-        returns (
-            int256 requiredCollateralPrimeCash,
-            int256 localPrimeCashFromLiquidator,
+    ) private pure returns (
+        int256 requiredCollateralPrimeCash,
+        int256 localPrimeCashFromLiquidator
+    ) {
+        (
+            int256 collateralDenominatedFC,
             int256 liquidationDiscount
-        )
-    {
-        int256 collateralDenominatedFC;
-        (collateralDenominatedFC, liquidationDiscount) = LiquidationHelpers.calculateCrossCurrencyFactors(factors);
+        ) = LiquidationHelpers.calculateCrossCurrencyFactors(factors);
+
         {
             // Solve for the amount of collateral to sell to recoup the free collateral shortfall,
             // accounting for the buffer to local currency debt and the haircut on collateral. The
@@ -316,13 +307,11 @@ library LiquidateCurrency {
             factors.collateralCashGroup.primeRate.convertToUnderlying(requiredCollateralPrimeCash);
 
         (requiredCollateralPrimeCash, localPrimeCashFromLiquidator) = LiquidationHelpers.calculateLocalToPurchase(
-                factors,
-                liquidationDiscount,
-                collateralUnderlyingPresentValue,
-                requiredCollateralPrimeCash
-            );
-
-        return (requiredCollateralPrimeCash, localPrimeCashFromLiquidator, liquidationDiscount);
+            factors,
+            liquidationDiscount,
+            collateralUnderlyingPresentValue,
+            requiredCollateralPrimeCash
+        );
     }
 
     /// @dev Calculates the nToken transfer.
