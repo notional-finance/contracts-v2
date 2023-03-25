@@ -14,22 +14,27 @@ import {IVaultAccountHealth} from "../../interfaces/notional/IVaultController.so
  * Read only version of the Router that can only be upgraded by governance. Used in emergency when the system must
  * be paused for some reason.
  */
-contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
+contract PauseRouter is StorageLayoutV2, UUPSUpgradeable, ActionGuards {
     address public immutable VIEWS;
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
     address public immutable CALCULATION_VIEWS;
+    address public immutable VAULT_ACCOUNT_HEALTH;
+
+    event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
 
     constructor(
         address views_,
         address liquidateCurrency_,
         address liquidatefCash_,
-        address calculationViews_
+        address calculationViews_,
+        address vaultAccountHealth_
     ) {
         VIEWS = views_;
         LIQUIDATE_CURRENCY = liquidateCurrency_;
         LIQUIDATE_FCASH = liquidatefCash_;
         CALCULATION_VIEWS = calculationViews_;
+        VAULT_ACCOUNT_HEALTH = vaultAccountHealth_;
     }
 
     /// @dev Internal method will be called during an UUPS upgrade, must return true to
@@ -50,6 +55,40 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
         // Clear this storage slot so the guardian cannot upgrade back to the previous router,
         // requires governance to do so.
         rollbackRouterImplementation = address(0);
+    }
+
+    /// @notice Transfers ownership to `newOwner`. Either directly or claimable by the new pending owner.
+    /// Can only be invoked by the current `owner`.
+    /// @param newOwner Address of the new owner.
+    /// @param direct True if `newOwner` should be set immediately. False if `newOwner` needs to use `claimOwnership`.
+    function transferOwnership(
+        address newOwner,
+        bool direct
+    ) external onlyOwner {
+        if (direct) {
+            // Checks
+            require(newOwner != address(0), "Ownable: zero address");
+
+            // Effects
+            emit OwnershipTransferred(owner, newOwner);
+            owner = newOwner;
+            pendingOwner = address(0);
+        } else {
+            // Effects
+            pendingOwner = newOwner;
+        }
+    }
+
+    function claimOwnership() external {
+        address _pendingOwner = pendingOwner;
+
+        // Checks
+        require(msg.sender == _pendingOwner, "Ownable: caller != pending owner");
+
+        // Effects
+        emit OwnershipTransferred(owner, _pendingOwner);
+        owner = _pendingOwner;
+        pendingOwner = address(0);
     }
 
     /// @notice Shows the current state of which liquidations are enabled
@@ -105,6 +144,19 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
         }
 
         if (
+            sig == IVaultAccountHealth.getVaultAccountHealthFactors.selector ||
+            sig == IVaultAccountHealth.calculateDepositAmountInDeleverage.selector ||
+            sig == IVaultAccountHealth.checkVaultAccountCollateralRatio.selector ||
+            sig == IVaultAccountHealth.signedBalanceOfVaultTokenId.selector ||
+            sig == IVaultAccountHealth.getVaultAccount.selector ||
+            sig == IVaultAccountHealth.getVaultConfig.selector ||
+            sig == IVaultAccountHealth.getBorrowCapacity.selector ||
+            sig == IVaultAccountHealth.getSecondaryBorrow.selector ||
+            sig == IVaultAccountHealth.getVaultAccountSecondaryDebt.selector ||
+            sig == IVaultAccountHealth.getVaultState.selector
+        ) {
+            return VAULT_ACCOUNT_HEALTH;
+        } else if (
             sig == NotionalCalculations.calculateNTokensToMint.selector ||
             sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
             sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
@@ -149,4 +201,6 @@ contract PauseRouter is StorageLayoutV1, UUPSUpgradeable {
     fallback() external payable {
         _delegate(getRouterImplementation(msg.sig));
     }
+
+    receive() external payable { }
 }

@@ -37,11 +37,12 @@ contract Router is StorageLayoutV1 {
     address public immutable ERC1155;
     address public immutable LIQUIDATE_CURRENCY;
     address public immutable LIQUIDATE_FCASH;
-    address public immutable cETH;
     address public immutable TREASURY;
     address public immutable CALCULATION_VIEWS;
     address public immutable VAULT_ACCOUNT_ACTION;
     address public immutable VAULT_ACTION;
+    address public immutable VAULT_LIQUIDATION_ACTION;
+    address public immutable VAULT_ACCOUNT_HEALTH;
     address private immutable DEPLOYER;
 
     struct DeployedContracts {
@@ -54,11 +55,12 @@ contract Router is StorageLayoutV1 {
         address erc1155;
         address liquidateCurrency;
         address liquidatefCash;
-        address cETH;
         address treasury;
         address calculationViews;
         address vaultAccountAction;
         address vaultAction;
+        address vaultLiquidationAction;
+        address vaultAccountHealth;
     }
 
     constructor(
@@ -73,11 +75,12 @@ contract Router is StorageLayoutV1 {
         ERC1155 = contracts.erc1155;
         LIQUIDATE_CURRENCY = contracts.liquidateCurrency;
         LIQUIDATE_FCASH = contracts.liquidatefCash;
-        cETH = contracts.cETH;
         TREASURY = contracts.treasury;
         CALCULATION_VIEWS = contracts.calculationViews;
         VAULT_ACCOUNT_ACTION = contracts.vaultAccountAction;
         VAULT_ACTION = contracts.vaultAction;
+        VAULT_LIQUIDATION_ACTION = contracts.vaultLiquidationAction;
+        VAULT_ACCOUNT_HEALTH = contracts.vaultAccountHealth;
 
         DEPLOYER = msg.sender;
         // This will lock everyone from calling initialize on the implementation contract
@@ -88,34 +91,12 @@ contract Router is StorageLayoutV1 {
         // Check that only the deployer can initialize
         require(msg.sender == DEPLOYER && !hasInitialized);
 
-        // Allow list currency to be called by this contract for the purposes of
-        // initializing ETH as a currency
-        owner = msg.sender;
-        // List ETH as currency id == 1, NOTE: return value is ignored here
-
-        // FIXME: on non-mainnet deployments we should be using WETH instead here...
-        (bool status, ) =
-            address(GOVERNANCE).delegatecall(
-                abi.encodeWithSelector(
-                    NotionalGovernance.listCurrency.selector,
-                    TokenStorage(cETH, false, TokenType.cETH, Constants.CETH_DECIMAL_PLACES, 0),
-                    // No underlying set for cETH
-                    TokenStorage(address(0), false, TokenType.Ether, Constants.ETH_DECIMAL_PLACES, 0),
-                    address(0),
-                    false,
-                    133, // Initial settings of 133% buffer
-                    75,  // 75% haircut
-                    108  // 8% liquidation discount
-                )
-            );
-        require(status);
-
         owner = owner_;
         // The pause guardian may downgrade the router to the pauseRouter
         pauseRouter = pauseRouter_;
         pauseGuardian = pauseGuardian_;
 
-        hasInitialized == true;
+        hasInitialized = true;
     }
 
     /// @notice Returns the implementation contract for the method signature
@@ -130,13 +111,23 @@ contract Router is StorageLayoutV1 {
         ) {
             return BATCH_ACTION;
         } else if (
+            sig == IVaultAccountHealth.getVaultAccountHealthFactors.selector ||
+            sig == IVaultAccountHealth.calculateDepositAmountInDeleverage.selector ||
+            sig == IVaultAccountHealth.checkVaultAccountCollateralRatio.selector ||
+            sig == IVaultAccountHealth.signedBalanceOfVaultTokenId.selector ||
+            sig == IVaultAccountHealth.getVaultAccount.selector ||
+            sig == IVaultAccountHealth.getVaultConfig.selector ||
+            sig == IVaultAccountHealth.getBorrowCapacity.selector ||
+            sig == IVaultAccountHealth.getSecondaryBorrow.selector ||
+            sig == IVaultAccountHealth.getVaultAccountSecondaryDebt.selector ||
+            sig == IVaultAccountHealth.getVaultState.selector
+        ) {
+            return VAULT_ACCOUNT_HEALTH;
+        } else if (
             sig == IVaultAccountAction.enterVault.selector ||
             sig == IVaultAccountAction.rollVaultPosition.selector ||
             sig == IVaultAccountAction.exitVault.selector ||
-            sig == IVaultAccountAction.deleverageAccount.selector ||
-            sig == IVaultAccountAction.getVaultAccount.selector ||
-            sig == IVaultAccountAction.getVaultAccountDebtShares.selector ||
-            sig == IVaultAccountAction.getVaultAccountCollateralRatio.selector
+            sig == IVaultAccountAction.settleVaultAccount.selector
         ) {
             return VAULT_ACCOUNT_ACTION;
         } else if (
@@ -145,7 +136,8 @@ contract Router is StorageLayoutV1 {
             sig == NotionalProxy.withdraw.selector ||
             sig == NotionalProxy.settleAccount.selector ||
             sig == NotionalProxy.nTokenRedeem.selector ||
-            sig == NotionalProxy.enableBitmapCurrency.selector
+            sig == NotionalProxy.enableBitmapCurrency.selector ||
+            sig == NotionalProxy.enablePrimeBorrow.selector
         ) {
             return ACCOUNT_ACTION;
         } else if (
@@ -164,15 +156,17 @@ contract Router is StorageLayoutV1 {
             return ERC1155;
         } else if (
             sig == nTokenERC20.nTokenTotalSupply.selector ||
-            sig == nTokenERC20.nTokenTransferAllowance.selector ||
             sig == nTokenERC20.nTokenBalanceOf.selector ||
+            sig == nTokenERC20.nTokenTransferAllowance.selector ||
             sig == nTokenERC20.nTokenTransferApprove.selector ||
             sig == nTokenERC20.nTokenTransfer.selector ||
             sig == nTokenERC20.nTokenTransferFrom.selector ||
             sig == nTokenERC20.nTokenTransferApproveAll.selector ||
             sig == nTokenERC20.nTokenClaimIncentives.selector ||
-            sig == nTokenERC20.nTokenPresentValueAssetDenominated.selector ||
-            sig == nTokenERC20.nTokenPresentValueUnderlyingDenominated.selector
+            sig == nTokenERC20.pCashTransferAllowance.selector ||
+            sig == nTokenERC20.pCashTransferApprove.selector ||
+            sig == nTokenERC20.pCashTransfer.selector ||
+            sig == nTokenERC20.pCashTransferFrom.selector
         ) {
             return NTOKEN_ACTIONS;
         } else if (
@@ -190,23 +184,19 @@ contract Router is StorageLayoutV1 {
         ) {
             return LIQUIDATE_FCASH;
         } else if (
+            sig == IVaultLiquidationAction.deleverageAccount.selector ||
+            sig == IVaultLiquidationAction.liquidateVaultCashBalance.selector
+        ) {
+            return VAULT_LIQUIDATION_ACTION;
+        } else if (
             sig == IVaultAction.updateVault.selector ||
             sig == IVaultAction.setVaultPauseStatus.selector ||
             sig == IVaultAction.setVaultDeleverageStatus.selector ||
             sig == IVaultAction.setMaxBorrowCapacity.selector ||
-            sig == IVaultAction.reduceMaxBorrowCapacity.selector ||
             sig == IVaultAction.updateSecondaryBorrowCapacity.selector ||
-            sig == IVaultAction.depositVaultCashToStrategyTokens.selector ||
-            sig == IVaultAction.redeemStrategyTokensToCash.selector ||
             sig == IVaultAction.borrowSecondaryCurrencyToVault.selector ||
             sig == IVaultAction.repaySecondaryCurrencyFromVault.selector ||
-            sig == IVaultAction.initiateSecondaryBorrowSettlement.selector ||
-            sig == IVaultAction.settleVault.selector ||
-            sig == IVaultAction.getVaultConfig.selector ||
-            sig == IVaultAction.getBorrowCapacity.selector ||
-            sig == IVaultAction.getSecondaryBorrow.selector ||
-            sig == IVaultAction.getVaultState.selector ||
-            sig == IVaultAction.getCashRequiredToSettle.selector
+            sig == IVaultAction.settleSecondaryBorrowForAccount.selector
         ) {
             return VAULT_ACTION;
         } else if (
@@ -217,33 +207,41 @@ contract Router is StorageLayoutV1 {
         } else if (
             sig == NotionalGovernance.listCurrency.selector ||
             sig == NotionalGovernance.enableCashGroup.selector ||
+            sig == NotionalGovernance.setMaxUnderlyingSupply.selector ||
+            sig == NotionalGovernance.setPauseRouterAndGuardian.selector ||
+            sig == NotionalGovernance.updatePrimeCashHoldingsOracle.selector ||
+            sig == NotionalGovernance.updatePrimeCashCurve.selector ||
+            sig == NotionalGovernance.enablePrimeDebt.selector ||
             sig == NotionalGovernance.updateCashGroup.selector ||
-            sig == NotionalGovernance.updateAssetRate.selector ||
             sig == NotionalGovernance.updateETHRate.selector ||
             sig == NotionalGovernance.transferOwnership.selector ||
             sig == NotionalGovernance.claimOwnership.selector ||
-            sig == NotionalGovernance.updateIncentiveEmissionRate.selector ||
-            sig == NotionalGovernance.updateMaxCollateralBalance.selector ||
+            sig == NotionalGovernance.updateInterestRateCurve.selector ||
             sig == NotionalGovernance.updateDepositParameters.selector ||
             sig == NotionalGovernance.updateInitializationParameters.selector ||
             sig == NotionalGovernance.updateTokenCollateralParameters.selector ||
-            sig == NotionalGovernance.updateGlobalTransferOperator.selector ||
             sig == NotionalGovernance.updateAuthorizedCallbackContract.selector ||
-            sig == NotionalGovernance.setLendingPool.selector ||
+            sig == NotionalGovernance.upgradeBeacon.selector ||
             sig == NotionalProxy.upgradeTo.selector ||
             sig == NotionalProxy.upgradeToAndCall.selector
         ) {
             return GOVERNANCE;
         } else if (
+            sig == NotionalTreasury.updateIncentiveEmissionRate.selector ||
             sig == NotionalTreasury.claimCOMPAndTransfer.selector ||
             sig == NotionalTreasury.transferReserveToTreasury.selector ||
             sig == NotionalTreasury.setTreasuryManager.selector ||
             sig == NotionalTreasury.setReserveBuffer.selector ||
-            sig == NotionalTreasury.setReserveCashBalance.selector
+            sig == NotionalTreasury.setReserveCashBalance.selector ||
+            sig == NotionalTreasury.setRebalancingTargets.selector ||
+            sig == NotionalTreasury.setRebalancingCooldown.selector ||
+            sig == NotionalTreasury.rebalance.selector
         ) {
             return TREASURY;
         } else if (
             sig == NotionalCalculations.calculateNTokensToMint.selector ||
+            sig == NotionalCalculations.nTokenPresentValueAssetDenominated.selector ||
+            sig == NotionalCalculations.nTokenPresentValueUnderlyingDenominated.selector ||
             sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
             sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
             sig == NotionalCalculations.nTokenGetClaimableIncentives.selector ||
@@ -253,7 +251,10 @@ contract Router is StorageLayoutV1 {
             sig == NotionalCalculations.getfCashBorrowFromPrincipal.selector ||
             sig == NotionalCalculations.getDepositFromfCashLend.selector ||
             sig == NotionalCalculations.getPrincipalFromfCashBorrow.selector ||
-            sig == NotionalCalculations.convertCashBalanceToExternal.selector
+            sig == NotionalCalculations.convertCashBalanceToExternal.selector ||
+            sig == NotionalCalculations.convertSettledfCash.selector ||
+            sig == NotionalCalculations.convertUnderlyingToPrimeCash.selector ||
+            sig == NotionalCalculations.accruePrimeInterest.selector
         ) {
             return CALCULATION_VIEWS;
         } else {
@@ -296,4 +297,5 @@ contract Router is StorageLayoutV1 {
     }
 
     // NOTE: receive() is overridden in "nProxy" to allow for eth transfers to succeed
+    receive() external payable { }
 }
