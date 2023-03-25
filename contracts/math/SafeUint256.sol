@@ -86,6 +86,27 @@ library SafeUint256 {
         return a % b;
     }
 
+    function divInRatePrecision(uint256 x, uint256 y) internal pure returns (uint256) {
+        return div(mul(x, uint256(Constants.RATE_PRECISION)), y);
+    }
+
+    function mulInRatePrecision(uint256 x, uint256 y) internal pure returns (uint256) {
+        return div(mul(x, y), uint256(Constants.RATE_PRECISION));
+    }
+
+    function divInScalarPrecision(uint256 x, uint256 y) internal pure returns (uint256) {
+        return div(mul(x, Constants.SCALAR_PRECISION), y);
+    }
+
+    function mulInScalarPrecision(uint256 x, uint256 y) internal pure returns (uint256) {
+        return div(mul(x, y), Constants.SCALAR_PRECISION);
+    }
+
+    function toUint8(uint256 x) internal pure returns (uint8) {
+        require(x <= type(uint8).max);
+        return uint8(x);
+    }
+
     function toUint32(uint256 x) internal pure returns (uint32) {
         require(x <= type(uint32).max);
         return uint32(x);
@@ -96,9 +117,19 @@ library SafeUint256 {
         return uint40(x);
     }
 
+    function toUint48(uint256 x) internal pure returns (uint48) {
+        require(x <= type(uint48).max);
+        return uint48(x);
+    }
+
     function toUint56(uint256 x) internal pure returns (uint56) {
         require(x <= type(uint56).max);
         return uint56(x);
+    }
+
+    function toUint72(uint256 x) internal pure returns (uint72) {
+        require(x <= type(uint8).max);
+        return uint72(x);
     }
     
     function toUint80(uint256 x) internal pure returns (uint80) {
@@ -109,6 +140,11 @@ library SafeUint256 {
     function toUint88(uint256 x) internal pure returns (uint88) {
         require(x <= type(uint88).max);
         return uint88(x);
+    }
+
+    function toUint104(uint256 x) internal pure returns (uint104) {
+        require(x <= type(uint104).max);
+        return uint104(x);
     }
 
     function toUint112(uint256 x) internal pure returns (uint112) {

@@ -1,7 +1,9 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.7.6;
 
-import "./Bitmap.sol";
+import {Bitmap} from "./Bitmap.sol";
+import {SafeInt256} from "./SafeInt256.sol";
+import {SafeUint256} from "./SafeUint256.sol";
 
 /**
  * Packs an uint value into a "floating point" storage slot. Used for storing
@@ -12,7 +14,9 @@ import "./Bitmap.sol";
  * of bit shifts required to restore its precision. The unpacked value will always be less
  * than the packed value with a maximum absolute loss of precision of (2 ** bitShift) - 1.
  */
-library FloatingPoint56 {
+library FloatingPoint {
+    using SafeInt256 for int256;
+    using SafeUint256 for uint256;
 
     function packTo56Bits(uint256 value) internal pure returns (uint56) {
         uint256 bitShift;
@@ -25,10 +29,20 @@ library FloatingPoint56 {
         return uint56((shiftedValue << 8) | bitShift);
     }
 
-    function unpackFrom56Bits(uint256 value) internal pure returns (uint256) {
+    function packTo32Bits(uint256 value) internal pure returns (uint32) {
+        uint256 bitShift;
+        // If the value is over the uint24 max value then we will shift it down
+        // given the index of the most significant bit. We store this bit shift 
+        // in the least significant byte of the 32 bit slot available.
+        if (value > type(uint24).max) bitShift = (Bitmap.getMSB(value) - 23);
+
+        uint256 shiftedValue = value >> bitShift;
+        return uint32((shiftedValue << 8) | bitShift);
+    }
+
+    function unpackFromBits(uint256 value) internal pure returns (uint256) {
         // The least significant 8 bits will be the amount to bit shift
         uint256 bitShift = uint256(uint8(value));
         return ((value >> 8) << bitShift);
     }
-
 }
