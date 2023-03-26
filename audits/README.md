@@ -13,5 +13,4 @@
  - [Leveraged Vaults + Balancer Vault Strategy, Sherlock | Oct 2022](https://app.sherlock.xyz/audits/contests/2)
  - [Balancer Vault Strategy Fixes, Sherlock | Jan 2023](https://app.sherlock.xyz/audits/contests/31)
  - [Convex Leveraged Vault, Sherlock | Mar 2023](https://app.sherlock.xyz/audits/contests/52)
- - [Notional V2, Sherlock | May 2023](https://app.sherlock.xyz/audits/contests/59)
-
+ - [Notional V3, Sherlock | May 2023](https://app.sherlock.xyz/audits/contests/59)
