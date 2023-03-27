@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: BSUL-1.1
 pragma solidity =0.8.17;
 
 import {CErc20Interface} from "../../../../interfaces/compound/CErc20Interface.sol";
