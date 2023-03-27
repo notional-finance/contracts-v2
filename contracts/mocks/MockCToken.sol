@@ -1,4 +1,4 @@
-// SPDX-License-Identifier: GPL-3.0-only
+// SPDX-License-Identifier: BSUL-1.1
 pragma solidity >=0.8.11;
 
 import {ERC20} from "@openzeppelin-4.6/contracts/token/ERC20/ERC20.sol";
