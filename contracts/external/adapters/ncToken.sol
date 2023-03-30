@@ -20,31 +20,35 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     uint256 internal constant NO_ERROR = 0;
 
     address public immutable NOTIONAL;
-    address public immutable COMPOUND_TOKEN;
-    address public immutable UNDERLYING_TOKEN;
-    uint8 internal immutable CTOKEN_DECIMALS;
-    uint256 public immutable FINAL_EXCHANGE_RATE;
+    address private immutable COMPOUND_TOKEN;
+    address private immutable UNDERLYING_TOKEN;
+    uint8 private immutable CTOKEN_DECIMALS;
 
-    mapping(address => uint256) public balanceOfUnderlying;
+    uint256 private finalExchangeRate;
+
+    modifier onlyNotional() {
+        require(msg.sender == NOTIONAL);
+        _;
+    }
 
     modifier onlyNotionalOwner() {
         require(msg.sender == NotionalProxy(NOTIONAL).owner());
         _;
     }
 
-    constructor(address notional_, address cToken_, bool isETH_, uint256 finalExchangeRate_) initializer {
+    constructor(address notional_, address cToken_, bool isETH_) initializer {
         CTOKEN_DECIMALS = ERC20(cToken_).decimals();
         COMPOUND_TOKEN = cToken_;
         NOTIONAL = notional_;
         UNDERLYING_TOKEN = isETH_ ? ETH_ADDRESS : CTokenInterface(cToken_).underlying();
-        FINAL_EXCHANGE_RATE = finalExchangeRate_;
     }
 
-    function initialize() external initializer onlyNotionalOwner {
+    function initialize(uint256 finalExchangeRate_) external initializer onlyNotional {
         __ERC20_init(
             string(abi.encodePacked("Notional ", ERC20(COMPOUND_TOKEN).name())), 
             string(abi.encodePacked("n", ERC20(COMPOUND_TOKEN).symbol()))
         );
+        finalExchangeRate = finalExchangeRate_;
     }
 
     // ERC20 functions
@@ -58,7 +62,6 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
 
         if (msg.value == 0) return;
 
-        balanceOfUnderlying[msg.sender] += msg.value;
         uint256 assetTokenAmount = _convertToAsset(msg.value);
 
         // Handles event emission, balance update and total supply update
@@ -76,7 +79,6 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
             address(this),
             mintAmount
         );
-        balanceOfUnderlying[msg.sender] += mintAmount;
         uint256 assetTokenAmount = _convertToAsset(mintAmount);
 
         // Handles event emission, balance update and total supply update
@@ -88,13 +90,10 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     function redeem(uint redeemTokens) external nonReentrant returns (uint) {
         if (redeemTokens == 0) return NO_ERROR;
 
-        uint256 underlyingTokenAmount = _convertToUnderlying(redeemTokens);
-        balanceOfUnderlying[msg.sender] -= underlyingTokenAmount;
-
         // Handles event emission, balance update and total supply update
         super._burn(msg.sender, redeemTokens);
 
-        _transferUnderlyingToSender(underlyingTokenAmount);
+        _transferUnderlyingToSender(_convertToUnderlying(redeemTokens));
         
         return NO_ERROR;
     }
@@ -102,11 +101,8 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     function redeemUnderlying(uint redeemAmount) external nonReentrant returns (uint) {
         if (redeemAmount == 0) return NO_ERROR;
 
-        uint256 assetTokenAmount = _convertToAsset(redeemAmount);
-        balanceOfUnderlying[msg.sender] -= redeemAmount;
-
         // Handles event emission, balance update and total supply update
-        super._burn(msg.sender, assetTokenAmount);
+        super._burn(msg.sender, _convertToAsset(redeemAmount));
 
         _transferUnderlyingToSender(redeemAmount);
 
@@ -139,11 +135,11 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     }
 
     function getExchangeRateStateful() external returns (int256) {
-        return _toInt(FINAL_EXCHANGE_RATE);
+        return _toInt(finalExchangeRate);
     }
 
     function getExchangeRateView() external view returns (int256) {
-        return _toInt(FINAL_EXCHANGE_RATE);
+        return _toInt(finalExchangeRate);
     }
 
     function getAnnualizedSupplyRate() external view returns (uint256) {
@@ -156,11 +152,11 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     }
 
     function _convertToAsset(uint256 underlyingAmount) private view returns (uint256) {
-        return underlyingAmount * EXCHANGE_RATE_PRECISION / FINAL_EXCHANGE_RATE;
+        return underlyingAmount * EXCHANGE_RATE_PRECISION / finalExchangeRate;
     }
 
     function _convertToUnderlying(uint256 assetAmount) private view returns (uint256) {
-        return assetAmount * FINAL_EXCHANGE_RATE / EXCHANGE_RATE_PRECISION;
+        return assetAmount * finalExchangeRate / EXCHANGE_RATE_PRECISION;
     }
 
     function _authorizeUpgrade(
