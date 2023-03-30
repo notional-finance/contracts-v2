@@ -56,12 +56,16 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
         // If is Non-Mintable, set the underlying token address
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
 
-        require(assetToken.tokenType == TokenType.cToken);
+        if (currencyId == Constants.ETH_CURRENCY_ID) {
+            require(assetToken.tokenType == TokenType.cETH);
+        } else {
+            require(assetToken.tokenType == TokenType.cToken);        
+        }
 
         // Initialize ncToken contract with the final cToken rate
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(currencyId);
         ncTokenInterface(ncToken).initialize(assetRate.rate.toUint());
-
+        
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
 
         // Redeem asset to underlying
@@ -88,7 +92,7 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
             tokenAddress: ncToken,
             hasTransferFee: false,
             decimalPlaces: ERC20(ncToken).decimals(),
-            tokenType: TokenType.cToken,
+            tokenType: currencyId == Constants.ETH_CURRENCY_ID ? TokenType.cETH : TokenType.cToken,
             maxCollateralBalance: uint72(assetToken.maxCollateralBalance)
         }));
 
