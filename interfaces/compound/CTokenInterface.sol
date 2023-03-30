@@ -23,7 +23,7 @@ interface CTokenInterface {
     function exchangeRateStored() external view returns (uint);
     function getCash() external view returns (uint);
     function accrueInterest() external returns (uint);
-    function seize(address liquidator, address borrower, uint seizeTokens) external returns (uint); 
+    function seize(address liquidator, address borrower, uint seizeTokens) external returns (uint);
     function accrualBlockNumber() external view returns (uint256);
     function totalBorrows() external view returns (uint256);
     function totalReserves() external view returns (uint256);
