@@ -73,11 +73,11 @@ library TokenHandler {
         require(tokenStorage.tokenAddress != address(0), "TH: address is zero");
         // Once a token is set we cannot override it. In the case that we do need to do change a token address
         // then we should explicitly upgrade this method to allow for a token to be changed.
-        //Token memory token = _getToken(currencyId, underlying);
-        //require(
-        //    token.tokenAddress == tokenStorage.tokenAddress || token.tokenAddress == address(0),
-        //    "TH: token cannot be reset"
-        //);
+        Token memory token = _getToken(currencyId, underlying);
+        require(
+            token.tokenAddress == tokenStorage.tokenAddress || token.tokenAddress == address(0),
+            "TH: token cannot be reset"
+        );
 
         require(0 < tokenStorage.decimalPlaces 
             && tokenStorage.decimalPlaces <= Constants.MAX_DECIMAL_PLACES, "TH: invalid decimals");

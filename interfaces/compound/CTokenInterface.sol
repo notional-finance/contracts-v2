@@ -13,7 +13,7 @@ interface CTokenInterface {
     function allowance(address owner, address spender) external view returns (uint);
     function balanceOf(address owner) external view returns (uint);
     function balanceOfUnderlying(address owner) external returns (uint);
-    /*function borrowRatePerBlock() external view returns (uint);
+    function borrowRatePerBlock() external view returns (uint);
     function supplyRatePerBlock() external view returns (uint);
     function totalBorrowsCurrent() external returns (uint);
     function borrowBalanceCurrent(address account) external returns (uint);
@@ -27,5 +27,5 @@ interface CTokenInterface {
     function totalReserves() external view returns (uint256);
     function interestRateModel() external view returns (address);
     function reserveFactorMantissa() external view returns (uint256);
-    function initialExchangeRateMantissa() external view returns (uint256);*/
+    function initialExchangeRateMantissa() external view returns (uint256);
 }

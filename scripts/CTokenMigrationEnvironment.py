@@ -20,21 +20,49 @@ class cTokenMigrationEnvironment:
             "0xccF4429DB6322D5C611ee964527D42E5d685DD6a",
             False
         )
-        self.patchFix = MigrateCTokens.deploy(
+        self.patchFixETH = MigrateCTokens.deploy(
             self.notional.getImplementation(),
             self.notional.getImplementation(),
             self.notional,
+            1,
             self.ncETH,
+            {"from": self.deployer}
+        )
+        self.patchFixDAI = MigrateCTokens.deploy(
+            self.notional.getImplementation(),
+            self.notional.getImplementation(),
+            self.notional,
+            2,
             self.ncDAI,
+            {"from": self.deployer}
+        )
+        self.patchFixUSDC = MigrateCTokens.deploy(
+            self.notional.getImplementation(),
+            self.notional.getImplementation(),
+            self.notional,
+            3,
             self.ncUSDC,
+            {"from": self.deployer}
+        )
+        self.patchFixWBTC = MigrateCTokens.deploy(
+            self.notional.getImplementation(),
+            self.notional.getImplementation(),
+            self.notional,
+            4,
             self.ncWBTC,
             {"from": self.deployer}
         )
         self.migrate()
 
     def migrate(self):
-        self.notional.transferOwnership(self.patchFix, False, {"from": self.notional.owner()})
-        self.patchFix.atomicPatchAndUpgrade({"from": self.notional.owner()})
+        self.notional.transferOwnership(self.patchFixETH, False, {"from": self.notional.owner()})
+        self.patchFixETH.atomicPatchAndUpgrade({"from": self.notional.owner()})
+        self.notional.transferOwnership(self.patchFixDAI, False, {"from": self.notional.owner()})
+        self.patchFixDAI.atomicPatchAndUpgrade({"from": self.notional.owner()})
+        self.notional.transferOwnership(self.patchFixUSDC, False, {"from": self.notional.owner()})
+        self.patchFixUSDC.atomicPatchAndUpgrade({"from": self.notional.owner()})
+        self.notional.transferOwnership(self.patchFixWBTC, False, {"from": self.notional.owner()})
+        self.patchFixWBTC.atomicPatchAndUpgrade({"from": self.notional.owner()})
 
     def deployNCToken(self, cToken, isETH):
         impl = ncToken.deploy(self.notional.address, cToken, isETH, {"from": self.deployer})
