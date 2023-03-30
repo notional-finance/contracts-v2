@@ -53,7 +53,6 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
     }
 
     function _migrateCurrency(uint16 currencyId, address ncToken) private {
-        // If is Non-Mintable, set the underlying token address
         Token memory assetToken = TokenHandler.getAssetToken(currencyId);
 
         if (currencyId == Constants.ETH_CURRENCY_ID) {
