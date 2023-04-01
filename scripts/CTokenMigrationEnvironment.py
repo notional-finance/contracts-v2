@@ -33,6 +33,10 @@ class cTokenMigrationEnvironment:
         self.ncTokens[3] = self.ncUSDC
         self.ncTokens[4] = self.ncWBTC
 
+    def migrateAll(self):
+        for i in range(1, 5):
+            self.migrate(i)
+
     def migrate(self, currencyId):
         patch = MigrateCTokens.deploy(
             self.notional.getImplementation(),

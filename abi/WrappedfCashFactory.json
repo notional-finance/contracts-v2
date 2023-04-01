@@ -1,0 +1,113 @@
+[
+  {
+      "inputs": [
+          {
+              "internalType": "address",
+              "name": "_beacon",
+              "type": "address"
+          }
+      ],
+      "name": "constructor",
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+  },
+  {
+      "anonymous": false,
+      "inputs": [
+          {
+              "indexed": false,
+              "internalType": "uint16",
+              "name": "currencyId",
+              "type": "uint16"
+          },
+          {
+              "indexed": false,
+              "internalType": "uint40",
+              "name": "maturity",
+              "type": "uint40"
+          },
+          {
+              "indexed": false,
+              "internalType": "address",
+              "name": "wrapper",
+              "type": "address"
+          }
+      ],
+      "name": "WrapperDeployed",
+      "type": "event"
+  },
+  {
+      "inputs": [],
+      "name": "BEACON",
+      "outputs": [
+          {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+          }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "inputs": [],
+      "name": "SALT",
+      "outputs": [
+          {
+              "internalType": "bytes32",
+              "name": "",
+              "type": "bytes32"
+          }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "inputs": [
+          {
+              "internalType": "uint16",
+              "name": "currencyId",
+              "type": "uint16"
+          },
+          {
+              "internalType": "uint40",
+              "name": "maturity",
+              "type": "uint40"
+          }
+      ],
+      "name": "computeAddress",
+      "outputs": [
+          {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+          }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+  },
+  {
+      "inputs": [
+          {
+              "internalType": "uint16",
+              "name": "currencyId",
+              "type": "uint16"
+          },
+          {
+              "internalType": "uint40",
+              "name": "maturity",
+              "type": "uint40"
+          }
+      ],
+      "name": "deployWrapper",
+      "outputs": [
+          {
+              "internalType": "address",
+              "name": "",
+              "type": "address"
+          }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+  }
+]

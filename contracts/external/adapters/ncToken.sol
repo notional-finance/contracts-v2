@@ -44,9 +44,17 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     }
 
     function initialize(uint256 finalExchangeRate_) external initializer onlyNotional {
+        string memory underlyingName = UNDERLYING_TOKEN == ETH_ADDRESS ? 
+            'Ether' :
+            ERC20(UNDERLYING_TOKEN).name();
+
+        string memory underlyingSymbol = UNDERLYING_TOKEN == ETH_ADDRESS ? 
+            'ETH' :
+            ERC20(UNDERLYING_TOKEN).symbol();
+
         __ERC20_init(
-            string(abi.encodePacked("Notional ", ERC20(COMPOUND_TOKEN).name())), 
-            string(abi.encodePacked("n", ERC20(COMPOUND_TOKEN).symbol()))
+            string(abi.encodePacked("Notional Wrapped ", underlyingName)), 
+            string(abi.encodePacked("nw", underlyingSymbol))
         );
         finalExchangeRate = finalExchangeRate_;
     }
@@ -59,6 +67,7 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     // CEtherInterface functions
     function mint() external payable nonReentrant {
         require(UNDERLYING_TOKEN == ETH_ADDRESS);
+        require(finalExchangeRate != 0);
 
         if (msg.value == 0) return;
 
@@ -66,11 +75,13 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
 
         // Handles event emission, balance update and total supply update
         super._mint(msg.sender, assetTokenAmount);
+        _checkSupplyInvariant();
     }
 
     // CErc20Interface functions 
     function mint(uint mintAmount) external nonReentrant returns (uint) {
         require(UNDERLYING_TOKEN != ETH_ADDRESS);
+        require(finalExchangeRate != 0);
 
         if (mintAmount == 0) return NO_ERROR;
 
@@ -84,29 +95,43 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
         // Handles event emission, balance update and total supply update
         super._mint(msg.sender, assetTokenAmount);
 
+        _checkSupplyInvariant();
         return NO_ERROR;
     }
 
     function redeem(uint redeemTokens) external nonReentrant returns (uint) {
         if (redeemTokens == 0) return NO_ERROR;
+        require(finalExchangeRate != 0);
 
         // Handles event emission, balance update and total supply update
         super._burn(msg.sender, redeemTokens);
 
         _transferUnderlyingToSender(_convertToUnderlying(redeemTokens));
         
+        _checkSupplyInvariant();
         return NO_ERROR;
     }
 
     function redeemUnderlying(uint redeemAmount) external nonReentrant returns (uint) {
         if (redeemAmount == 0) return NO_ERROR;
+        require(finalExchangeRate != 0);
 
         // Handles event emission, balance update and total supply update
         super._burn(msg.sender, _convertToAsset(redeemAmount));
 
         _transferUnderlyingToSender(redeemAmount);
 
+        _checkSupplyInvariant();
         return NO_ERROR;
+    }
+
+    function _checkSupplyInvariant() private {
+        uint256 totalSupplyInUnderlying = _convertToUnderlying(totalSupply());
+        uint256 balanceOfUnderlying = UNDERLYING_TOKEN == ETH_ADDRESS ?
+            address(this).balance :
+            ERC20(UNDERLYING_TOKEN).balanceOf(address(this));
+
+        require(totalSupplyInUnderlying <= balanceOfUnderlying, "Invariant Failed");
     }
 
     function _transferUnderlyingToSender(uint256 amount) private {
