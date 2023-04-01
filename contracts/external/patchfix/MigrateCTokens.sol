@@ -26,6 +26,9 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
     uint16 public immutable CURRENCY_ID;
     address public immutable NC_TOKEN;
 
+    event ListCurrency(uint16 newCurrencyId);
+    event UpdateAssetRate(uint16 currencyId);
+
     constructor(
         address currentRouter,
         address finalRouter,
@@ -86,6 +89,8 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
         delete tokenAddressToCurrencyId[assetToken.tokenAddress];
         tokenAddressToCurrencyId[NC_TOKEN] = CURRENCY_ID;
 
+        emit ListCurrency(CURRENCY_ID);
+
         // Set asset rate adapter
         /// NOTE: ncToken also implements the AssetRateAdapter interface
         _setAssetRateAdapter();
@@ -101,5 +106,6 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
         mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
         AssetRateStorage storage ar = store[CURRENCY_ID];
         ar.rateOracle = AssetRateAdapter(NC_TOKEN);
+        emit UpdateAssetRate(CURRENCY_ID);
     }
 }
