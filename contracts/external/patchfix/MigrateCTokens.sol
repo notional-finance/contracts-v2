@@ -23,39 +23,52 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
     using SafeERC20 for ERC20;
     using TokenHandler for Token;
 
-    uint16 public immutable CURRENCY_ID;
-    address public immutable NC_TOKEN;
-
     event ListCurrency(uint16 newCurrencyId);
     event UpdateAssetRate(uint16 currencyId);
+
+    address public immutable nwETH;
+    address public immutable nwDAI;
+    address public immutable nwUSDC;
+    address public immutable nwWBTC;
 
     constructor(
         address currentRouter,
         address finalRouter,
         NotionalProxy proxy,
-        uint16 currencyId,
-        address ncToken
+        address _nwETH,
+        address _nwDAI,
+        address _nwUSDC,
+        address _nwWBTC
     ) BasePatchFixRouter(currentRouter, finalRouter, proxy) {
-        CURRENCY_ID = currencyId;
-        NC_TOKEN = ncToken;
+        nwETH = _nwETH;
+        nwDAI = _nwDAI;
+        nwUSDC = _nwUSDC;
+        nwWBTC = _nwWBTC;
     }
 
     /// @notice This method is called during a delegate call context while this contract is the implementation of the
     /// Notional proxy. This happens prior to an upgrade to the final router.
     function _patchFix() internal override {
-        Token memory assetToken = TokenHandler.getAssetToken(CURRENCY_ID);
+        _migrateToken(1, nwETH);
+        _migrateToken(2, nwDAI);
+        _migrateToken(3, nwUSDC);
+        _migrateToken(4, nwWBTC);
+    }
+        
+    function _migrateToken(uint16 currencyId, address ncToken) private {
+        Token memory assetToken = TokenHandler.getAssetToken(currencyId);
 
-        if (CURRENCY_ID == Constants.ETH_CURRENCY_ID) {
+        if (currencyId == Constants.ETH_CURRENCY_ID) {
             require(assetToken.tokenType == TokenType.cETH);
         } else {
-            require(assetToken.tokenType == TokenType.cToken);        
+            require(assetToken.tokenType == TokenType.cToken);
         }
 
         // Initialize ncToken contract with the final cToken rate
-        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(CURRENCY_ID);
-        ncTokenInterface(NC_TOKEN).initialize(assetRate.rate.toUint());
+        AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(currencyId);
+        ncTokenInterface(ncToken).initialize(assetRate.rate.toUint());
         
-        Token memory underlyingToken = TokenHandler.getUnderlyingToken(CURRENCY_ID);
+        Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
 
         // Redeem asset to underlying
         uint256 underlyingBefore = underlyingToken.balanceOf(address(this));
@@ -65,47 +78,47 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
         uint256 underlyingChange = underlyingToken.balanceOf(address(this)).sub(underlyingBefore);
 
         // Mint ncTokens
-        if (CURRENCY_ID == Constants.ETH_CURRENCY_ID) {
-            ncTokenInterface(NC_TOKEN).mint{value: underlyingChange}();
+        if (currencyId == Constants.ETH_CURRENCY_ID) {
+            ncTokenInterface(ncToken).mint{value: underlyingChange}();
         } else {
             // Revoke cToken approval
             ERC20(underlyingToken.tokenAddress).safeApprove(assetToken.tokenAddress, 0);
-            // Approve ncToken to pull underyling
-            ERC20(underlyingToken.tokenAddress).safeApprove(NC_TOKEN, type(uint256).max);
-            ncTokenInterface(NC_TOKEN).mint(underlyingChange);
+            // Approve ncToken to pull underlying
+            ERC20(underlyingToken.tokenAddress).safeApprove(ncToken, type(uint256).max);
+            ncTokenInterface(ncToken).mint(underlyingChange);
         }
 
         // Sets the asset token to ncToken
         require(assetToken.maxCollateralBalance <= type(uint72).max);
         _setTokenStorage(TokenStorage({
-            tokenAddress: NC_TOKEN,
+            tokenAddress: ncToken,
             hasTransferFee: false,
-            decimalPlaces: ERC20(NC_TOKEN).decimals(),
-            tokenType: CURRENCY_ID == Constants.ETH_CURRENCY_ID ? TokenType.cETH : TokenType.cToken,
+            decimalPlaces: ERC20(ncToken).decimals(),
+            tokenType: currencyId == Constants.ETH_CURRENCY_ID ? TokenType.cETH : TokenType.cToken,
             maxCollateralBalance: uint72(assetToken.maxCollateralBalance)
-        }));
+        }), currencyId);
 
         // Remap the token address to currency id information
         delete tokenAddressToCurrencyId[assetToken.tokenAddress];
-        tokenAddressToCurrencyId[NC_TOKEN] = CURRENCY_ID;
+        tokenAddressToCurrencyId[ncToken] = currencyId;
 
-        emit ListCurrency(CURRENCY_ID);
+        emit ListCurrency(currencyId);
 
         // Set asset rate adapter
         /// NOTE: ncToken also implements the AssetRateAdapter interface
-        _setAssetRateAdapter();
+        _setAssetRateAdapter(currencyId, ncToken);
     }
 
-    function _setTokenStorage(TokenStorage memory tokenStorage) private {
+    function _setTokenStorage(TokenStorage memory tokenStorage, uint16 currencyId) private {
         mapping(uint256 => mapping(bool => TokenStorage)) storage store = LibStorage.getTokenStorage();
         /// NOTE: underlying = false
-        store[CURRENCY_ID][false] = tokenStorage;
+        store[currencyId][false] = tokenStorage;
     }
 
-    function _setAssetRateAdapter() private {
+    function _setAssetRateAdapter(uint16 currencyId, address ncToken) private {
         mapping(uint256 => AssetRateStorage) storage store = LibStorage.getAssetRateStorage();
-        AssetRateStorage storage ar = store[CURRENCY_ID];
-        ar.rateOracle = AssetRateAdapter(NC_TOKEN);
-        emit UpdateAssetRate(CURRENCY_ID);
+        AssetRateStorage storage ar = store[currencyId];
+        ar.rateOracle = AssetRateAdapter(ncToken);
+        emit UpdateAssetRate(currencyId);
     }
 }

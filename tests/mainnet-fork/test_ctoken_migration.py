@@ -111,7 +111,7 @@ def deposit_underlying(env, account, currencyId, amount):
 
     chain.undo()
     env.deployNCTokens()
-    env.migrate(currencyId)
+    env.migrateAll()
 
     snapshot = snapshot_invariants(env, currencyId)
 
@@ -152,7 +152,7 @@ def deposit_asset(env, account, currencyId, amount):
     chain.undo()
 
     env.deployNCTokens()
-    env.migrate(currencyId)
+    env.migrateAll()
 
     ncToken = interface.ncTokenInterface(env.notional.getCurrencyAndRates(currencyId)["assetToken"][0])
     if currencyId == 1:
@@ -185,7 +185,7 @@ def redeem_underlying(env, account, currencyId, amount):
         token.approve(env.notional, 2**256-1, {"from": account})
 
     env.deployNCTokens()
-    env.migrate(currencyId)
+    env.migrateAll()
     snapshot = snapshot_invariants(env, currencyId)
 
     # Clear any residual cash balance from previous tests
@@ -232,7 +232,7 @@ def redeem_asset(env, account, currencyId, amount):
         token.approve(env.notional, 2**256-1, {"from": account})
 
     env.deployNCTokens()
-    env.migrate(currencyId)
+    env.migrateAll()
     snapshot = snapshot_invariants(env, currencyId)
     env.notional.batchBalanceAction(
         account, [get_balance_action(currencyId, "DepositUnderlying", depositActionAmount=amount)],
@@ -263,7 +263,7 @@ def wrapped_fcash_mint_via_underlying(env, account, currencyId, fCashAmount):
     wfCash = Contract.from_abi('wfCash', wfCashAddress, wfCashABI)
 
     env.deployNCTokens()
-    env.migrate(currencyId)
+    env.migrateAll()
     snapshot = snapshot_invariants(env, currencyId)
 
     if currencyId != 1:
@@ -298,7 +298,7 @@ def wrapped_fcash_mint_via_underlying(env, account, currencyId, fCashAmount):
 
 def wrapped_fcash_mint_via_asset(env, account, currencyId, fCashAmount):
     env.deployNCTokens()
-    env.migrate(currencyId)
+    env.migrateAll()
     snapshot = snapshot_invariants(env, currencyId)
 
     markets = env.notional.getActiveMarkets(currencyId)
@@ -429,7 +429,7 @@ def test_no_lost_tokens_due_to_redeem_asset(env):
 
     # Migrate, now the wfCash asset token is wrong?
     env.deployNCTokens()
-    env.migrate(currencyId)
+    env.migrateAll()
     snapshot = snapshot_invariants(env, currencyId)
 
     assetToken = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["assetToken"][0])

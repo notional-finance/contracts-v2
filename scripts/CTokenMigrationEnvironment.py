@@ -34,16 +34,14 @@ class cTokenMigrationEnvironment:
         self.ncTokens[4] = self.ncWBTC
 
     def migrateAll(self):
-        for i in range(1, 5):
-            self.migrate(i)
-
-    def migrate(self, currencyId):
         patch = MigrateCTokens.deploy(
             self.notional.getImplementation(),
             self.notional.getImplementation(),
             self.notional,
-            currencyId,
-            self.ncTokens[currencyId],
+            self.ncTokens[1],
+            self.ncTokens[2],
+            self.ncTokens[3],
+            self.ncTokens[4],
             {"from": self.deployer}
         )
         self.notional.transferOwnership(patch, False, {"from": self.notional.owner()})
