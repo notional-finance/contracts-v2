@@ -30,7 +30,7 @@ contract NotionalV2ManualLiquidator is
         ISwapRouter exchange_,
         address note_
     )
-        NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, address(0))
+        NotionalV2BaseLiquidator(notionalV2_, weth_, address(0))
         NotionalV2UniV3SwapRouter(exchange_)
         initializer
     {

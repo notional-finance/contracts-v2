@@ -7,6 +7,8 @@ import "../../../interfaces/notional/NotionalProxy.sol";
 import "../../../interfaces/compound/CErc20Interface.sol";
 import "../../../interfaces/compound/CEtherInterface.sol";
 import "../../../interfaces/WETH9.sol";
+import {Constants} from "../../global/Constants.sol";
+import {Token} from "../../global/Types.sol";
 import "./NotionalV2LiquidatorStorageLayoutV1.sol";
 import "../../internal/markets/DateTime.sol";
 import "../../math/SafeInt256.sol";
@@ -36,7 +38,6 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
 
     NotionalProxy public immutable NotionalV2;
     address public immutable WETH;
-    address public immutable cETH;
 
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -46,12 +47,10 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
     constructor(
         NotionalProxy notionalV2_,
         address weth_,
-        address cETH_,
         address owner_
     ) {
         NotionalV2 = notionalV2_;
         WETH = weth_;
-        cETH = cETH_;
         owner = owner_;
     }
 
@@ -61,20 +60,32 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
         }
     }
 
-    function enableCToken(address cToken) external onlyOwner {
-        _setCTokenAddress(cToken);
+    function enableCurrencies(uint16[] memory currencies) external onlyOwner {
+        for (uint256 i; i < currencies.length; i++) {
+            _enableCurrency(currencies[i]);
+        }
     }
 
     function approveToken(address token, address spender) external onlyOwner {
         IERC20(token).approve(spender, type(uint256).max);
     }
 
-    function _setCTokenAddress(address cToken) internal returns (address) {
-        address underlying = CTokenInterface(cToken).underlying();
+    function _enableCurrency(uint16 currencyId) internal virtual returns (address) {
+        (
+            Token memory assetToken, 
+            Token memory underlyingToken
+        ) = NotionalV2.getCurrency(currencyId);
+
         // Notional V2 needs to be able to pull cTokens
-        checkAllowanceOrSet(cToken, address(NotionalV2));
-        underlyingToCToken[underlying] = cToken;
-        return underlying;
+        checkAllowanceOrSet(assetToken.tokenAddress, address(NotionalV2));
+
+        if (currencyId == Constants.ETH_CURRENCY_ID) {
+            underlyingToCToken[WETH] = assetToken.tokenAddress;
+        } else {
+            underlyingToCToken[underlyingToken.tokenAddress] = assetToken.tokenAddress;
+        }
+
+        return underlyingToken.tokenAddress;
     }
 
     function _hasTransferFees(LiquidationAction action) internal pure returns (bool) {
@@ -83,12 +94,14 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
 
     function _mintCTokens(address[] memory assets, uint256[] memory amounts) internal {
         for (uint256 i; i < assets.length; i++) {
+            address cToken = underlyingToCToken[assets[i]];
+            if (cToken == address(0)) continue;
+
             if (assets[i] == WETH) {
                 // Withdraw WETH to ETH and mint CEth
                 WETH9(WETH).withdraw(amounts[i]);
-                CEtherInterface(cETH).mint{value: amounts[i]}();
+                CEtherInterface(cToken).mint{value: amounts[i]}();
             } else {
-                address cToken = underlyingToCToken[assets[i]];
                 if (cToken != address(0)) {
                     checkAllowanceOrSet(assets[i], cToken);
                     CErc20Interface(cToken).mint(amounts[i]);
@@ -100,7 +113,7 @@ abstract contract NotionalV2BaseLiquidator is NotionalV2LiquidatorStorageLayoutV
     function _redeemCTokens(address[] memory assets) internal {
         // Redeem cTokens to underlying to repay the flash loan
         for (uint256 i; i < assets.length; i++) {
-            address cToken = assets[i] == WETH ? cETH : underlyingToCToken[assets[i]];
+            address cToken = underlyingToCToken[assets[i]];
             if (cToken == address(0)) continue;
 
             CErc20Interface(cToken).redeem(IERC20(cToken).balanceOf(address(this)));

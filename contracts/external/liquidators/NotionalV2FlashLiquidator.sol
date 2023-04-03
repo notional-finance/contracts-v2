@@ -28,20 +28,21 @@ contract NotionalV2FlashLiquidator is
         NotionalProxy notionalV2_,
         address lendingPool_,
         address weth_,
-        address cETH_,
         address owner_,
         ISwapRouter exchange_
     )
-        NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, owner_)
+        NotionalV2BaseLiquidator(notionalV2_, weth_, owner_)
         NotionalV2UniV3SwapRouter(exchange_)
     {
         LENDING_POOL = lendingPool_;
     }
 
-    function setCTokenAddress(address cToken) external onlyOwner {
-        address underlying = _setCTokenAddress(cToken);
+    function _enableCurrency(uint16 currencyId) internal override returns (address) {
+        address underlying = _enableCurrency(currencyId);
         // Lending pool needs to be able to pull underlying
         checkAllowanceOrSet(underlying, LENDING_POOL);
+
+        return underlying;
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
