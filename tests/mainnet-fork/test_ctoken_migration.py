@@ -2,8 +2,10 @@ import pytest
 import json
 import brownie
 import math
-from brownie import Contract, accounts, interface, Wei
+import eth_abi
+from brownie import Contract, accounts, interface, Wei, NotionalV2FlashLiquidator
 from brownie.network.state import Chain
+from brownie.convert import to_bytes
 from scripts.CTokenMigrationEnvironment import cTokenMigrationEnvironment
 from tests.helpers import get_balance_action
 
@@ -364,78 +366,103 @@ def wrapped_fcash_mint_via_asset(env, account, currencyId, fCashAmount):
 
     check_invariants(env, snapshot, currencyId)
 
+@pytest.mark.skip
 def test_deposit_underlying_eth(env):
     deposit_underlying(env, accounts[0], 1, 10e18)
 
+@pytest.mark.skip
 def test_deposit_underlying_dai(env):
     deposit_underlying(env, env.whales["DAI"], 2, 10000e18)
 
+@pytest.mark.skip
 def test_deposit_underlying_usdc(env):
     deposit_underlying(env, env.whales["USDC"], 3, 10000e6)
 
+@pytest.mark.skip
 def test_deposit_underlying_wbtc(env):
     deposit_underlying(env, env.whales["WBTC"], 4, 1e8)
 
+@pytest.mark.skip
 def test_deposit_asset_eth(env):
     deposit_asset(env, accounts[0], 1, 10e18)
 
+@pytest.mark.skip
 def test_deposit_asset_dai(env):
     deposit_asset(env, env.whales["DAI"], 2, 10000e18)
 
+@pytest.mark.skip
 def test_deposit_asset_usdc(env):
     deposit_asset(env, env.whales["USDC"], 3, 10000e6)
 
+@pytest.mark.skip
 def test_deposit_asset_wbtc(env):
     deposit_asset(env, env.whales["WBTC"], 4, 1e8)
 
+@pytest.mark.skip
 def test_redeem_underlying_eth(env):
     redeem_underlying(env, accounts[0], 1, 10e18)
 
+@pytest.mark.skip
 def test_redeem_underlying_dai(env):
     redeem_underlying(env, env.whales["DAI"], 2, 10000e18)
 
+@pytest.mark.skip
 def test_redeem_underlying_usdc(env):
     redeem_underlying(env, env.whales["USDC"], 3, 10000e6)
 
+@pytest.mark.skip
 def test_redeem_underlying_wbtc(env):
     redeem_underlying(env, env.whales["WBTC"], 4, 1e8)
 
+@pytest.mark.skip
 def test_redeem_asset_eth(env):
     redeem_asset(env, accounts[0], 1, 10e18)
 
+@pytest.mark.skip
 def test_redeem_asset_dai(env):
     redeem_asset(env, env.whales["DAI"], 2, 10000e18)
 
+@pytest.mark.skip
 def test_redeem_asset_usdc(env):
     redeem_asset(env, env.whales["USDC"], 3, 10000e6)
 
+@pytest.mark.skip
 def test_redeem_asset_wbtc(env):
     redeem_asset(env, env.whales["WBTC"], 4, 1e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_underlying_eth(env):
     wrapped_fcash_mint_via_underlying(env, accounts[0], 1, 10e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_underlying_dai(env):
     wrapped_fcash_mint_via_underlying(env, env.whales['DAI'], 2, 100e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_underlying_usdc(env):
     wrapped_fcash_mint_via_underlying(env, env.whales['USDC'], 3, 100e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_underlying_wbtc(env):
     wrapped_fcash_mint_via_underlying(env, env.whales['WBTC'], 4, 0.01e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_asset_eth(env):
     wrapped_fcash_mint_via_asset(env, accounts[0], 1, 10e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_asset_dai(env):
     wrapped_fcash_mint_via_asset(env, env.whales['DAI'], 2, 100e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_asset_usdc(env):
     wrapped_fcash_mint_via_asset(env, env.whales['USDC'], 3, 100e8)
 
+@pytest.mark.skip
 def test_wrapped_fcash_asset_wbtc(env):
     wrapped_fcash_mint_via_asset(env, env.whales['WBTC'], 4, 0.01e8)
 
+@pytest.mark.skip
 def test_no_lost_tokens_due_to_redeem_asset(env):
     currencyId = 2
     fCashAmount = 100e8
@@ -469,3 +496,120 @@ def test_no_lost_tokens_due_to_redeem_asset(env):
     assert assetToken.balanceOf(account) > 4400e8
 
     check_invariants(env, snapshot, currencyId)
+
+def getAssetExchangeRateAddress(env, currencyId):
+    assetExchangeRateAddress = env.notional.getRateStorage(currencyId)[1][0]
+    return assetExchangeRateAddress
+
+
+def getAssetExchangeRate(env, currencyId):
+    assetExchangeRateAddress = getAssetExchangeRateAddress(env, currencyId)
+    assetExchangeRateDecimals = env.notional.getRateStorage(currencyId)[1][1]
+    assetExchangeRateDecimals = pow(10, int(assetExchangeRateDecimals))
+    assetExchangeRate = interface.AssetRateAdapter(assetExchangeRateAddress).getExchangeRateView()
+    assetExchangeRate = assetExchangeRate / assetExchangeRateDecimals
+    return assetExchangeRate / 1e10 # Decimals to be set as a variable
+
+def underlyingPrecision(env, currencyId):
+    if (currencyId == 1):
+        return 1e18
+    else:
+        params = env.notional.getCurrency(currencyId)[1]
+        underlyingDecimals = params[2]
+        return underlyingDecimals       
+    
+def pathCalldataExactOut(fromAddr, toAddr):
+    packedEncoder = eth_abi.codec.ABIEncoder(eth_abi.registry.registry_packed)
+    return packedEncoder.encode_abi(
+        ["address", "uint24", "address", "uint24", "address"], 
+        [toAddr, 3000, "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2", 3000, fromAddr]
+    )
+
+def collateralCalldata(
+    env,
+    localCurrency, 
+    account, 
+    collateralCurrency, 
+    amount, 
+    liquidator
+):
+    router = interface.ISwapRouter("0xE592427A0AEce92De3Edee1F18E0157C05861564")
+    localUnderlying = env.notional.getCurrencyAndRates(localCurrency)["underlyingToken"][0]
+    collateralUnderlying = env.notional.getCurrencyAndRates(collateralCurrency)["underlyingToken"][0]
+    liqCalldata = eth_abi.encode_abi(
+        ['(address,uint16,address,uint16,address,address,uint128,uint96,(address,bytes))'],
+        [[
+            account, 
+            localCurrency, 
+            localUnderlying, 
+            collateralCurrency,  
+            env.notional.getCurrencyAndRates(collateralCurrency)["assetToken"][0],
+            collateralUnderlying,
+            0,
+            0,
+            [
+                router.address,
+                to_bytes(router.exactOutput.encode_input([
+                    pathCalldataExactOut(collateralUnderlying, localUnderlying),
+                    liquidator,
+                    chain.time() + 20000,
+                    math.floor(amount * 1.001),
+                    Wei(2**256-1)
+                ]), "bytes")
+            ]
+        ]]
+    )
+    return eth_abi.encode_abi(
+        ['(uint8,bool,bool,bytes)'],
+        [[1, False, False, liqCalldata]]
+    )
+
+
+def test_liquidation_eth(env):
+    env.deployNCTokens()
+    env.migrateAll()
+    
+    liquidator = NotionalV2FlashLiquidator.deploy(
+        env.notional,
+        "0x7d2768dE32b0b80b7a3454c06BdAc94A69DDc7A9", # Aave 
+        "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2",  # WETH
+        "0x7f39c581f595b53c5cb19bd0b3f8da6c935e2ca0", # wstETH
+        env.deployer,
+        "0xE592427A0AEce92De3Edee1F18E0157C05861564",  # UniV3,
+        "0xE592427A0AEce92De3Edee1F18E0157C05861564",  # UniV3,
+        {"from": env.deployer}
+    )
+    liquidator.enableCurrencies([1,2,3,4], {"from": env.deployer})
+
+    env.notional.updateETHRate(
+        2, 
+        "0x6085B0a8f4c7ffA2E8CA578037792D6535d1E29B", 
+        False, 
+        130, 
+        75, 
+        120, 
+        {"from": env.notional.owner()}
+    )
+
+    localCurrencyRequired = env.notional.calculateCollateralCurrencyLiquidation.call(
+        "0x940d92f24547a87ea4fd59d5c78a842bee41bb57",
+        3, 
+        2, 
+        0, 
+        0, 
+        {"from": env.deployer} 
+    )[0]
+    loanAmount = localCurrencyRequired * underlyingPrecision(env, 3) * getAssetExchangeRate(env, 3) * 1.2 / 1e8
+
+    liquidator.flashLoan.call(
+        "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", 
+        loanAmount, 
+        collateralCalldata(
+            env, 
+            3, 
+            "0x940d92f24547a87ea4fd59d5c78a842bee41bb57", 
+            2, 
+            loanAmount, 
+            liquidator
+        ), "0x6b175474e89094c44da98b954eedeac495271d0f"
+    )

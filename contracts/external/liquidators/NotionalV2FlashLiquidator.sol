@@ -2,208 +2,106 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./NotionalV2BaseLiquidator.sol";
-import "./NotionalV2UniV3SwapRouter.sol";
+import "./NotionalV2FlashLiquidatorBase.sol";
 import "../../math/SafeInt256.sol";
-import "../../../interfaces/notional/NotionalProxy.sol";
-import "../../../interfaces/compound/CTokenInterface.sol";
-import "../../../interfaces/compound/CErc20Interface.sol";
-import "../../../interfaces/compound/CEtherInterface.sol";
-import "../../../interfaces/aave/IFlashLender.sol";
-import "../../../interfaces/aave/IFlashLoanReceiver.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import "../../../interfaces/IWstETH.sol";
 
-contract NotionalV2FlashLiquidator is
-    NotionalV2BaseLiquidator,
-    NotionalV2UniV3SwapRouter,
-    IFlashLoanReceiver
-{
+contract NotionalV2FlashLiquidator is NotionalV2FlashLiquidatorBase {
     using SafeInt256 for int256;
     using SafeMath for uint256;
-
-    address public immutable LENDING_POOL;
 
     constructor(
         NotionalProxy notionalV2_,
         address lendingPool_,
         address weth_,
+        IWstETH wstETH_,
         address owner_,
-        ISwapRouter exchange_
+        address dex1,
+        address dex2
     )
-        NotionalV2BaseLiquidator(notionalV2_, weth_, owner_)
-        NotionalV2UniV3SwapRouter(exchange_)
-    {
-        LENDING_POOL = lendingPool_;
+        NotionalV2FlashLiquidatorBase(
+            notionalV2_,
+            lendingPool_,
+            weth_,
+            wstETH_,
+            owner_,
+            dex1,
+            dex2
+        )
+    {}
+
+    function _redeemAndWithdraw(
+        uint16 nTokenCurrencyId,
+        uint96 nTokenBalance,
+        bool redeemToUnderlying
+    ) internal override {
+        BalanceAction[] memory action = new BalanceAction[](1);
+        // If nTokenBalance is zero still try to withdraw entire cash balance
+        action[0].actionType = nTokenBalance == 0
+            ? DepositActionType.None
+            : DepositActionType.RedeemNToken;
+        action[0].currencyId = nTokenCurrencyId;
+        action[0].depositActionAmount = nTokenBalance;
+        action[0].withdrawEntireCashBalance = true;
+        action[0].redeemToUnderlying = redeemToUnderlying;
+        NotionalV2.batchBalanceAction(address(this), action);
     }
 
-    function _enableCurrency(uint16 currencyId) internal override returns (address) {
-        address underlying = _enableCurrency(currencyId);
-        // Lending pool needs to be able to pull underlying
-        checkAllowanceOrSet(underlying, LENDING_POOL);
+    function _sellfCashAssets(
+        uint16 fCashCurrency,
+        uint256[] memory fCashMaturities,
+        int256[] memory fCashNotional,
+        uint256 depositActionAmount,
+        bool redeemToUnderlying
+    ) internal override {
+        uint256 blockTime = block.timestamp;
+        BalanceActionWithTrades[] memory action = new BalanceActionWithTrades[](1);
+        action[0].actionType = depositActionAmount > 0
+            ? DepositActionType.DepositAsset
+            : DepositActionType.None;
+        action[0].depositActionAmount = depositActionAmount;
+        action[0].currencyId = fCashCurrency;
+        action[0].withdrawEntireCashBalance = true;
+        action[0].redeemToUnderlying = redeemToUnderlying;
 
-        return underlying;
+        uint256 numTrades;
+        bytes32[] memory trades = new bytes32[](fCashMaturities.length);
+        for (uint256 i; i < fCashNotional.length; i++) {
+            if (fCashNotional[i] == 0) continue;
+            (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(
+                7,
+                fCashMaturities[i],
+                blockTime
+            );
+            // We don't trade it out here but if the contract does take on idiosyncratic cash we need to be careful
+            if (isIdiosyncratic) continue;
+
+            trades[numTrades] = bytes32(
+                (uint256(fCashNotional[i] > 0 ? TradeActionType.Borrow : TradeActionType.Lend) <<
+                    248) |
+                    (marketIndex << 240) |
+                    (uint256(uint88(fCashNotional[i].abs())) << 152)
+            );
+            numTrades++;
+        }
+
+        if (numTrades < trades.length) {
+            // Shrink the trades array to length if it is not full
+            bytes32[] memory newTrades = new bytes32[](numTrades);
+            for (uint256 i; i < numTrades; i++) {
+                newTrades[i] = trades[i];
+            }
+            action[0].trades = newTrades;
+        } else {
+            action[0].trades = trades;
+        }
+
+        NotionalV2.batchBalanceAndTradeAction(address(this), action);
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
+        require(newOwner != address(0), "invalid new owner");
         owner = newOwner;
-    }
-
-    // Profit estimation
-    function flashLoan(
-        address flashLender,
-        address receiverAddress,
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata modes,
-        address onBehalfOf,
-        bytes calldata params,
-        uint16 referralCode
-    ) external onlyOwner returns (uint256) {
-        IFlashLender(flashLender).flashLoan(
-            receiverAddress,
-            assets,
-            amounts,
-            modes,
-            onBehalfOf,
-            params,
-            referralCode
-        );
-        return IERC20(assets[0]).balanceOf(address(this));
-    }
-
-    function executeOperation(
-        address[] calldata assets,
-        uint256[] calldata amounts,
-        uint256[] calldata premiums,
-        address initiator,
-        bytes calldata params
-    ) external override returns (bool) {
-        require(msg.sender == LENDING_POOL); // dev: unauthorized caller
-        LiquidationAction action = LiquidationAction(abi.decode(params, (uint8)));
-
-        // Mint cTokens for incoming assets, if required. If there are transfer fees
-        // the we deposit underlying instead inside each _liquidate call instead
-        if (!_hasTransferFees(action)) _mintCTokens(assets, amounts);
-
-        if (
-            action == LiquidationAction.LocalCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.LocalCurrency_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.LocalCurrency_NoTransferFee_Withdraw ||
-            action == LiquidationAction.LocalCurrency_NoTransferFee_NoWithdraw
-        ) {
-            _liquidateLocal(action, params, assets);
-        } else if (
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.CollateralCurrency_NoTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_NoTransferFee_NoWithdraw
-        ) {
-            _liquidateCollateral(action, params, assets);
-        } else if (
-            action == LiquidationAction.LocalfCash_WithTransferFee_Withdraw ||
-            action == LiquidationAction.LocalfCash_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.LocalfCash_NoTransferFee_Withdraw ||
-            action == LiquidationAction.LocalfCash_NoTransferFee_NoWithdraw
-        ) {
-            _liquidateLocalfCash(action, params, assets);
-        } else if (
-            action == LiquidationAction.CrossCurrencyfCash_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_NoTransferFee_Withdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_NoTransferFee_NoWithdraw
-        ) {
-            _liquidateCrossCurrencyfCash(action, params, assets);
-        }
-
-        _redeemCTokens(assets);
-
-        if (
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.CollateralCurrency_NoTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_NoTransferFee_NoWithdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_NoTransferFee_Withdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_NoTransferFee_NoWithdraw
-        ) {
-            _dexTrade(action, assets[0], amounts[0], premiums[0], params);
-        }
-
-        if (
-            action == LiquidationAction.LocalCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.LocalCurrency_NoTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_NoTransferFee_Withdraw ||
-            action == LiquidationAction.LocalfCash_WithTransferFee_Withdraw ||
-            action == LiquidationAction.LocalfCash_NoTransferFee_Withdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CrossCurrencyfCash_NoTransferFee_Withdraw
-        ) {
-            // Transfer profits to OWNER
-            uint256 bal = IERC20(assets[0]).balanceOf(address(this));
-            if (bal > amounts[0].add(premiums[0])) {
-                IERC20(assets[0]).transfer(owner, bal.sub(amounts[0].add(premiums[0])));
-            }
-        }
-
-        // The lending pool should have enough approval to pull the required amount from the contract
-        return true;
-    }
-
-    function _dexTrade(
-        LiquidationAction action,
-        address to,
-        uint256 amount,
-        uint256 premium,
-        bytes calldata params
-    ) internal {
-        address collateralUnderlyingAddress;
-        bytes memory tradeCallData;
-        uint256 bal = IERC20(to).balanceOf(address(this));
-
-        if (
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_WithTransferFee_NoWithdraw ||
-            action == LiquidationAction.CollateralCurrency_NoTransferFee_Withdraw ||
-            action == LiquidationAction.CollateralCurrency_NoTransferFee_NoWithdraw
-        ) {
-            // prettier-ignore
-            (
-                /* uint8 action */,
-                /* address liquidateAccount */,
-                /* uint256 localCurrency */,
-                /* address localCurrencyAddress */,
-                /* uint256 collateralCurrency */,
-                /* address collateralAddress, */,
-                collateralUnderlyingAddress,
-                /* uint128 maxCollateralLiquidation */,
-                /* uint96 maxNTokenLiquidation */,
-                tradeCallData
-            ) = abi.decode(params, (uint8, address, uint256, address, uint256, address, address, uint128, uint96, bytes));
-        } else {
-            // prettier-ignore
-            (
-                /* uint8 action */,
-                /* address liquidateAccount */,
-                /* uint256 localCurrency*/,
-                /* address localCurrencyAddress */,
-                /* uint256 collateralCurrency */,
-                /* address collateralAddress, */,
-                collateralUnderlyingAddress,
-                /* fCashMaturities */,
-                /* maxfCashLiquidateAmounts */,
-                tradeCallData
-            ) = abi.decode(params, (uint8, address, uint256, address, uint256, address, address, uint256[], uint256[], bytes));
-        }
-
-        _executeDexTrade(
-            IERC20(collateralUnderlyingAddress).balanceOf(address(this)),
-            amount.sub(bal).add(premium), // Amount needed to pay back flash loan
-            tradeCallData
-        );
     }
 
     function wrapToWETH() external {

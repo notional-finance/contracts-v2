@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.7.6;
-pragma experimental ABIEncoderV2;
+pragma abicoder v2;
 
 import "./NotionalV2FlashLiquidator.sol";
 import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
