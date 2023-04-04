@@ -366,103 +366,78 @@ def wrapped_fcash_mint_via_asset(env, account, currencyId, fCashAmount):
 
     check_invariants(env, snapshot, currencyId)
 
-@pytest.mark.skip
 def test_deposit_underlying_eth(env):
     deposit_underlying(env, accounts[0], 1, 10e18)
 
-@pytest.mark.skip
 def test_deposit_underlying_dai(env):
     deposit_underlying(env, env.whales["DAI"], 2, 10000e18)
 
-@pytest.mark.skip
 def test_deposit_underlying_usdc(env):
     deposit_underlying(env, env.whales["USDC"], 3, 10000e6)
 
-@pytest.mark.skip
 def test_deposit_underlying_wbtc(env):
     deposit_underlying(env, env.whales["WBTC"], 4, 1e8)
 
-@pytest.mark.skip
 def test_deposit_asset_eth(env):
     deposit_asset(env, accounts[0], 1, 10e18)
 
-@pytest.mark.skip
 def test_deposit_asset_dai(env):
     deposit_asset(env, env.whales["DAI"], 2, 10000e18)
 
-@pytest.mark.skip
 def test_deposit_asset_usdc(env):
     deposit_asset(env, env.whales["USDC"], 3, 10000e6)
 
-@pytest.mark.skip
 def test_deposit_asset_wbtc(env):
     deposit_asset(env, env.whales["WBTC"], 4, 1e8)
 
-@pytest.mark.skip
 def test_redeem_underlying_eth(env):
     redeem_underlying(env, accounts[0], 1, 10e18)
 
-@pytest.mark.skip
 def test_redeem_underlying_dai(env):
     redeem_underlying(env, env.whales["DAI"], 2, 10000e18)
 
-@pytest.mark.skip
 def test_redeem_underlying_usdc(env):
     redeem_underlying(env, env.whales["USDC"], 3, 10000e6)
 
-@pytest.mark.skip
 def test_redeem_underlying_wbtc(env):
     redeem_underlying(env, env.whales["WBTC"], 4, 1e8)
 
-@pytest.mark.skip
 def test_redeem_asset_eth(env):
     redeem_asset(env, accounts[0], 1, 10e18)
 
-@pytest.mark.skip
 def test_redeem_asset_dai(env):
     redeem_asset(env, env.whales["DAI"], 2, 10000e18)
 
-@pytest.mark.skip
 def test_redeem_asset_usdc(env):
     redeem_asset(env, env.whales["USDC"], 3, 10000e6)
 
-@pytest.mark.skip
 def test_redeem_asset_wbtc(env):
     redeem_asset(env, env.whales["WBTC"], 4, 1e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_underlying_eth(env):
     wrapped_fcash_mint_via_underlying(env, accounts[0], 1, 10e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_underlying_dai(env):
     wrapped_fcash_mint_via_underlying(env, env.whales['DAI'], 2, 100e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_underlying_usdc(env):
     wrapped_fcash_mint_via_underlying(env, env.whales['USDC'], 3, 100e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_underlying_wbtc(env):
     wrapped_fcash_mint_via_underlying(env, env.whales['WBTC'], 4, 0.01e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_asset_eth(env):
     wrapped_fcash_mint_via_asset(env, accounts[0], 1, 10e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_asset_dai(env):
     wrapped_fcash_mint_via_asset(env, env.whales['DAI'], 2, 100e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_asset_usdc(env):
     wrapped_fcash_mint_via_asset(env, env.whales['USDC'], 3, 100e8)
 
-@pytest.mark.skip
 def test_wrapped_fcash_asset_wbtc(env):
     wrapped_fcash_mint_via_asset(env, env.whales['WBTC'], 4, 0.01e8)
 
-@pytest.mark.skip
 def test_no_lost_tokens_due_to_redeem_asset(env):
     currencyId = 2
     fCashAmount = 100e8
@@ -601,7 +576,7 @@ def test_liquidation_eth(env):
     )[0]
     loanAmount = localCurrencyRequired * underlyingPrecision(env, 3) * getAssetExchangeRate(env, 3) * 1.2 / 1e8
 
-    liquidator.flashLoan.call(
+    ret = liquidator.flashLoan.call(
         "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48", 
         loanAmount, 
         collateralCalldata(
@@ -613,3 +588,6 @@ def test_liquidation_eth(env):
             liquidator
         ), "0x6b175474e89094c44da98b954eedeac495271d0f"
     )
+
+    assert pytest.approx(ret[0], rel=1e-2) == 22659514797
+    assert pytest.approx(ret[1], rel=1e-2) == 1685441876267557686652
