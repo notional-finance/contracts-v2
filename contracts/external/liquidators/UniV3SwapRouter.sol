@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.7.6;
-pragma experimental ABIEncoderV2;
+pragma abicoder v2;
 
-import "./NotionalV2FlashLiquidator.sol";
 import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-abstract contract NotionalV2UniV3SwapRouter {
+abstract contract UniV3SwapRouter {
     ISwapRouter public immutable EXCHANGE;
 
     constructor(ISwapRouter exchange_) {
