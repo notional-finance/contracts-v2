@@ -27,6 +27,7 @@ def test_router_initialization(environment, accounts, Router, nProxy):
         cETH=cETH.address,
         WETH=cETH.address,
         Comptroller=environment.comptroller.address,
+        RebalancingStrategy=brownie.ZERO_ADDRESS
     )
 
     with brownie.reverts():
@@ -128,7 +129,7 @@ def test_non_callable_methods(environment, accounts):
 def test_prevent_duplicate_token_listing(environment, accounts):
     symbol = "DAI"
     assert environment.notional.getCurrencyId(environment.token[symbol].address) == 2
-    with brownie.reverts("dev: duplicate listing"):
+    with brownie.reverts(dev_revert_msg="dev: duplicate listing"):
         environment.notional.listCurrency(
             (
                 environment.token[symbol].address,
@@ -137,14 +138,19 @@ def test_prevent_duplicate_token_listing(environment, accounts):
                 18,
                 0,
             ),
-            environment.ethOracle[symbol].address,
-            False,
-            12,
-            CurrencyDefaults["buffer"],
-            CurrencyDefaults["haircut"],
-            CurrencyDefaults["liquidationDiscount"],
+            (
+                environment.ethOracle[symbol].address,
+                0,
+                False,
+                CurrencyDefaults["buffer"],
+                CurrencyDefaults["haircut"],
+                CurrencyDefaults["liquidationDiscount"],
+            ),
             PrimeCashCurve,
-            environment.primeCashOracle[symbol],
+            environment.primeCashOracle['ETH'],
             True,
+            12,
+            'USDT',
+            'Tether USD',
             {"from": accounts[0]},
         )
