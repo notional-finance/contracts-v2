@@ -9,7 +9,6 @@ import "../../../interfaces/IWstETH.sol";
 import "./LiquidatorStorageLayoutV1.sol";
 import "../../internal/markets/DateTime.sol";
 import {WETH9} from "../../../interfaces/WETH9.sol";
-import {TokenHandler} from "../../internal/balances/TokenHandler.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
@@ -29,9 +28,7 @@ struct LocalCurrencyLiquidation {
 struct CollateralCurrencyLiquidation {
     address liquidateAccount;
     uint16 localCurrency;
-    address localCurrencyAddress;
     uint16 collateralCurrency;
-    address collateralAddress;
     address collateralUnderlyingAddress;
     uint128 maxCollateralLiquidation;
     uint96 maxNTokenLiquidation;
@@ -48,7 +45,6 @@ struct LocalfCashLiquidation {
 struct CrossCurrencyfCashLiquidation {
     address liquidateAccount;
     uint16 localCurrency;
-    address localCurrencyAddress;
     uint16 fCashCurrency;
     address fCashAddress;
     address fCashUnderlyingAddress;
@@ -72,7 +68,7 @@ enum LiquidationType {
 abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
-
+    
     NotionalProxy public immutable NOTIONAL;
     WETH9 public immutable WETH;
     IWstETH public immutable wstETH;
@@ -133,30 +129,18 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
             (LocalCurrencyLiquidation)
         );
 
-        uint256 msgValue;
-        if (liquidation.localCurrency == Constants.ETH_CURRENCY_ID) {
-            (
-                int256 localPrimeCashFromLiquidator, 
-                int256 netNTokenTransfer
-            ) = NOTIONAL.calculateLocalCurrencyLiquidation(
-                liquidation.liquidateAccount, 
-                liquidation.localCurrency, 
-                liquidation.maxNTokenLiquidation
-            );
-
-            (
-                /* Token memory assetToken */, 
-                Token memory underlyingToken
-            ) = NOTIONAL.getCurrency(liquidation.localCurrency);
-
-            msgValue = TokenHandler.convertToExternal(underlyingToken, localPrimeCashFromLiquidator).toUint();
+        if (action.hasTransferFee) {
+            // NOTE: This assumes that the first asset flash borrowed is the one with transfer fees
+            uint256 amount = IERC20(assets[0]).balanceOf(address(this));
+            checkAllowanceOrSet(assets[0], address(NOTIONAL));
+            NOTIONAL.depositUnderlyingToken(address(this), liquidation.localCurrency, amount);
         }
-        
+
         // prettier-ignore
         (
             /* int256 localAssetCashFromLiquidator */,
             int256 netNTokens
-        ) = NOTIONAL.liquidateLocalCurrency(
+        ) = NOTIONAL.liquidateLocalCurrency{value: address(this).balance}(
             liquidation.liquidateAccount, 
             liquidation.localCurrency, 
             liquidation.maxNTokenLiquidation
@@ -187,24 +171,20 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
             /* int256 localAssetCashFromLiquidator */,
             /* int256 collateralAssetCash */,
             int256 collateralNTokens
-        ) = NOTIONAL.liquidateCollateralCurrency(
+        ) = NOTIONAL.liquidateCollateralCurrency{value: address(this).balance}(
             liquidation.liquidateAccount,
             liquidation.localCurrency,
             liquidation.collateralCurrency,
             liquidation.maxCollateralLiquidation,
             liquidation.maxNTokenLiquidation,
             true, // Withdraw collateral
-            false // Redeem to underlying (will happen later)
+            true // Redeem to underlying
         ); 
 
         // Do not redeem stETH
         if (liquidation.collateralCurrency != 5) {
             // Redeem to underlying for collateral because it needs to be traded on the DEX
             _redeemAndWithdraw(liquidation.collateralCurrency, uint96(collateralNTokens), true);
-
-            CErc20Interface(liquidation.collateralAddress).redeem(
-                IERC20(liquidation.collateralAddress).balanceOf(address(this))
-            );
         }
 
         if (liquidation.collateralCurrency == Constants.ETH_CURRENCY_ID) {
@@ -218,7 +198,11 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
         // Will withdraw all cash balance, no need to redeem local currency, it will be
         // redeemed later
         if (action.hasTransferFee) _redeemAndWithdraw(liquidation.localCurrency, 0, false);
+
+        emit CollateralLiquidation(IERC20(liquidation.collateralUnderlyingAddress).balanceOf(address(this)));
     }
+
+    event CollateralLiquidation(uint256 collateral);
 
     function _liquidateLocalfCash(LiquidationAction memory action, address[] memory assets)
         internal
@@ -239,7 +223,7 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
         (
             int256[] memory fCashNotionalTransfers,
             int256 localAssetCashFromLiquidator
-        ) = NOTIONAL.liquidatefCashLocal(
+        ) = NOTIONAL.liquidatefCashLocal{value: address(this).balance}(
             liquidation.liquidateAccount,
             liquidation.localCurrency,
             liquidation.fCashMaturities,
@@ -279,7 +263,7 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
         (
             int256[] memory fCashNotionalTransfers,
             /* int256 localAssetCashFromLiquidator */
-        ) = NOTIONAL.liquidatefCashCrossCurrency(
+        ) = NOTIONAL.liquidatefCashCrossCurrency{value: address(this).balance}(
             liquidation.liquidateAccount,
             liquidation.localCurrency,
             liquidation.fCashCurrency,

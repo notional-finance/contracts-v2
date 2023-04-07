@@ -40,17 +40,19 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
     function _enableCurrency(uint16 currencyId) internal override returns (address) {
         address underlying = super._enableCurrency(currencyId);
 
-        if (underlying != Constants.ETH_ADDRESS) {
-            // Lending pool needs to be able to pull underlying
-            checkAllowanceOrSet(underlying, LENDING_POOL);
+        if (underlying == Constants.ETH_ADDRESS) {
+            underlying = address(WETH);
+        }
+        
+        // Lending pool needs to be able to pull underlying
+        checkAllowanceOrSet(underlying, LENDING_POOL);
 
-            if (DEX_1 != address(0)) {
-                checkAllowanceOrSet(underlying, DEX_1);
-            }
+        if (DEX_1 != address(0)) {
+            checkAllowanceOrSet(underlying, DEX_1);
+        }
 
-            if (DEX_2 != address(0)) {
-                checkAllowanceOrSet(underlying, DEX_2);
-            }
+        if (DEX_2 != address(0)) {
+            checkAllowanceOrSet(underlying, DEX_2);
         }
 
         return underlying;

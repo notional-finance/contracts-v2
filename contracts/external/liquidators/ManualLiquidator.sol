@@ -10,8 +10,6 @@ import "../../../interfaces/compound/CErc20Interface.sol";
 import "../../../interfaces/compound/CEtherInterface.sol";
 import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
 import "../../../interfaces/IWstETH.sol";
-import {PrimeCashExchangeRate} from "../../internal/pCash/PrimeCashExchangeRate.sol";
-import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
 
 contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
     using SafeInt256 for int256;
@@ -212,17 +210,6 @@ contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
         IERC20(token).transfer(owner, amount);
     }
 
-    function _getAssetCashAmount(uint16 currencyId, int256 fCashValue)
-        internal
-        view
-        returns (int256)
-    {
-        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate
-            .getPrimeCashRateView(currencyId, block.timestamp);
-
-        return PrimeRateLib.convertFromUnderlying(pr, fCashValue);
-    }
-
     function _redeemAndWithdraw(
         uint16 nTokenCurrencyId,
         uint96 nTokenBalance,
@@ -243,7 +230,7 @@ contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
         for (uint256 i; i < assets.length; i++) {
             if (assets[i].currencyId == nTokenCurrencyId && assets[i].notional < 0) {
                 cashBalance = cashBalance.add(
-                    _getAssetCashAmount(nTokenCurrencyId, assets[i].notional)
+                    NOTIONAL.convertUnderlyingToPrimeCash(assets[i].currencyId, assets[i].notional)
                 );
             }
         }
