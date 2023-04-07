@@ -5,7 +5,7 @@ import math
 from brownie import Contract, accounts, interface, Wei
 from brownie.network.state import Chain
 from scripts.CTokenMigrationEnvironment import cTokenMigrationEnvironment
-from tests.helpers import get_balance_action, get_balance_trade_action
+from tests.helpers import get_balance_action
 
 chain = Chain()
 
@@ -72,7 +72,7 @@ def test_safety_check_locks_contract(env, accounts):
     env.migrateAll()
 
     underlying = interface.IERC20(env.notional.getCurrencyAndRates(2)["underlyingToken"][0])
-    asset = interface.ncTokenInterface(env.notional.getCurrencyAndRates(2)["assetToken"][0])
+    asset = interface.nwTokenInterface(env.notional.getCurrencyAndRates(2)["assetToken"][0])
     # Simulate an attack that somehow takes DAI
     underlying.transfer(accounts[0], 100e18, {"from": env.ncTokens[2]})
 
@@ -86,6 +86,34 @@ def test_safety_check_locks_contract(env, accounts):
 
     with brownie.reverts("Invariant Failed"):
         asset.redeemUnderlying(100e8, {"from": env.notional})
+
+def test_can_redeem_all_tokens(env):
+    env.deployNCTokens()
+    env.migrateAll()
+
+    for i in range(1, 5):
+        if i != 1:
+            underlying = interface.IERC20(env.notional.getCurrencyAndRates(i)["underlyingToken"][0])
+        asset = interface.IERC20(env.notional.getCurrencyAndRates(i)["assetToken"][0])
+        nwAsset = interface.nwTokenInterface(env.notional.getCurrencyAndRates(i)["assetToken"][0])
+
+        balanceOfAssetBefore = underlying.balanceOf(asset.address) if i != 1 else asset.balance()
+        balanceOfNotionalBefore = underlying.balanceOf(env.notional.address) if i != 1 else env.notional.balance()
+
+        nwAsset.redeem(asset.balanceOf(env.notional), {"from": env.notional})
+
+        remainingAssetBalance = underlying.balanceOf(asset.address) if i != 1 else asset.balance()
+        # Assert that only dust remains at a full redemption
+        if i == 1 or underlying.decimals() == 18:
+            assert remainingAssetBalance < 3e10
+        elif underlying.decimals() == 8:
+            assert remainingAssetBalance < 5
+        elif underlying.decimals() == 6:
+            assert remainingAssetBalance < 2
+
+        balanceOfNotionalAfter = underlying.balanceOf(env.notional.address) if i != 1 else env.notional.balance()
+
+        assert balanceOfAssetBefore - remainingAssetBalance + balanceOfNotionalBefore == balanceOfNotionalAfter
 
 
 def deposit_underlying(env, account, currencyId, amount):
@@ -154,15 +182,15 @@ def deposit_asset(env, account, currencyId, amount):
     env.deployNCTokens()
     env.migrateAll()
 
-    ncToken = interface.ncTokenInterface(env.notional.getCurrencyAndRates(currencyId)["assetToken"][0])
+    nwToken = interface.nwTokenInterface(env.notional.getCurrencyAndRates(currencyId)["assetToken"][0])
     if currencyId == 1:
-        ncToken.mint({"from": account, "value": amount})
+        nwToken.mint({"from": account, "value": amount})
     else:
         underlying = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["underlyingToken"][0])
-        underlying.approve(ncToken, 2**256-1, {"from": account})
-        ncToken.mint(amount, {"from": account})
+        underlying.approve(nwToken, 2**256-1, {"from": account})
+        nwToken.mint(amount, {"from": account})
 
-    assetToken = interface.IERC20(ncToken.address)
+    assetToken = interface.IERC20(nwToken.address)
     assetToken.approve(env.notional, 2**256-1, {"from": account})
     accountBalanceBefore = assetToken.balanceOf(account)
     snapshot = snapshot_invariants(env, currencyId)
@@ -240,8 +268,8 @@ def redeem_asset(env, account, currencyId, amount):
     )
     cashBalance = env.notional.getAccountBalance(currencyId, account)["cashBalance"]
 
-    ncToken = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["assetToken"][0])
-    accountBalanceBefore = ncToken.balanceOf(account)
+    nwToken = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["assetToken"][0])
+    accountBalanceBefore = nwToken.balanceOf(account)
 
     env.notional.batchBalanceAction(
         account, [get_balance_action(currencyId, "None", withdrawAmountInternalPrecision=Wei(cashBalance / 2), redeemToUnderlying=False)],
@@ -252,7 +280,7 @@ def redeem_asset(env, account, currencyId, amount):
         {"from": account}
     )
 
-    assert cashBalance == ncToken.balanceOf(account) - accountBalanceBefore
+    assert cashBalance == nwToken.balanceOf(account) - accountBalanceBefore
     assert env.notional.getAccountBalance(currencyId, account)["cashBalance"] == 0
     check_invariants(env, snapshot, currencyId)
 
@@ -309,13 +337,13 @@ def wrapped_fcash_mint_via_asset(env, account, currencyId, fCashAmount):
 
     token = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["assetToken"][0])
     amount = math.floor(wfCash.previewMint(fCashAmount) * 1.0001)
-    ncToken = interface.ncTokenInterface(token.address)
+    nwToken = interface.nwTokenInterface(token.address)
     if currencyId == 1:
-        ncToken.mint({"value": amount, "from": account})
+        nwToken.mint({"value": amount, "from": account})
     else:
         underlying = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["underlyingToken"][0])
-        underlying.approve(ncToken, 2 ** 256 - 1, {"from": account})
-        ncToken.mint(amount, {"from": account})
+        underlying.approve(nwToken, 2 ** 256 - 1, {"from": account})
+        nwToken.mint(amount, {"from": account})
 
     accountBalanceBefore = token.balanceOf(account)
     token.approve(wfCash, 2**256-1, {"from": account})

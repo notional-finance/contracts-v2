@@ -11,8 +11,9 @@ import {CEtherInterface} from "../../../interfaces/compound/CEtherInterface.sol"
 import {CErc20Interface} from "../../../interfaces/compound/CErc20Interface.sol";
 import {AssetRateAdapter} from "../../../interfaces/notional/AssetRateAdapter.sol";
 import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
+import {nwTokenInterface} from "../../../interfaces/notional/nwTokenInterface.sol";
 
-contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
+contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenInterface {
     using SafeERC20 for ERC20;
 
     address public constant ETH_ADDRESS = address(0);
@@ -65,7 +66,7 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     }
 
     // CEtherInterface functions
-    function mint() external payable nonReentrant {
+    function mint() external payable nonReentrant override {
         require(UNDERLYING_TOKEN == ETH_ADDRESS);
         require(finalExchangeRate != 0);
 
@@ -79,7 +80,7 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
     }
 
     // CErc20Interface functions 
-    function mint(uint mintAmount) external nonReentrant returns (uint) {
+    function mint(uint mintAmount) external nonReentrant override returns (uint) {
         require(UNDERLYING_TOKEN != ETH_ADDRESS);
         require(finalExchangeRate != 0);
 
@@ -99,7 +100,7 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
         return NO_ERROR;
     }
 
-    function redeem(uint redeemTokens) external nonReentrant returns (uint) {
+    function redeem(uint redeemTokens) external nonReentrant override returns (uint) {
         if (redeemTokens == 0) return NO_ERROR;
         require(finalExchangeRate != 0);
 
@@ -112,7 +113,7 @@ contract ncToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable {
         return NO_ERROR;
     }
 
-    function redeemUnderlying(uint redeemAmount) external nonReentrant returns (uint) {
+    function redeemUnderlying(uint redeemAmount) external nonReentrant override returns (uint) {
         if (redeemAmount == 0) return NO_ERROR;
         require(finalExchangeRate != 0);
 

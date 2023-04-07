@@ -1,4 +1,4 @@
-from brownie import accounts, interface, Contract, ncToken, nProxy, MigrateCTokens
+from brownie import accounts, interface, Contract, nwToken, nProxy, MigrateCTokens
 
 class cTokenMigrationEnvironment:
     def __init__(self, deployer) -> None:
@@ -48,9 +48,9 @@ class cTokenMigrationEnvironment:
         patch.atomicPatchAndUpgrade({"from": self.notional.owner()})
 
     def deployNCToken(self, cToken, isETH):
-        impl = ncToken.deploy(self.notional.address, cToken, isETH, {"from": self.deployer})
+        impl = nwToken.deploy(self.notional.address, cToken, isETH, {"from": self.deployer})
         proxy = nProxy.deploy(impl, bytes(), {"from": self.notional.owner()})
-        return Contract.from_abi("ncToken", proxy.address, ncToken.abi)
+        return Contract.from_abi("nwToken", proxy.address, nwToken.abi)
 
 
 def main():

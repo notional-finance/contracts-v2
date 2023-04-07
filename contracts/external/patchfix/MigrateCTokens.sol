@@ -14,7 +14,7 @@ import {StorageLayoutV2} from "../../global/StorageLayoutV2.sol";
 import {TokenHandler} from "../../internal/balances/TokenHandler.sol";
 import {AssetRate} from "../../internal/markets/AssetRate.sol";
 import {CErc20Interface} from "../../../interfaces/compound/CErc20Interface.sol";
-import {ncTokenInterface} from "../../../interfaces/notional/ncTokenInterface.sol";
+import {nwTokenInterface} from "../../../interfaces/notional/nwTokenInterface.sol";
 import {AssetRateAdapter} from "../../../interfaces/notional/AssetRateAdapter.sol";
 
 contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
@@ -66,7 +66,7 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
 
         // Initialize ncToken contract with the final cToken rate
         AssetRateParameters memory assetRate = AssetRate.buildAssetRateStateful(currencyId);
-        ncTokenInterface(ncToken).initialize(assetRate.rate.toUint());
+        nwTokenInterface(ncToken).initialize(assetRate.rate.toUint());
         
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
 
@@ -79,13 +79,13 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
 
         // Mint ncTokens
         if (currencyId == Constants.ETH_CURRENCY_ID) {
-            ncTokenInterface(ncToken).mint{value: underlyingChange}();
+            nwTokenInterface(ncToken).mint{value: underlyingChange}();
         } else {
             // Revoke cToken approval
             ERC20(underlyingToken.tokenAddress).safeApprove(assetToken.tokenAddress, 0);
             // Approve ncToken to pull underlying
             ERC20(underlyingToken.tokenAddress).safeApprove(ncToken, type(uint256).max);
-            ncTokenInterface(ncToken).mint(underlyingChange);
+            nwTokenInterface(ncToken).mint(underlyingChange);
         }
 
         // Sets the asset token to ncToken
