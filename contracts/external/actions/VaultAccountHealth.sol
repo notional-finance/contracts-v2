@@ -318,4 +318,14 @@ contract VaultAccountHealth is IVaultAccountHealth {
         return 0;
     }
 
+    function getLiquidateCashDiscountFactor(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 blockTime
+    ) external view override returns (int256) {
+        (PrimeRate memory pr, /* factors */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, blockTime);
+        return VaultValuation.getLiquidateCashDiscountFactor(
+            pr, currencyId, maturity
+        );
+    }
 }
