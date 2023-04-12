@@ -230,7 +230,9 @@ interface IVaultAccountHealth {
         uint256[3] memory vaultSharesToLiquidator
     );
 
-    function getLiquidateCashDiscountFactor(
+    function getLiquidateCashBalanceDepositAmount(
+        address account,
+        address vault,
         uint16 currencyId,
         uint256 maturity,
         uint256 blockTime
