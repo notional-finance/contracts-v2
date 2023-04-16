@@ -32,23 +32,24 @@ class cTokenMigrationEnvironment:
         #     False
         # )
         self.ncTokens = {}
-        self.ncTokens[1] = nwToken.at("0xaaC5145f5286a3C6a06256fdfBf5b499aA965C9C")
-        self.ncTokens[2] = nwToken.at("0xDBBB034A50C436359fb6D87D3D669647E0FA24D5")
-        self.ncTokens[3] = nwToken.at("0xc91864Be1b097c9c85565cDB013Ba2307FFB492a")
-        self.ncTokens[4] = nwToken.at("0x0F12B85A331aCb515e1626F707aadE62E9960187")
+        self.ncTokens[1] = Contract.from_abi('nwETH', "0xaaC5145f5286a3C6a06256fdfBf5b499aA965C9C", nwToken.abi)
+        self.ncTokens[2] = Contract.from_abi('nwDAI', "0xDBBB034A50C436359fb6D87D3D669647E0FA24D5", nwToken.abi)
+        self.ncTokens[3] = Contract.from_abi('nwUSDC', "0xc91864Be1b097c9c85565cDB013Ba2307FFB492a", nwToken.abi)
+        self.ncTokens[4] = Contract.from_abi('nwWBTC', "0x0F12B85A331aCb515e1626F707aadE62E9960187", nwToken.abi)
 
     def migrateAll(self, migrateFromPaused=True):
         chain.snapshot()
-        patch = MigrateCTokens.deploy(
-            "0xC2c594f0bb455637a93345A17f841DAC750ccF54", # Current Implementation
-            "0x5030D70175e27e46216Ee48972bC8E2db12bBA6D", # Paused Router
-            self.notional,
-            self.ncTokens[1],
-            self.ncTokens[2],
-            self.ncTokens[3],
-            self.ncTokens[4],
-            {"from": self.deployer}
-        )
+        # patch = MigrateCTokens.deploy(
+        #     "0xC2c594f0bb455637a93345A17f841DAC750ccF54", # Current Implementation
+        #     "0x5030D70175e27e46216Ee48972bC8E2db12bBA6D", # Paused Router
+        #     self.notional,
+        #     self.ncTokens[1],
+        #     self.ncTokens[2],
+        #     self.ncTokens[3],
+        #     self.ncTokens[4],
+        #     {"from": self.deployer}
+        # )
+        patch = MigrateCTokens.at("0x02551ded3F5B25f60Ea67f258D907eD051E042b2")
         self.notional.transferOwnership(patch, False, {"from": self.notional.owner()})
         patch.atomicPatchAndUpgrade({"from": self.notional.owner()})
 
