@@ -80,16 +80,18 @@ library Market {
             marketIndex
         );
 
-        MarketStorage storage marketStorage = _getMarketStoragePointer(market);
-        _setMarketStorage(
-            marketStorage,
-            market.totalfCash,
-            market.totalAssetCash,
-            market.lastImpliedRate,
-            market.oracleRate,
-            market.previousTradeTime
-        );
-        BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, netAssetCashToReserve);
+        if (netAssetCash != 0) {
+            MarketStorage storage marketStorage = _getMarketStoragePointer(market);
+            _setMarketStorage(
+                marketStorage,
+                market.totalfCash,
+                market.totalAssetCash,
+                market.lastImpliedRate,
+                market.oracleRate,
+                market.previousTradeTime
+            );
+            BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, netAssetCashToReserve);
+        }
     }
 
     /// @notice Calculates the asset cash amount the results from trading fCashToAccount with the market. A positive
