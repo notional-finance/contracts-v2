@@ -73,6 +73,7 @@ contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenI
         if (msg.value == 0) return;
 
         uint256 assetTokenAmount = _convertToAsset(msg.value);
+        require(assetTokenAmount > 0, "No Shares");
 
         // Handles event emission, balance update and total supply update
         super._mint(msg.sender, assetTokenAmount);
@@ -92,6 +93,7 @@ contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenI
             mintAmount
         );
         uint256 assetTokenAmount = _convertToAsset(mintAmount);
+        require(assetTokenAmount > 0, "No Shares");
 
         // Handles event emission, balance update and total supply update
         super._mint(msg.sender, assetTokenAmount);
