@@ -21,6 +21,8 @@ def get_router_args(router):
         router.cETH(),
         router.TREASURY(),
         router.CALCULATION_VIEWS(),
+        router.VAULT_ACCOUNT_ACTION(),
+        router.VAULT_ACTION(),
     ]
 
 
