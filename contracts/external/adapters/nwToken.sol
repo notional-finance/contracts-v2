@@ -128,7 +128,7 @@ contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenI
         return NO_ERROR;
     }
 
-    function _checkSupplyInvariant() private {
+    function _checkSupplyInvariant() private view {
         uint256 totalSupplyInUnderlying = _convertToUnderlying(totalSupply());
         uint256 balanceOfUnderlying = UNDERLYING_TOKEN == ETH_ADDRESS ?
             address(this).balance :
