@@ -30,6 +30,7 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
     address public immutable nwDAI;
     address public immutable nwUSDC;
     address public immutable nwWBTC;
+    uint256 internal constant COMPOUND_RETURN_CODE_NO_ERROR = 0;
 
     constructor(
         address currentRouter,
@@ -72,9 +73,10 @@ contract MigrateCTokens is BasePatchFixRouter, StorageLayoutV2 {
 
         // Redeem asset to underlying
         uint256 underlyingBefore = underlyingToken.balanceOf(address(this));
-        CErc20Interface(assetToken.tokenAddress).redeem(
+        uint256 success = CErc20Interface(assetToken.tokenAddress).redeem(
             ERC20(assetToken.tokenAddress).balanceOf(address(this))
         );
+        require(success == COMPOUND_RETURN_CODE_NO_ERROR, "Redeem Failed");
         uint256 underlyingChange = underlyingToken.balanceOf(address(this)).sub(underlyingBefore);
 
         // Mint ncTokens
