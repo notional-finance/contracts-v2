@@ -147,7 +147,7 @@ contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenI
 
     // AssetRateAdapter functions
     function token() external view returns (address) {
-        return COMPOUND_TOKEN;
+        return address(this);
     }
 
     function description() external view returns (string memory) {
