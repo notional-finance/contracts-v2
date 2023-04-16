@@ -402,15 +402,65 @@ def wrapped_fcash_mint_via_asset(env, account, currencyId, fCashAmount):
 
     check_invariants(env, snapshot, currencyId)
 
-@pytest.mark.only
+def mint_ntoken_underlying(env, account, currencyId, depositAmount):
+    env.deployNCTokens()
+    env.migrateAll()
+
+    if currencyId == 1:
+        balanceBefore = account.balance()
+    else:
+        token = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["underlyingToken"][0])
+        token.approve(env.notional, 2**256-1, {"from": account})
+        balanceBefore = token.balanceOf(account)
+
+    env.notional.batchBalanceAction(
+        account, [
+            get_balance_action(
+                currencyId,
+                "DepositUnderlyingAndMintNToken",
+                depositActionAmount=depositAmount
+            )
+        ], {"from": account, "value": depositAmount if currencyId == 1 else 0}
+    )
+    nTokenBalance = env.notional.getAccountBalance(currencyId, account)['nTokenBalance']
+    assert nTokenBalance > 0
+
+    if currencyId == 1:
+        balanceAfter = account.balance()
+    else:
+        token = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["underlyingToken"][0])
+        balanceAfter = token.balanceOf(account)
+
+    assert balanceBefore - balanceAfter == depositAmount
+
+    env.notional.batchBalanceAction(
+        account, [
+            get_balance_action(
+                currencyId,
+                "RedeemNToken",
+                depositActionAmount=nTokenBalance,
+                withdrawEntireCashBalance=True,
+                redeemToUnderlying=True
+            )
+        ], {"from": account}
+    )
+    nTokenBalance = env.notional.getAccountBalance(currencyId, account)['nTokenBalance']
+    assert nTokenBalance == 0
+
+    if currencyId == 1:
+        balanceAfter = account.balance()
+    else:
+        token = interface.IERC20(env.notional.getCurrencyAndRates(currencyId)["underlyingToken"][0])
+        balanceAfter = token.balanceOf(account)
+    
+    assert 0 < balanceBefore - balanceAfter and balanceBefore - balanceAfter < depositAmount * 0.0003
+
 def test_deposit_underlying_eth(env):
     deposit_underlying(env, accounts[0], 1, 10e18)
 
-@pytest.mark.only
 def test_deposit_underlying_dai(env):
     deposit_underlying(env, env.whales["DAI"], 2, 10000e18)
 
-@pytest.mark.only
 def test_deposit_underlying_usdc(env):
     deposit_underlying(env, env.whales["USDC"], 3, 10000e6)
 
@@ -476,6 +526,18 @@ def test_wrapped_fcash_asset_usdc(env):
 
 def test_wrapped_fcash_asset_wbtc(env):
     wrapped_fcash_mint_via_asset(env, env.whales['WBTC'], 4, 0.01e8)
+
+def test_mint_and_redeem_neth(env):
+    mint_ntoken_underlying(env, accounts[0], 1, 10e18)
+
+def test_mint_and_redeem_ndai(env):
+    mint_ntoken_underlying(env, env.whales['DAI'], 2, 1_000e18)
+
+def test_mint_and_redeem_nusdc(env):
+    mint_ntoken_underlying(env, env.whales['USDC'], 3, 1_000e6)
+
+def test_mint_and_redeem_nwbtc(env):
+    mint_ntoken_underlying(env, env.whales['WBTC'], 4, 0.01e8)
 
 def test_no_lost_tokens_due_to_redeem_asset(env):
     currencyId = 2
