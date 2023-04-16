@@ -14,11 +14,16 @@ chain = Chain()
 wfCashABI = json.load(open("abi/WrappedfCash.json"))
 wfCashFactoryABI = json.load(open("abi/WrappedfCashFactory.json"))
 
-@pytest.fixture(autouse=True)
+@pytest.fixture(scope="module", autouse=True)
 def run_around_tests():
     chain.snapshot()
     yield
+    print("inside run around tests")
     chain.revert()
+
+@pytest.fixture(autouse=True)
+def isolation(fn_isolation):
+    pass
 
 @pytest.fixture(scope="module", autouse=True)
 def env(accounts):
@@ -117,7 +122,6 @@ def test_can_redeem_all_tokens(env):
 
         assert balanceOfAssetBefore - remainingAssetBalance + balanceOfNotionalBefore == balanceOfNotionalAfter
 
-@pytest.mark.only
 def test_redeem_underlying_to_zero(env):
     env.deployNCTokens()
     env.migrateAll()
@@ -399,12 +403,15 @@ def wrapped_fcash_mint_via_asset(env, account, currencyId, fCashAmount):
 
     check_invariants(env, snapshot, currencyId)
 
+@pytest.mark.only
 def test_deposit_underlying_eth(env):
     deposit_underlying(env, accounts[0], 1, 10e18)
 
+@pytest.mark.only
 def test_deposit_underlying_dai(env):
     deposit_underlying(env, env.whales["DAI"], 2, 10000e18)
 
+@pytest.mark.only
 def test_deposit_underlying_usdc(env):
     deposit_underlying(env, env.whales["USDC"], 3, 10000e6)
 

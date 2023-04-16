@@ -1,4 +1,6 @@
 from brownie import accounts, interface, Contract, nwToken, nProxy, MigrateCTokens
+from brownie.network import Chain
+chain = Chain()
 
 class cTokenMigrationEnvironment:
     def __init__(self, deployer) -> None:
@@ -11,29 +13,32 @@ class cTokenMigrationEnvironment:
         self.notional = interface.NotionalProxy("0x1344A36A1B56144C3Bc62E7757377D288fDE0369")
 
     def deployNCTokens(self):
-        self.ncETH = self.deployNCToken(
-            "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
-            True
-        )
-        self.ncDAI = self.deployNCToken(
-            "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
-            False
-        )
-        self.ncUSDC = self.deployNCToken(
-            "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
-            False
-        )
-        self.ncWBTC = self.deployNCToken(
-            "0xccF4429DB6322D5C611ee964527D42E5d685DD6a",
-            False
-        )
+        # self.ncETH = self.deployNCToken(
+        #     "0x4Ddc2D193948926D02f9B1fE9e1daa0718270ED5",
+        #     True
+        # )
+            
+        # self.deployNCToken(
+        #     "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
+        #     False
+        # )
+
+        # self.ncUSDC = self.ncUSDC = self.deployNCToken(
+        #     "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
+        #     False
+        # )
+        # self.ncWBTC = self.deployNCToken(
+        #     "0xccF4429DB6322D5C611ee964527D42E5d685DD6a",
+        #     False
+        # )
         self.ncTokens = {}
-        self.ncTokens[1] = self.ncETH
-        self.ncTokens[2] = self.ncDAI
-        self.ncTokens[3] = self.ncUSDC
-        self.ncTokens[4] = self.ncWBTC
+        self.ncTokens[1] = nwToken.at("0xaaC5145f5286a3C6a06256fdfBf5b499aA965C9C")
+        self.ncTokens[2] = nwToken.at("0xDBBB034A50C436359fb6D87D3D669647E0FA24D5")
+        self.ncTokens[3] = nwToken.at("0xc91864Be1b097c9c85565cDB013Ba2307FFB492a")
+        self.ncTokens[4] = nwToken.at("0x0F12B85A331aCb515e1626F707aadE62E9960187")
 
     def migrateAll(self):
+        chain.snapshot()
         patch = MigrateCTokens.deploy(
             self.notional.getImplementation(),
             self.notional.getImplementation(),
@@ -49,7 +54,7 @@ class cTokenMigrationEnvironment:
 
     def deployNCToken(self, cToken, isETH):
         impl = nwToken.deploy(self.notional.address, cToken, isETH, {"from": self.deployer})
-        proxy = nProxy.deploy(impl, bytes(), {"from": self.notional.owner()})
+        proxy = nProxy.deploy(impl, bytes(), {"from": self.deployer})
         return Contract.from_abi("nwToken", proxy.address, nwToken.abi)
 
 
