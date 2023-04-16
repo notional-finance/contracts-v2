@@ -28,7 +28,7 @@ def get_router_args(router):
 
 def main():
     networkName = network.show_active()
-    if networkName == "mainnet-fork":
+    if networkName == "mainnet-fork" or networkName == 'mainnet-current':
         networkName = "mainnet"
     if networkName == "goerli-fork":
         networkName = "goerli"
