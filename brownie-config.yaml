@@ -18,7 +18,7 @@ networks:
       default_balance: 100000
   mainnet-fork:
     cmd_settings:
-      fork_block: 17060760
+      fork_block: 17060930
 reports:
   exclude_paths:
     - interfaces/**/*.*

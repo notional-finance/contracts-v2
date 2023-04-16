@@ -18,7 +18,6 @@ wfCashFactoryABI = json.load(open("abi/WrappedfCashFactory.json"))
 def run_around_tests():
     chain.snapshot()
     yield
-    print("inside run around tests")
     chain.revert()
 
 @pytest.fixture(autouse=True)

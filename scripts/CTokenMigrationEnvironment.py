@@ -37,11 +37,11 @@ class cTokenMigrationEnvironment:
         self.ncTokens[3] = nwToken.at("0xc91864Be1b097c9c85565cDB013Ba2307FFB492a")
         self.ncTokens[4] = nwToken.at("0x0F12B85A331aCb515e1626F707aadE62E9960187")
 
-    def migrateAll(self):
+    def migrateAll(self, migrateFromPaused=True):
         chain.snapshot()
         patch = MigrateCTokens.deploy(
-            self.notional.getImplementation(),
-            self.notional.getImplementation(),
+            "0xC2c594f0bb455637a93345A17f841DAC750ccF54", # Current Implementation
+            "0x5030D70175e27e46216Ee48972bC8E2db12bBA6D", # Paused Router
             self.notional,
             self.ncTokens[1],
             self.ncTokens[2],
@@ -51,6 +51,9 @@ class cTokenMigrationEnvironment:
         )
         self.notional.transferOwnership(patch, False, {"from": self.notional.owner()})
         patch.atomicPatchAndUpgrade({"from": self.notional.owner()})
+
+        if migrateFromPaused:
+            self.notional.upgradeTo("0x0158fC072Ff5DDE8F7b9E2D00e8782093db888Db", {"from": self.notional.owner()})
 
     def deployNCToken(self, cToken, isETH):
         impl = nwToken.deploy(self.notional.address, cToken, isETH, {"from": self.deployer})
