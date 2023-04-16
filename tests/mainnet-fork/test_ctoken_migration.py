@@ -117,6 +117,39 @@ def test_can_redeem_all_tokens(env):
 
         assert balanceOfAssetBefore - remainingAssetBalance + balanceOfNotionalBefore == balanceOfNotionalAfter
 
+@pytest.mark.only
+def test_redeem_underlying_to_zero(env):
+    env.deployNCTokens()
+    env.migrateAll()
+
+    for i in range(1, 5):
+        if i != 1:
+            underlying = interface.IERC20(env.notional.getCurrencyAndRates(i)["underlyingToken"][0])
+        asset = interface.IERC20(env.notional.getCurrencyAndRates(i)["assetToken"][0])
+        nwAsset = interface.nwTokenInterface(env.notional.getCurrencyAndRates(i)["assetToken"][0])
+
+        balanceOfAssetBefore = underlying.balanceOf(asset.address) if i != 1 else asset.balance()
+        balanceOfNotionalBefore = underlying.balanceOf(env.notional.address) if i != 1 else env.notional.balance()
+
+        with brownie.reverts("ERC20: burn amount exceeds balance"):
+            nwAsset.redeemUnderlying(balanceOfAssetBefore, {"from": env.notional})
+
+        # Assert that only dust remains at a full redemption
+        if i == 1 or underlying.decimals() == 18:
+            dust = 1e10
+        elif underlying.decimals() == 8:
+            dust = 1
+        elif underlying.decimals() == 6:
+            dust = 1
+
+        nwAsset.redeemUnderlying(balanceOfAssetBefore - dust, {"from": env.notional})
+
+        remainingAssetBalance = underlying.balanceOf(asset.address) if i != 1 else asset.balance()
+        balanceOfNotionalAfter = underlying.balanceOf(env.notional.address) if i != 1 else env.notional.balance()
+
+        assert remainingAssetBalance == dust
+        assert balanceOfAssetBefore - remainingAssetBalance + balanceOfNotionalBefore == balanceOfNotionalAfter
+
 
 def deposit_underlying(env, account, currencyId, amount):
     value = 0

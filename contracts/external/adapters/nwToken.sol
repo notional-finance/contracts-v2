@@ -117,8 +117,8 @@ contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenI
         if (redeemAmount == 0) return NO_ERROR;
         require(finalExchangeRate != 0);
 
-        // Handles event emission, balance update and total supply update
-        super._burn(msg.sender, _convertToAsset(redeemAmount));
+        // Handles event emission, balance update and total supply update.
+        super._burn(msg.sender, _convertToAssetRoundUp(redeemAmount));
 
         _transferUnderlyingToSender(redeemAmount);
 
@@ -179,6 +179,11 @@ contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenI
 
     function _convertToAsset(uint256 underlyingAmount) private view returns (uint256) {
         return underlyingAmount * EXCHANGE_RATE_PRECISION / finalExchangeRate;
+    }
+
+    function _convertToAssetRoundUp(uint256 underlyingAmount) private view returns (uint256) {
+        return underlyingAmount == 0 ? 0 :
+            ((underlyingAmount * EXCHANGE_RATE_PRECISION - 1) / finalExchangeRate) + 1;
     }
 
     function _convertToUnderlying(uint256 assetAmount) private view returns (uint256) {
