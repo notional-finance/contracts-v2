@@ -70,7 +70,7 @@ contract nwToken is ERC20Upgradeable, ReentrancyGuard, UUPSUpgradeable, nwTokenI
         require(UNDERLYING_TOKEN == ETH_ADDRESS);
         require(finalExchangeRate != 0);
 
-        if (msg.value == 0) return;
+        if (msg.value == 0) revert("No ETH");
 
         uint256 assetTokenAmount = _convertToAsset(msg.value);
         require(assetTokenAmount > 0, "No Shares");
