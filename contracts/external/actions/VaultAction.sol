@@ -232,6 +232,8 @@ contract VaultAction is ActionGuards, IVaultAction {
         // This method call must come from the vault
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(msg.sender);
         require(vaultConfig.getFlag(VaultConfiguration.ENABLED));
+        require(vaultConfig.hasSecondaryBorrows());
+
         PrimeRate[2] memory pr = VaultSecondaryBorrow.getSecondaryPrimeRateStateful(vaultConfig);
         // It is possible for netPrimeCash to be positive here, where the vault will receive tokens
         // as a result of "repayment"
