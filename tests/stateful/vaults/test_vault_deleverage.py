@@ -476,7 +476,7 @@ def test_liquidator_can_exit_vault_shares(environment, accounts, currencyId, ena
 
     check_system_invariants(environment, accounts, [vault])
 
-
+@pytest.mark.only
 @given(currencyId=strategy("uint", min_value=1, max_value=3), enablefCashDiscount=strategy("bool"))
 def test_liquidator_can_liquidate_cash(environment, accounts, currencyId, enablefCashDiscount):
     (vault, account, e) = deleveraged_account(
@@ -520,8 +520,13 @@ def test_liquidator_can_liquidate_cash(environment, accounts, currencyId, enable
     (cash, _, _) = environment.notional.getAccountBalance(currencyId, accounts[2])
     assert cash == 0
 
+    fCashRequired = environment.notional.getfCashRequiredToLiquidateCash(
+        currencyId,
+        vaultAccountBefore['maturity'],
+        vaultAccountBefore['tempCashBalance']
+    )
     environment.notional.liquidateVaultCashBalance(
-        accounts[1],
+        account,
         vault,
         accounts[2],
         0,
@@ -539,6 +544,7 @@ def test_liquidator_can_liquidate_cash(environment, accounts, currencyId, enable
     assert portfolioBefore[0][3] - portfolioAfter[0][3] == (
         vaultAccountAfter["accountDebtUnderlying"] - vaultAccountBefore["accountDebtUnderlying"]
     )
+    assert portfolioBefore[0][3] - portfolioAfter[0][3] == fCashRequired
     # Cash has been cleared
     assert vaultAccountAfter["tempCashBalance"] == 0
 

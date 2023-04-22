@@ -73,10 +73,12 @@ library VaultValuation {
         CashGroupParameters memory cashGroup = CashGroup.buildCashGroup(currencyId, primeRate);
         uint256 oracleRate = cashGroup.calculateOracleRate(maturity, block.timestamp);
         uint256 buffer = cashGroup.getLiquidationDebtBuffer();
-        return AssetHandler.getDiscountFactor(
-            maturity.sub(block.timestamp),
-            oracleRate < buffer ? 0 : oracleRate.sub(buffer)
-        );
+
+        // If the oracle rate is less than the buffer then floor the interest rate at zero. In this
+        // case the discount factor is 1 (e ^ 0 = 1). Otherwise get the discount factor.
+        return oracleRate <= buffer ? 
+            Constants.RATE_PRECISION :
+            AssetHandler.getDiscountFactor(maturity.sub(block.timestamp), oracleRate - buffer);
     }
 
     function getPresentValue(

@@ -207,6 +207,12 @@ interface IVaultLiquidationAction {
         int256 depositUnderlyingInternal
     ) external payable returns (uint256 vaultSharesFromLiquidation, int256 depositAmountPrimeCash);
 
+    function getfCashRequiredToLiquidateCash(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 vaultAccountCashBalance
+    ) external view returns (int256 fCashRequired);
+
     function liquidateVaultCashBalance(
         address account,
         address vault,

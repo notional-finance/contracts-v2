@@ -185,6 +185,7 @@ contract Router is StorageLayoutV1 {
             return LIQUIDATE_FCASH;
         } else if (
             sig == IVaultLiquidationAction.deleverageAccount.selector ||
+            sig == IVaultLiquidationAction.getfCashRequiredToLiquidateCash.selector ||
             sig == IVaultLiquidationAction.liquidateVaultCashBalance.selector
         ) {
             return VAULT_LIQUIDATION_ACTION;

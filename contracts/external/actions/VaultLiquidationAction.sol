@@ -17,6 +17,7 @@ import {SafeInt256} from "../../math/SafeInt256.sol";
 import {ActionGuards} from "./ActionGuards.sol";
 import {Emitter} from "../../internal/Emitter.sol";
 import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
+import {PrimeCashExchangeRate} from "../../internal/pCash/PrimeCashExchangeRate.sol";
 import {VaultConfiguration} from "../../internal/vaults/VaultConfiguration.sol";
 import {VaultAccountLib} from "../../internal/vaults/VaultAccount.sol";
 import {VaultValuation} from "../../internal/vaults/VaultValuation.sol";
@@ -116,6 +117,17 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
             liquidator, account, vault, currencyId, vaultState.maturity,
             depositAmountPrimeCash, vaultSharesToLiquidator
         );
+    }
+
+    /// @notice Returns the fCash required to liquidate a given vault cash balance.
+    function getfCashRequiredToLiquidateCash(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 vaultAccountCashBalance
+    ) external view override returns (int256 fCashRequired) {
+        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, block.timestamp);
+        int256 discountFactor = VaultValuation.getLiquidateCashDiscountFactor(pr, currencyId, maturity);
+        return pr.convertToUnderlying(vaultAccountCashBalance).divInRatePrecision(discountFactor);
     }
 
     /// @notice If an account has a cash balance, a liquidator can purchase the cash and provide
