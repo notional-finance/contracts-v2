@@ -109,6 +109,21 @@ def test_same_maturity(environment, vault, roll_account):
             roll_account, vault, 105_000e8, maturity, 0, 0, 0, "", {"from": roll_account}
         )
 
+def test_cannot_roll_into_past_maturity(environment, vault, roll_account):
+    maturity = environment.notional.getActiveMarkets(2)[0][1] - SECONDS_IN_QUARTER
+
+    with brownie.reverts(dev_revert_msg="dev: cannot roll to matured"):
+        environment.notional.rollVaultPosition(
+            roll_account,
+            vault,
+            105_000e8,
+            maturity,
+            0,
+            0,
+            0,
+            "",
+            {"from": roll_account},
+        )
 
 def test_cannot_roll_same_maturity_matured(environment, vault, roll_account):
     chain.mine(1, timedelta=SECONDS_IN_QUARTER)

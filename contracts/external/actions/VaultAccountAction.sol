@@ -168,6 +168,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         require(newBorrowAmount > 0);
         // Cannot roll into the existing maturity, after settlement this will be the prime cash maturity
         require(vaultAccount.maturity != maturity);
+        require(block.timestamp < maturity); // dev: cannot roll to matured
 
         // VaultState must be loaded after settleAccountOrAccruePrimeCashFees
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig, vaultAccount.maturity);
