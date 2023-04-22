@@ -462,6 +462,11 @@ library InitializeMarketsAction {
                         previousMarkets,
                         DateTime.getReferenceTime(blockTime)
                     );
+
+                    // Floor an interpolated interest rate at kink rate 1
+                    if (oracleRate < parameters.interestRateParams[i].kinkRate1) {
+                        oracleRate = parameters.interestRateParams[i].kinkRate1;
+                    }
                 } else {
                     // Any other market has the interpolation between the new implied rate from the newly initialized market previous
                     // to this market interpolated with the previous version of this market. For example, the newly initialized 1 year
@@ -481,6 +486,11 @@ library InitializeMarketsAction {
                         // This is the previous version of the current market
                         previousMarkets[i]
                     );
+
+                    // Floor an interpolated interest rate at kink rate 1
+                    if (oracleRate < parameters.interestRateParams[i].kinkRate1) {
+                        oracleRate = parameters.interestRateParams[i].kinkRate1;
+                    }
                 }
 
                 // When initializing new markets we need to ensure that the new implied oracle rates align

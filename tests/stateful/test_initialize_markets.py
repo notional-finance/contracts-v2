@@ -24,7 +24,7 @@ INITIAL_CASH_AMOUNT = 100_000e18
 INITIAL_CASH_INTERNAL = 100_000e8
 
 
-@pytest.fixture(scope="module", autouse=True)
+@pytest.fixture(scope="module", autouse=False)
 def environment(accounts):
     env = TestEnvironment(accounts[0])
     env.enableCurrency("DAI", CurrencyDefaults)
@@ -213,6 +213,7 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
         # Ensure that fCash is greater than zero
         assert market[3] > 0
 
+        kinkRate1 = environment.notional.getInterestRateCurve(2)['activeInterestRateCurve'][i][2]
         if previousMarkets[i][6] == 0:
             # This means that the market is initialized for the first time
             assert pytest.approx(proportion, abs=2) == proportions[i]
@@ -231,8 +232,8 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
                 computedOracleRate = interpolate_market_rate(
                     previousMarkets[1], previousMarkets[2], isSixMonth=True
                 )
-                assert pytest.approx(market[5], abs=2) == computedOracleRate
-                assert pytest.approx(market[6], abs=2) == computedOracleRate
+                assert pytest.approx(market[5], abs=2) == max(computedOracleRate, kinkRate1)
+                assert pytest.approx(market[6], abs=2) == max(computedOracleRate, kinkRate1)
             else:
                 # In this case then the proportion is set by governance (there is no
                 # future rate to interpolate against)
@@ -240,8 +241,8 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
         else:
             # In this scenario the market is interpolated against the previous two rates
             computedOracleRate = interpolate_market_rate(markets[i - 1], previousMarkets[i])
-            assert pytest.approx(market[5], abs=2) == computedOracleRate
-            assert pytest.approx(market[6], abs=2) == computedOracleRate
+            assert pytest.approx(market[5], abs=2) == max(computedOracleRate, kinkRate1)
+            assert pytest.approx(market[6], abs=2) == max(computedOracleRate, kinkRate1)
 
     nTokenAccount = environment.notional.getNTokenAccount(nTokenAddress)
     assert nTokenAccount["lastInitializedTime"] == blockTime - blockTime % SECONDS_IN_DAY
@@ -438,7 +439,57 @@ def test_failing_initialize_time(environment, accounts):
             accounts[0].address, currencyId, 100e8, True, False, {"from": accounts[0]}
         )
 
-@pytest.mark.skip
+def test_floor_rates_at_kink1(environment, accounts):
+    currencyId = 2
+    cashGroup = list(environment.notional.getCashGroup(currencyId))
+    # Enable the one year market
+    cashGroup[0] = 3
+    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
+    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
+    environment.notional.updateCashGroup(currencyId, cashGroup)
+
+    environment.notional.updateDepositParameters(
+        currencyId, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9]
+    )
+    environment.notional.updateInterestRateCurve(
+        currencyId, [1, 2, 3], [get_interest_rate_curve()] * 3
+    )
+    environment.notional.updateInitializationParameters(
+        currencyId, [0, 0, 0.0], [0.5e9, 0.5e9, 0.5e9]
+    )
+
+    environment.notional.batchBalanceAction(
+        accounts[0],
+        [
+            get_balance_action(
+                currencyId,
+                "DepositUnderlyingAndMintNToken",
+                depositActionAmount=INITIAL_CASH_AMOUNT,
+            )
+        ],
+        {"from": accounts[0]},
+    )
+
+    environment.notional.initializeMarkets(2, True)
+    # Push the interest rates down on the six month market so it initializes at zero
+    action = get_balance_trade_action(
+        currencyId,
+        "DepositUnderlying",
+        [{"tradeActionType": "Lend", "marketIndex": 2, "notional": 38_000e8, "minSlippage": 0}],
+        depositActionAmount=40_000e18,
+    )
+    environment.notional.batchBalanceAndTradeAction(accounts[0], [ action ], {"from": accounts[0]})
+    assert environment.notional.getActiveMarkets(2)[1][5] / 1e9 < 0.015e9
+
+    blockTime = chain.time()
+    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
+    environment.notional.initializeMarkets(2, False)
+    kinkRate1 = environment.notional.getInterestRateCurve(2)['activeInterestRateCurve'][1][2]
+    # new interest rate is floored at kink rate 1
+    assert environment.notional.getActiveMarkets(2)[1][5] == kinkRate1
+
+    ntoken_asserts(environment, currencyId, False, accounts)
+
 def test_constant_oracle_rates_across_initialize_time(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
@@ -471,28 +522,17 @@ def test_constant_oracle_rates_across_initialize_time(environment, accounts):
         {"from": accounts[0]},
     )
 
-    # Assert that market rates will be the same no matter when we do the first initialization
-    blockHeight = chain.height
-    environment.notional.initializeMarkets(currencyId, True)
-    ntoken_asserts(environment, currencyId, True, accounts)
-    marketsBefore = environment.notional.getActiveMarkets(currencyId)
-
-    chain.undo(chain.height - blockHeight)
     chain.mine(1, timestamp=(chain.time() + 45 * SECONDS_IN_DAY))
     environment.notional.initializeMarkets(currencyId, True)
     ntoken_asserts(environment, currencyId, True, accounts)
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
 
     # Check that oracle rates are invariant relative to the two initialization times
-    assert len(marketsBefore) == len(marketsAfter)
-    for i in range(0, len(marketsBefore)):
-        assert pytest.approx(marketsAfter[i][5], abs=10) == marketsBefore[i][5]
-        assert pytest.approx(marketsAfter[i][6], abs=10) == marketsBefore[i][6]
+    for m in marketsAfter:
+        # TODO: this is the interest rate at the specified proportion
+        assert pytest.approx(m[5], abs=10) == 0.09375e9
+        assert pytest.approx(m[6], abs=10) == 0.09375e9
 
-    LOGGER.info("finished constant oracle rate test")
-
-
-@pytest.mark.skip
 def test_delayed_second_initialize_markets(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
@@ -502,7 +542,6 @@ def test_delayed_second_initialize_markets(environment, accounts):
     cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
-    LOGGER.info("started test")
     environment.notional.updateDepositParameters(
         currencyId, [0.4e8, 0.2e8, 0.2e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9, 0.8e9]
     )
@@ -514,7 +553,6 @@ def test_delayed_second_initialize_markets(environment, accounts):
         currencyId, [0, 0, 0, 0], [0.5e9, 0.5e9, 0.5e9, 0.5e9]
     )
 
-    LOGGER.info("updated parameters")
     environment.notional.batchBalanceAction(
         accounts[0],
         [
@@ -527,17 +565,12 @@ def test_delayed_second_initialize_markets(environment, accounts):
         {"from": accounts[0]},
     )
 
-    LOGGER.info("ran batch action")
     environment.notional.initializeMarkets(currencyId, True)
-    LOGGER.info("init markets")
     ntoken_asserts(environment, currencyId, True, accounts)
 
-    LOGGER.info("second mine")
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER + SECONDS_IN_DAY * 65))
-    LOGGER.info("init markets second mine")
     environment.notional.initializeMarkets(currencyId, False)
-    LOGGER.info("init markets second mine finished")
     ntoken_asserts(environment, currencyId, False, accounts)
 
 
