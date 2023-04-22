@@ -452,8 +452,9 @@ struct InterestRateCurveSettings {
     // Interest rate at the second kink, set as 1/256 units from the kink
     // rate max
     uint8 kinkRate2;
-    // Max interest rate, set in 25 bps increments
-    uint8 maxRate25BPS;
+    // Max interest rate, set in units in 25bps increments less than or equal to 150
+    // and 150bps increments from 151 to 255.
+    uint8 maxRateUnits;
     // Minimum fee charged in basis points
     uint8 minFeeRateBPS;
     // Maximum fee charged in basis points

@@ -290,7 +290,7 @@ contract MigratePrimeCash is BasePatchFixRouter, StorageLayoutV2 {
             MarketParameters memory market = markets[i];
             
             // Interest rate parameter object for local calculations
-            uint256 maxRate = uint256(irCurve.maxRate25BPS) * 25 * uint256(Constants.BASIS_POINT);
+            uint256 maxRate = InterestRateCurve.calculateMaxRate(irCurve.maxRateUnits);
             InterestRateParameters memory irParams = InterestRateParameters({
                 kinkUtilization1: uint256(irCurve.kinkUtilization1) * uint256(Constants.RATE_PRECISION / Constants.PERCENTAGE_DECIMALS),
                 kinkUtilization2: uint256(irCurve.kinkUtilization2) * uint256(Constants.RATE_PRECISION / Constants.PERCENTAGE_DECIMALS),

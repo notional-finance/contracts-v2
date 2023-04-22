@@ -1,3 +1,4 @@
+import math
 import brownie
 import pytest
 from brownie.test import given, strategy
@@ -188,3 +189,18 @@ class TestInterestRateCurve:
         utilization_ = mock.getUtilizationFromInterestRate(1, 1, preFee)
 
         assert pytest.approx(utilization_, abs=10) == utilization
+
+    @given(maxRateUnits=strategy("uint", min_value=0, max_value=255))
+    def test_max_interest_rate_range(self, mock, maxRateUnits):
+        mock.setNextInterestRateParameters(1, 1, get_interest_rate_curve(
+            kinkRate1=64,
+            kinkRate2=128,
+            maxRateUnits=maxRateUnits
+        ))
+        params = mock.getNextInterestRateParameters(1, 1)
+        if maxRateUnits <= 150:
+            assert params['maxRate'] == maxRateUnits * 25 * BASIS_POINT
+        else:
+            assert params['maxRate'] == 150 * 25 * BASIS_POINT + (maxRateUnits - 150) * 150 * BASIS_POINT
+        assert params['kinkRate1'] == math.floor(params['maxRate'] * 64 / 256)
+        assert params['kinkRate2'] == math.floor(params['maxRate'] * 128 / 256)

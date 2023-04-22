@@ -48,7 +48,7 @@ def get_interest_rate_curve(**kwargs):
         kwargs.get("kinkUtilization2", 75),  # 1: 75% utilization
         kwargs.get("kinkRate1", 64),  # 2: 6.25% kink rate 1
         kwargs.get("kinkRate2", 128),  # 3: 12.5% kink rate 2
-        kwargs.get("maxRate25BPS", 100),  # 4: 25% max interest rate
+        kwargs.get("maxRateUnits", 100),  # 4: 25% max interest rate
         kwargs.get("minFeeRateBPS", 10),  # 5: 0.1% min fee
         kwargs.get("maxFeeRateBPS", 50),  # 6: 0.5% max fee
         kwargs.get("feeRatePercent", 5),  # 7: 5% fee rate

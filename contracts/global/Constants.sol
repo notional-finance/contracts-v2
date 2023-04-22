@@ -94,6 +94,11 @@ library Constants {
     uint256 internal constant FIVE_BASIS_POINTS = 5 * BASIS_POINT;
     // Used for residual purchase incentive and cash withholding buffer
     uint256 internal constant TEN_BASIS_POINTS = 10 * BASIS_POINT;
+    // Used in max rate calculations
+    uint256 internal constant MAX_LOWER_INCREMENT = 150;
+    uint256 internal constant MAX_LOWER_INCREMENT_VALUE = 150 * 25 * BASIS_POINT;
+    uint256 internal constant TWENTY_FIVE_BASIS_POINTS = 25 * BASIS_POINT;
+    uint256 internal constant ONE_HUNDRED_FIFTY_BASIS_POINTS = 150 * BASIS_POINT;
 
     // This is the ABDK64x64 representation of RATE_PRECISION
     // RATE_PRECISION_64x64 = ABDKMath64x64.fromUint(RATE_PRECISION)

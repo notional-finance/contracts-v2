@@ -63,6 +63,16 @@ library InterestRateCurve {
         return unpackInterestRateParams(offset, data);
     }
 
+    function calculateMaxRate(uint8 maxRateByte) internal pure returns (uint256) {
+        // Max rate values are in 25 bps increments up to 150 units. Above 150 they are in 150 bps
+        // increments. This results in a max rate of 195%. This allows more precision at lower max
+        // rate values and a higher range for large max rate values.
+        return Constants.MAX_LOWER_INCREMENT < maxRateByte ?
+            (Constants.MAX_LOWER_INCREMENT_VALUE +
+                (maxRateByte - Constants.MAX_LOWER_INCREMENT) * Constants.ONE_HUNDRED_FIFTY_BASIS_POINTS) :
+            maxRateByte * Constants.TWENTY_FIVE_BASIS_POINTS;
+    }
+
     function unpackInterestRateParams(
         uint8 offset,
         bytes32 data
@@ -73,8 +83,7 @@ library InterestRateCurve {
             / uint256(Constants.PERCENTAGE_DECIMALS);
         i.kinkUtilization2 = uint256(uint8(data[offset + KINK_UTILIZATION_2_BYTE])) * uint256(Constants.RATE_PRECISION)
             / uint256(Constants.PERCENTAGE_DECIMALS);
-        // Max Rate is stored in 25 basis point increments
-        i.maxRate = uint256(uint8(data[offset + MAX_RATE_BYTE])) * 25 * uint256(Constants.BASIS_POINT);
+        i.maxRate = calculateMaxRate(uint8(data[offset + MAX_RATE_BYTE]));
         // Kink Rates are stored as 1/256 increments of maxRate, this allows governance
         // to set more precise kink rates relative to how how interest rates can go
         i.kinkRate1 = uint256(uint8(data[offset + KINK_RATE_1_BYTE])) * i.maxRate / 256;
@@ -96,7 +105,7 @@ library InterestRateCurve {
         return (
             bytes32(uint256(settings.kinkUtilization1)) << 56 - KINK_UTILIZATION_1_BIT |
             bytes32(uint256(settings.kinkUtilization2)) << 56 - KINK_UTILIZATION_2_BIT |
-            bytes32(uint256(settings.maxRate25BPS))     << 56 - MAX_RATE_BIT           |
+            bytes32(uint256(settings.maxRateUnits))     << 56 - MAX_RATE_BIT           |
             bytes32(uint256(settings.kinkRate1))        << 56 - KINK_RATE_1_BIT        |
             bytes32(uint256(settings.kinkRate2))        << 56 - KINK_RATE_2_BIT        |
             bytes32(uint256(settings.minFeeRateBPS))    << 56 - MIN_FEE_RATE_BIT       |
