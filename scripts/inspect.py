@@ -21,12 +21,14 @@ def get_router_args(router):
         router.cETH(),
         router.TREASURY(),
         router.CALCULATION_VIEWS(),
+        router.VAULT_ACCOUNT_ACTION(),
+        router.VAULT_ACTION(),
     ]
 
 
 def main():
     networkName = network.show_active()
-    if networkName == "mainnet-fork":
+    if networkName == "mainnet-fork" or networkName == 'mainnet-current':
         networkName = "mainnet"
     if networkName == "goerli-fork":
         networkName = "goerli"

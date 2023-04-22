@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: GPL-3.0-only
 pragma solidity =0.7.6;
-pragma experimental ABIEncoderV2;
+pragma abicoder v2;
 
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/access/AccessControl.sol";
 import "@openzeppelin/contracts/proxy/Initializable.sol";
-import "./NotionalV2BaseLiquidator.sol";
-import "./NotionalV2UniV3SwapRouter.sol";
+import "./NotionalV2FlashLiquidatorBase.sol";
 import "../../../interfaces/compound/CErc20Interface.sol";
 import "../../../interfaces/compound/CEtherInterface.sol";
 import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
+import "../../../interfaces/IWstETH.sol";
+import "../../internal/markets/AssetRate.sol";
 
-contract NotionalV2ManualLiquidator is
-    NotionalV2BaseLiquidator,
-    NotionalV2UniV3SwapRouter,
-    AccessControl,
-    Initializable
-{
+contract NotionalV2ManualLiquidator is NotionalV2FlashLiquidatorBase, AccessControl, Initializable {
+    using SafeInt256 for int256;
+    using SafeMath for uint256;
+    using AssetRate for AssetRateParameters;
+
     bytes32 public constant ADMIN_ROLE = keccak256("ADMIN_ROLE");
     bytes32 public constant USER_ROLE = keccak256("USER_ROLE");
     address public immutable NOTE;
@@ -25,13 +25,22 @@ contract NotionalV2ManualLiquidator is
     // @dev setting owner to address(0) because it is initialized in initialize()
     constructor(
         NotionalProxy notionalV2_,
+        address lendingPool_,
         address weth_,
-        address cETH_,
-        ISwapRouter exchange_,
-        address note_
+        IWstETH wstETH_,
+        address note_,
+        address dex1,
+        address dex2
     )
-        NotionalV2BaseLiquidator(notionalV2_, weth_, cETH_, address(0))
-        NotionalV2UniV3SwapRouter(exchange_)
+        NotionalV2FlashLiquidatorBase(
+            notionalV2_,
+            lendingPool_,
+            weth_,
+            wstETH_,
+            address(0),
+            dex1,
+            dex2
+        )
         initializer
     {
         NOTE = note_;
@@ -52,11 +61,14 @@ contract NotionalV2ManualLiquidator is
     }
 
     function transferOwnership(address newOwner) external onlyOwner {
-        require(newOwner != address(0), "Ownable: new owner is the zero address");
-        owner = newOwner;
+        require(newOwner != address(0), "invalid new owner");
+
         // Make new user the USER_ROLE admin
         grantRole(ADMIN_ROLE, newOwner);
         revokeRole(ADMIN_ROLE, msg.sender);
+
+        // Update owner here because grantRole and revokeRole need the currency owner
+        owner = newOwner;
     }
 
     function grantRole(bytes32 role, address account) public virtual override onlyOwner {
@@ -89,18 +101,18 @@ contract NotionalV2ManualLiquidator is
         NotionalV2.batchBalanceAction(address(this), actions);
     }
 
-    function nTokenRedeem(uint96 tokensToRedeem, bool sellTokenAssets)
-        external
-        ownerOrUser
-        returns (int256)
-    {
+    function nTokenRedeem(
+        uint96 tokensToRedeem,
+        bool sellTokenAssets,
+        bool acceptResidualAssets
+    ) external ownerOrUser returns (int256) {
         return
             NotionalV2.nTokenRedeem(
                 address(this),
                 ifCashCurrencyId,
                 tokensToRedeem,
                 sellTokenAssets,
-                false
+                acceptResidualAssets
             );
     }
 
@@ -199,16 +211,8 @@ contract NotionalV2ManualLiquidator is
         _redeemCTokens(assets);
     }
 
-    // path = [tokenAddr1, fee, tokenAddr2, fee, tokenAddr3]
-    function executeDexTrade(
-        bytes calldata path,
-        uint256 deadline,
-        uint256 amountIn,
-        uint256 amountOutMin
-    ) external ownerOrUser returns (uint256) {
-        bytes memory encoded = abi.encode(path, deadline);
-
-        return _executeDexTrade(amountIn, amountOutMin, encoded);
+    function executeDexTrade(uint256 ethValue, TradeData calldata tradeData) external ownerOrUser {
+        _executeDexTrade(ethValue, tradeData);
     }
 
     function wrapToWETH() external ownerOrUser {
@@ -217,5 +221,63 @@ contract NotionalV2ManualLiquidator is
 
     function withdrawToOwner(address token, uint256 amount) external ownerOrUser {
         IERC20(token).transfer(owner, amount);
+    }
+
+    function _getAssetCashAmount(uint16 currencyId, int256 fCashValue)
+        internal
+        view
+        returns (int256)
+    {
+        // prettier-ignore
+        (
+            /* Token memory assetToken */,
+            /* Token memory underlyingToken */,
+            /* ETHRate memory ethRate */,
+            AssetRateParameters memory assetRate
+        ) = NotionalV2.getCurrencyAndRates(currencyId);
+
+        return assetRate.convertFromUnderlying(fCashValue);
+    }
+
+    function _redeemAndWithdraw(
+        uint16 nTokenCurrencyId,
+        uint96 nTokenBalance,
+        bool redeemToUnderlying
+    ) internal override {
+        NotionalV2.nTokenRedeem(address(this), nTokenCurrencyId, nTokenBalance, true, true);
+
+        // prettier-ignore
+        (
+            int256 cashBalance,
+            /* int256 nTokenBalance */,
+            /* uint256 lastClaimTime */
+        ) = NotionalV2.getAccountBalance(nTokenCurrencyId, address(this));
+
+        PortfolioAsset[] memory assets = NotionalV2.getAccountPortfolio(address(this));
+
+        // Make sure we leave enough cash to cover the negative fCash residuals
+        for (uint256 i; i < assets.length; i++) {
+            if (assets[i].currencyId == nTokenCurrencyId && assets[i].notional < 0) {
+                cashBalance = cashBalance.add(
+                    _getAssetCashAmount(nTokenCurrencyId, assets[i].notional)
+                );
+            }
+        }
+
+        require(cashBalance >= 0 && cashBalance <= type(uint88).max, "Invalid cash balance");
+
+        if (cashBalance > 0) {
+            NotionalV2.withdraw(nTokenCurrencyId, uint88(uint256(cashBalance)), redeemToUnderlying);
+        }
+    }
+
+    function _sellfCashAssets(
+        uint16 fCashCurrency,
+        uint256[] memory fCashMaturities,
+        int256[] memory fCashNotional,
+        uint256 depositActionAmount,
+        bool redeemToUnderlying
+    ) internal override {
+        /// NOTE: empty implementation here to reduce contract size because manual liquidator does not need this
     }
 }

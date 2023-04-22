@@ -24,6 +24,11 @@ abstract contract BasePatchFixRouter is UUPSUpgradeable {
         CURRENT_ROUTER = currentRouter;
         OWNER = proxy.owner();
     }
+    
+    function returnOwnership() external {
+        require(msg.sender == OWNER);
+        NOTIONAL.transferOwnership(OWNER, true);
+    }
 
     /// @notice The owner of the proxy can call this method to run the patch fix code
     /// and upgrade the router. The owner must first transfer ownership to this contract,
