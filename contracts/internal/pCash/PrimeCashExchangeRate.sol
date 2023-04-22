@@ -530,17 +530,13 @@ library PrimeCashExchangeRate {
     /// @notice Accrues interest to the prime cash supply scalar and debt scalar
     /// up to the current block time.
     /// @return PrimeCashFactors prime cash factors accrued up to current time
-    /// @return boolean true or false if an accrual occurred
     /// @return uint256 prime supply to the reserve
     function _updatePrimeCashScalars(
         uint16 currencyId,
         PrimeCashFactors memory prior,
         uint256 currentUnderlyingValue,
         uint256 blockTime
-    ) private view returns (PrimeCashFactors memory, bool, uint256) {
-        // No accrual necessary if time has not changed
-        if (prior.lastAccrueTime == blockTime) return (prior, false, 0);
-
+    ) private view returns (PrimeCashFactors memory, uint256) {
         uint256 primeSupplyToReserve;
         uint256 annualSupplyRate;
         (
@@ -592,7 +588,7 @@ library PrimeCashExchangeRate {
         // Update the last accrue time
         prior.lastAccrueTime = blockTime;
 
-        return (prior, true, primeSupplyToReserve);
+        return (prior, primeSupplyToReserve);
     }
 
     /// @notice Gets current prime cash exchange rates without setting anything
@@ -601,11 +597,17 @@ library PrimeCashExchangeRate {
         uint16 currencyId,
         uint256 blockTime
     ) internal view returns (PrimeRate memory rate, PrimeCashFactors memory factors) {
-        uint256 currentUnderlyingValue = getTotalUnderlyingView(currencyId);
         factors = getPrimeCashFactors(currencyId);
-        (factors, /* didAccrue */, /* primeSupplyToReserve */) = _updatePrimeCashScalars(
-            currencyId, factors, currentUnderlyingValue, blockTime
-        );
+
+        // Only accrue if the block time has increased
+        if (factors.lastAccrueTime < blockTime) {
+            uint256 currentUnderlyingValue = getTotalUnderlyingView(currencyId);
+            (factors, /* primeSupplyToReserve */) = _updatePrimeCashScalars(
+                currencyId, factors, currentUnderlyingValue, blockTime
+            );
+        } else {
+            require(factors.lastAccrueTime == blockTime); // dev: revert invalid blocktime
+        }
 
         rate = PrimeRate({
             supplyFactor: factors.supplyScalar.mul(factors.underlyingScalar).toInt(),
@@ -619,18 +621,18 @@ library PrimeCashExchangeRate {
         uint16 currencyId,
         uint256 blockTime
     ) internal returns (PrimeRate memory rate) {
-        uint256 currentUnderlyingValue = getTotalUnderlyingStateful(currencyId);
-
         PrimeCashFactors memory factors = getPrimeCashFactors(currencyId);
 
-        bool didAccrue;
-        uint256 primeSupplyToReserve;
-        (factors, didAccrue, primeSupplyToReserve) = _updatePrimeCashScalars(
-            currencyId, factors, currentUnderlyingValue, blockTime
-        );
-
-        if (didAccrue) {
+        // Only accrue if the block time has increased
+        if (factors.lastAccrueTime < blockTime) {
+            uint256 primeSupplyToReserve;
+            uint256 currentUnderlyingValue = getTotalUnderlyingStateful(currencyId);
+            (factors, primeSupplyToReserve) = _updatePrimeCashScalars(
+                currencyId, factors, currentUnderlyingValue, blockTime
+            );
             _setPrimeCashFactorsOnAccrue(currencyId, primeSupplyToReserve, factors);
+        } else {
+            require(factors.lastAccrueTime == blockTime); // dev: revert invalid blocktime
         }
 
         rate = PrimeRate({
