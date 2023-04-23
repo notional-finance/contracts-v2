@@ -314,7 +314,7 @@ library CashGroup {
     }
 
     /// @notice Checks all cash group settings for invalid values and sets them into storage
-    function setCashGroupStorage(uint256 currencyId, CashGroupSettings calldata cashGroup)
+    function setCashGroupStorage(uint256 currencyId, CashGroupSettings memory cashGroup)
         internal
     {
         // Due to the requirements of the yield curve we do not allow a cash group to have solely a 3 month market.

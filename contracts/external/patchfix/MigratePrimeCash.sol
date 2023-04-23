@@ -5,6 +5,7 @@ pragma abicoder v2;
 import {
     InterestRateCurveSettings,
     InterestRateParameters,
+    CashGroupSettings,
     Token,
     TokenType,
     TokenStorage,
@@ -47,6 +48,8 @@ contract MigratePrimeCash is BasePatchFixRouter, StorageLayoutV2 {
     // @todo reduce this kink diff once we have more proper values for the tests
     uint256 internal constant MAX_KINK_DIFF = 500 * uint256(1e9 / 10000); // 500 * Constants.BASIS_POINT
 
+    event UpdateCashGroup(uint16 currencyId);
+
     struct TotalfCashDebt {
         uint40 maturity;
         uint80 totalfCashDebt;
@@ -55,6 +58,7 @@ contract MigratePrimeCash is BasePatchFixRouter, StorageLayoutV2 {
     struct MigrationSettings {
         InterestRateCurveSettings primeDebtCurve;
         IPrimeCashHoldingsOracle primeCashOracle;
+        CashGroupSettings cashGroupSettings;
         uint8 rateOracleTimeWindow5Min;
         bool allowPrimeDebt;
         string underlyingName;
@@ -88,6 +92,7 @@ contract MigratePrimeCash is BasePatchFixRouter, StorageLayoutV2 {
         MigrationSettings storage _storageSettings = _migrationSettings[currencyId];
         _storageSettings.primeDebtCurve = settings.primeDebtCurve;
         _storageSettings.primeCashOracle = settings.primeCashOracle;
+        _storageSettings.cashGroupSettings = settings.cashGroupSettings;
         _storageSettings.allowPrimeDebt = settings.allowPrimeDebt;
         _storageSettings.underlyingName = settings.underlyingName;
         _storageSettings.underlyingSymbol = settings.underlyingSymbol;
@@ -177,6 +182,9 @@ contract MigratePrimeCash is BasePatchFixRouter, StorageLayoutV2 {
 
             // Initialize the prime cash curve
             _initializePrimeCash(currencyId, assetToken, underlyingToken, settings);
+
+            // Cash group settings have changed and must be set on migration
+            _setCashGroup(currencyId, settings.cashGroupSettings);
 
             // Initialize the new fCash interest rate curves
             _setfCashInterestRateCurves(currencyId, settings.fCashCurves);
@@ -376,6 +384,14 @@ contract MigratePrimeCash is BasePatchFixRouter, StorageLayoutV2 {
             finalCurves[i] = irCurve;
             finalRates[i] = newInterestRate;
         }
+    }
+
+    function _setCashGroup(
+        uint16 currencyId,
+        CashGroupSettings memory cashGroupSettings
+    ) private {
+        CashGroup.setCashGroupStorage(currencyId, cashGroupSettings);
+        emit UpdateCashGroup(currencyId);
     }
 
     function _setfCashInterestRateCurves(
