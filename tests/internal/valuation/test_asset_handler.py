@@ -6,6 +6,7 @@ from brownie.network.contract import Contract
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.constants import (
+    BASIS_POINT,
     FCASH_ASSET_TYPE,
     MARKETS,
     SECONDS_IN_DAY,
@@ -19,7 +20,6 @@ from tests.helpers import (
     get_liquidity_token,
     get_market_state,
     get_portfolio_array,
-    impliedRateStrategy,
     setup_internal_mock,
 )
 
@@ -94,44 +94,123 @@ class TestAssetHandler:
             # invalid asset type
             assetLibrary.getSettlementDate((1, START_TIME_TREF, 11, 0, 0, 0))
 
-    @pytest.mark.skip_coverage
-    @given(oracleRate=impliedRateStrategy)
-    def test_risk_adjusted_pv(self, assetLibrary, cashGroups, oracleRate):
-        # has a 30 bps buffer / haircut
-        (cashGroup, _) = cashGroups[0]
 
-        # the longer dated the maturity, the lower the pv holding everything else constant
-        maturities = [START_TIME + (90 * SECONDS_IN_DAY) * i for i in range(1, 50, 3)]
-        prevPositivePV = 1e18
-        prevNegativePV = -1e18
+    def test_oracle_rates_below_minimum(self, assetLibrary):
+        settings = get_cash_group_with_max_markets(3)
+        settings[5] = 20 # 0.01
+        settings[7] = 19 # liquidation haircut must be less than
+        # Min Oracle Rate = [0.0125, 0.0250, 0.0375]
+        settings[9] = [25, 50, 75]
+        # Max Oracle Rate = [0.15, 0.1875, 0.225]
+        settings[10] = [100, 125, 150]
+        assetLibrary.setCashGroup(1, settings)
+
+        # All are below the min oracle rate with the haircut added
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[0], lastImpliedRate=0.002e9, oracleRate=0.002e9))
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[1], lastImpliedRate=0.012e9, oracleRate=0.012e9))
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[2], lastImpliedRate=0.027e9, oracleRate=0.027e9))
+
+        # All maturities out to one year, counting by 30, ensures that market maturities are hit
+        maturities = [START_TIME_TREF + SECONDS_IN_DAY * i for i in range(30, 360, 30)]
         for m in maturities:
-            riskPVPositive = assetLibrary.getRiskAdjustedPresentValue(
-                cashGroup, 1e18, m, START_TIME, oracleRate
-            )
-            pvPositive = assetLibrary.getPresentValue(1e18, m, START_TIME, oracleRate)
+            (oracleRate, fCashOracleRate, _) = assetLibrary.getOracleRates(1, m, START_TIME_TREF, 0)
+            # fcash oracle rates are always higher than the actual oracle rate
+            assert oracleRate < fCashOracleRate
 
-            assert pvPositive > riskPVPositive
-            assert riskPVPositive < prevPositivePV or riskPVPositive == 0
-            prevPositivePV = riskPVPositive
+            if m <= MARKETS[0]:
+                # This is the min oracle rate for sub 3 month markets
+                assert fCashOracleRate == 0.0125e9
+            elif m < (MARKETS[0] + MARKETS[1]) / 2:
+                assert 0.0125e9 < fCashOracleRate and fCashOracleRate < 0.0250e9
+            elif m < (MARKETS[1] + MARKETS[2]) / 2:
+                assert 0.025e9 <= fCashOracleRate and fCashOracleRate < 0.0375e9
+            else:
+                assert fCashOracleRate == 0.0375e9
 
-            # further away then you can hold less capital against it
-            riskPVNegative = assetLibrary.getRiskAdjustedPresentValue(
-                cashGroup, -1e18, m, START_TIME, oracleRate
-            )
-            pvNegative = assetLibrary.getPresentValue(-1e18, m, START_TIME, oracleRate)
+    def test_oracle_rates_above_maximum(self, assetLibrary):
+        settings = get_cash_group_with_max_markets(3)
+        settings[4] = 20 # 0.01
+        settings[8] = 19 # liquidation haircut must be less than
+        # Min Oracle Rate = [0.0125, 0.0250, 0.0375]
+        settings[9] = [25, 50, 75]
+        # Max Oracle Rate = [0.15, 0.1875, 0.225]
+        settings[10] = [100, 125, 150]
+        assetLibrary.setCashGroup(1, settings)
 
-            assert pvNegative > riskPVNegative
-            assert prevNegativePV < riskPVNegative or riskPVNegative == -1e18
-            prevNegativePV = riskPVNegative
+        # All are above the max oracle rate with the buffer subtracted
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[0], lastImpliedRate=0.17e9, oracleRate=0.17e9))
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[1], lastImpliedRate=0.20e9, oracleRate=0.20e9))
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[2], lastImpliedRate=0.25e9, oracleRate=0.25e9))
 
-    def test_floor_discount_rate(self, assetLibrary, cashGroups):
-        cashGroup = cashGroups[0][0]
-        riskPVNegative = assetLibrary.getRiskAdjustedPresentValue(
-            cashGroup, -1e18, MARKETS[0], START_TIME, 1
+        # All maturities out to one year, counting by 30, ensures that market maturities are hit
+        maturities = [START_TIME_TREF + SECONDS_IN_DAY * i for i in range(30, 360, 30)]
+        for m in maturities:
+            # Set the block supply rate to 16%
+            (oracleRate, _, debtOracleRate) = assetLibrary.getOracleRates(1, m, START_TIME_TREF, 0.16e9)
+            # debt oracle rates are always lower than the actual oracle rate
+            assert debtOracleRate < oracleRate
+
+            if m <= MARKETS[0]:
+                # This is the min oracle rate for sub 3 month markets
+                assert debtOracleRate == 0.15e9
+            elif m <= MARKETS[1]:
+                assert 0.15e9 <= debtOracleRate and debtOracleRate <= 0.1875e9
+            elif m <= MARKETS[2]:
+                assert 0.1875e9 <= debtOracleRate and debtOracleRate <= 0.225e9
+            else:
+                assert debtOracleRate == 0.225e9
+
+    def test_oracle_rates_within_boundaries(self, assetLibrary):
+        settings = get_cash_group_with_max_markets(3)
+        settings[4] = 20 # 0.01
+        settings[5] = 20 # 0.01
+        settings[7] = 19 # liquidation haircut must be less than
+        settings[8] = 19 # liquidation haircut must be less than
+        # Min Oracle Rate = [0.0125, 0.0250, 0.0375]
+        settings[9] = [25, 50, 75]
+        # Max Oracle Rate = [0.15, 0.1875, 0.225]
+        settings[10] = [100, 125, 150]
+        assetLibrary.setCashGroup(1, settings)
+
+        # All are above the max oracle rate with the buffer subtracted
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[0], lastImpliedRate=0.05e9, oracleRate=0.05e9))
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[1], lastImpliedRate=0.06e9, oracleRate=0.06e9))
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[2], lastImpliedRate=0.07e9, oracleRate=0.07e9))
+
+        # All maturities out to one year, counting by 30, ensures that market maturities are hit
+        maturities = [START_TIME_TREF + SECONDS_IN_DAY * i for i in range(30, 360, 30)]
+        for m in maturities:
+            # Set the block supply rate to 4%
+            (oracleRate, fCashOracleRate, debtOracleRate) = assetLibrary.getOracleRates(1, m, START_TIME_TREF, 0.04)
+            # Oracle rates do not hit min and max figures
+            assert fCashOracleRate == oracleRate + 0.01e9
+            assert debtOracleRate == oracleRate - 0.01e9
+
+    @given(maxDiscountFactor=strategy("uint8", min_value=1))
+    def test_max_discount_factor(self, assetLibrary, maxDiscountFactor):
+        settings = get_cash_group_with_max_markets(3)
+        settings[2] = maxDiscountFactor
+        assetLibrary.setCashGroup(1, settings)
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[0], lastImpliedRate=0.001e9, oracleRate=0.001e9))
+
+        # Get the one day discount factor
+        maturity = START_TIME_TREF + SECONDS_IN_DAY
+        (riskPv, pv) = assetLibrary.getRiskAdjustedPresentValue(1, 1e9, maturity, maturity - 10)
+
+        # Discount factor is 1e9
+        assert pv == 1e9
+        assert riskPv < pv
+        assert riskPv == 1e9 - maxDiscountFactor * BASIS_POINT
+
+    def test_floor_discount_rate(self, assetLibrary):
+        assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[0], lastImpliedRate=0.001e9, oracleRate=0.001e9))
+        (riskPv, pv) = assetLibrary.getRiskAdjustedPresentValue(
+            1, -1e9, MARKETS[0], START_TIME
         )
-        assert riskPVNegative == -1e18
+        assert riskPv == -1e9
+        assert riskPv < pv
 
-    def test_oracle_rate_failure(self, assetLibrary, cashGroups):
+    def test_oracle_rate_failure(self, assetLibrary):
         assets = [get_fcash_token(1, maturity=MARKETS[5])]
 
         # Fails due to unset market

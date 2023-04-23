@@ -53,8 +53,7 @@ contract MockValuationLib {
                 cashGroup,
                 asset.notional,
                 asset.maturity,
-                blockTime,
-                cashGroup.calculateOracleRate(asset.maturity, blockTime)
+                blockTime
             );
     }
 
@@ -82,16 +81,16 @@ contract MockValuationLib {
         return cashGroup.calculateOracleRate(maturity, blockTime);
     }
 
-    function getLiquidityTokenHaircuts(uint16 currencyId) external view returns (uint8[] memory) {
-        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
-        uint8[] memory haircuts = new uint8[](cashGroup.maxMarketIndex);
+    // function getLiquidityTokenHaircuts(uint16 currencyId) external view returns (uint8[] memory) {
+    //     CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+    //     uint8[] memory haircuts = new uint8[](cashGroup.maxMarketIndex);
 
-        for (uint256 i; i < haircuts.length; i++) {
-            haircuts[i] = cashGroup.getLiquidityHaircut(i + 2);
-        }
+    //     for (uint256 i; i < haircuts.length; i++) {
+    //         haircuts[i] = cashGroup.getLiquidityHaircut(i + 2);
+    //     }
 
-        return haircuts;
-    }
+    //     return haircuts;
+    // }
 
     function getBitNumFromMaturity(uint256 blockTime, uint256 maturity)
         external

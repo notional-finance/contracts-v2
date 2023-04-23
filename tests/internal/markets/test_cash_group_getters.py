@@ -9,7 +9,6 @@ from brownie.test import given, strategy
 from tests.constants import (
     BASIS_POINT,
     CASH_GROUP_PARAMETERS,
-    NORMALIZED_RATE_TIME,
     RATE_PRECISION,
     SECONDS_IN_DAY,
     START_TIME,
@@ -103,17 +102,17 @@ class TestCashGroupGetters:
             cashGroupParameters = [
                 maxMarketIndex,
                 random.randint(1, 255),  # 1 rateOracleTimeWindowMin,
-                0,  # 2 (deprecated) totalFeeBPS
+                random.randint(1, 255),  # 2 max discount factor
                 random.randint(1, 100),  # 3 reserveFeeShare,
                 random.randint(1, 255),  # 4 debtBuffer5BPS,
                 random.randint(1, 255),  # 5 fCashHaircut5BPS,
-                random.randint(1, 255),  # 6 settlement penalty bps,
+                0,  # 6 unused,
                 random.randint(1, 255),  # 7 liquidation fcash haircut
                 random.randint(1, 255),  # 8 liquidation debt buffer
-                # 9: token haircuts (percentages)
-                tuple([100 - i for i in range(0, maxMarketIndex)]),
-                # 10: rate scalar is deprecated
-                tuple([0 for i in range(0, maxMarketIndex)]),
+                # 9: min oracle rate
+                tuple([i for i in range(0, maxMarketIndex)]),
+                # 10: max oracle rate
+                tuple([100 + i for i in range(0, maxMarketIndex)]),
             ]
 
             # ensure liquidation fcash is less that fcash haircut
@@ -129,10 +128,11 @@ class TestCashGroupGetters:
             assert cg[1] == cashGroupParameters[0]  # Max market index
 
             assert cashGroupParameters[1] * 300 == cashGroup.getRateOracleTimeWindow(cg)
+            assert 1e9 - cashGroupParameters[2] * BASIS_POINT == cashGroup.getMaxDiscountFactor(cg)
             assert cashGroupParameters[3] == cashGroup.getReserveFeeShare(cg)
             assert cashGroupParameters[4] * 5 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
             assert cashGroupParameters[5] * 5 * BASIS_POINT == cashGroup.getfCashHaircut(cg)
-            assert cashGroupParameters[6] * 5 * BASIS_POINT == cashGroup.getSettlementPenalty(cg)
+            # assert cashGroupParameters[6] * 5 * BASIS_POINT == cashGroup.getSettlementPenalty(cg)
             assert cashGroupParameters[7] * 5 * BASIS_POINT == cashGroup.getLiquidationfCashHaircut(
                 cg
             )
@@ -141,7 +141,8 @@ class TestCashGroupGetters:
             )
 
             for m in range(0, maxMarketIndex):
-                assert cashGroupParameters[9][m] == cashGroup.getLiquidityHaircut(cg, m + 2)
+                assert cashGroupParameters[9][m] * 5 * BASIS_POINT == cashGroup.getMinOracleRate(cg, m + 1)
+                assert cashGroupParameters[10][m] * 15 * BASIS_POINT == cashGroup.getMaxOracleRate(cg, m + 1)
 
             storage = cashGroup.deserializeCashGroupStorage(5)
             assert storage == cashGroupParameters

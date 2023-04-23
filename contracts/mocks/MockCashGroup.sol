@@ -88,14 +88,6 @@ contract MockCashGroup is AbstractSettingsRouter {
         return cashGroup.getReserveFeeShare();
     }
 
-    function getLiquidityHaircut(CashGroupParameters memory cashGroup, uint256 timeToMaturity)
-        public
-        pure
-        returns (uint8)
-    {
-        return cashGroup.getLiquidityHaircut(timeToMaturity);
-    }
-
     function getfCashHaircut(CashGroupParameters memory cashGroup) public pure returns (uint256) {
         return cashGroup.getfCashHaircut();
     }
@@ -112,12 +104,28 @@ contract MockCashGroup is AbstractSettingsRouter {
         return cashGroup.getRateOracleTimeWindow();
     }
 
-    function getSettlementPenalty(CashGroupParameters memory cashGroup)
+    function getMaxDiscountFactor(CashGroupParameters memory cashGroup)
+        public
+        pure
+        returns (int256)
+    {
+        return cashGroup.getMaxDiscountFactor();
+    }
+
+    function getMinOracleRate(CashGroupParameters memory cashGroup, uint256 marketIndex)
         public
         pure
         returns (uint256)
     {
-        return cashGroup.getSettlementPenalty();
+        return cashGroup.getMinOracleRate(marketIndex);
+    }
+
+    function getMaxOracleRate(CashGroupParameters memory cashGroup, uint256 marketIndex)
+        public
+        pure
+        returns (uint256)
+    {
+        return cashGroup.getMaxOracleRate(marketIndex);
     }
 
     function getLiquidationfCashHaircut(CashGroupParameters memory cashGroup)

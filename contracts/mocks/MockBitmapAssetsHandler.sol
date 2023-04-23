@@ -133,15 +133,12 @@ contract MockBitmapAssetsHandler is AbstractSettingsRouter {
         uint256 maturity,
         uint256 blockTime
     ) public view returns (int256) {
-        uint256 oracleRate = CashGroup.calculateOracleRate(cashGroup, maturity, blockTime);
-
         return
             AssetHandler.getRiskAdjustedPresentfCashValue(
                 cashGroup,
                 notional,
                 maturity,
-                blockTime,
-                oracleRate
+                blockTime
             );
     }
 

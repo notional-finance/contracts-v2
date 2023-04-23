@@ -36,19 +36,19 @@ MARKETS = [
 ]
 
 CASH_GROUP_PARAMETERS = (
-    7,  # 0: Max Market Index
+    7,   # 0: Max Market Index
     10,  # 1: time window, 10 min
-    0,  # 2: [deprecated] total fee, 30 BPS
+    50,  # 2: max discount rate, 50 BPS (max discount 99.5)
     30,  # 3: reserve fee share, percentage
     30,  # 4: debt buffer 150 bps
     30,  # 5: fcash haircut 150 bps
-    40,  # 6: settlement penalty 400 bps
+    0,   # 6: [deprecated] settlement penalty
     20,  # 7: liquidation discount 100 bps
     20,  # 8: liquidation debt buffer
-    # 9: token haircuts (percentages)
-    (99, 98, 97, 96, 95, 94, 93),
-    # 10: [deprecated] rate scalar
+    # 9: min oracle rate 5 bps
     (0, 0, 0, 0, 0, 0, 0),
+    # 10: max oracle rate 15 bps
+    (255, 255, 255, 255, 255, 255, 255),
 )
 
 CURVE_SHAPES = {

@@ -13,6 +13,7 @@ contract MockFreeCollateral is MockValuationLib, AbstractSettingsRouter {
     using AccountContextHandler for AccountContext;
     using nTokenHandler for nTokenPortfolio;
     using Market for MarketParameters;
+    using CashGroup for CashGroupParameters;
 
     event Liquidation(LiquidationFactors factors);
     event FreeCollateralResult(int256 fc, int256[] netLocal);
@@ -120,25 +121,36 @@ contract MockFreeCollateral is MockValuationLib, AbstractSettingsRouter {
     }
 
     function getRiskAdjustedPresentValue(
-        CashGroupParameters memory cashGroup,
+        uint16 currencyId,
         int256 notional,
         uint256 maturity,
-        uint256 blockTime,
-        uint256 oracleRate
-    ) public pure returns (int256) {
-        int256 riskPv =
+        uint256 blockTime
+    ) public view returns (int256 riskPv, int256 pv) {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        riskPv =
             AssetHandler.getRiskAdjustedPresentfCashValue(
                 cashGroup,
                 notional,
                 maturity,
-                blockTime,
-                oracleRate
+                blockTime
             );
-        int256 pv = getPresentValue(notional, maturity, blockTime, oracleRate);
+        uint256 oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
+        pv = getPresentValue(notional, maturity, blockTime, oracleRate);
 
         assert(riskPv <= pv);
         assert(riskPv.abs() <= notional.abs());
-        return riskPv;
+    }
+
+    function getOracleRates(uint16 currencyId, uint256 maturity, uint256 blockTime, uint256 blockSupplyRate) public view returns (
+        uint256 oracleRate,
+        uint256 fCashOracleRate,
+        uint256 debtOracleRate
+    ) {
+        CashGroupParameters memory cashGroup = CashGroup.buildCashGroupView(currencyId);
+        cashGroup.primeRate.oracleSupplyRate = blockSupplyRate;
+        oracleRate = cashGroup.calculateOracleRate(maturity, blockTime);
+        fCashOracleRate = cashGroup.calculateRiskAdjustedfCashOracleRate(maturity, blockTime);
+        debtOracleRate = cashGroup.calculateRiskAdjustedDebtOracleRate(maturity, blockTime);
     }
 
     function getCashClaims(
@@ -154,7 +166,7 @@ contract MockFreeCollateral is MockValuationLib, AbstractSettingsRouter {
         return (cash, fCash);
     }
 
-    function getNToken(uint16 currencyId, uint256 blockTime) external view returns (nTokenPortfolio memory) {
+    function getNToken(uint16 currencyId) external view returns (nTokenPortfolio memory) {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
         return nToken;
