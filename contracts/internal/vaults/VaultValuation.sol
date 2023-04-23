@@ -98,11 +98,10 @@ library VaultValuation {
             );
         } else if (enableDiscount && maturity != Constants.PRIME_CASH_VAULT_MATURITY) {
             CashGroupParameters memory cashGroup = CashGroup.buildCashGroup(currencyId, primeRate);
-            uint256 oracleRate = cashGroup.calculateOracleRate(maturity, block.timestamp);
             // Use the risk adjusted present fCash value so that local currency liquidation has room to
             // pay the liquidator.
             debtUnderlying = AssetHandler.getRiskAdjustedPresentfCashValue(
-                cashGroup, debtUnderlying, maturity, block.timestamp, oracleRate
+                cashGroup, debtUnderlying, maturity, block.timestamp
             );
         }
 

@@ -319,25 +319,24 @@ struct CashGroupSettings {
     uint8 maxMarketIndex;
     // Time window in 5 minute increments that the rate oracle will be averaged over
     uint8 rateOracleTimeWindow5Min;
-    // Total fees per trade, specified in BPS
-    uint8 totalFeeBPS;
+    // Absolute maximum discount factor as a percentage discount from 1e9, specified in single basis points
+    // subtracted from 1e9
+    uint8 maxDiscountFactorBPS;
     // Share of the fees given to the protocol, denominated in percentage
     uint8 reserveFeeShare;
     // Debt buffer specified in 5 BPS increments
     uint8 debtBuffer5BPS;
     // fCash haircut specified in 5 BPS increments
     uint8 fCashHaircut5BPS;
-    // If an account has a negative cash balance, it can be settled by incurring debt at the 3 month market. This
-    // is the basis points for the penalty rate that will be added the current 3 month oracle rate.
-    uint8 settlementPenaltyRate5BPS;
+    uint8 _unused;
     // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
     uint8 liquidationfCashHaircut5BPS;
     // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
     uint8 liquidationDebtBuffer5BPS;
-    // Liquidity token haircut applied to cash claims, specified as a percentage between 0 and 100
-    uint8[] liquidityTokenHaircuts;
-    // Rate scalar used to determine the slippage of the market
-    uint8[] rateScalars;
+    // Minimum oracle interest rates for fCash per market, specified in 5 bps increments
+    uint8[] minOracleRate5BPS;
+    // Max oracle rate specified in 15bps increments as a discount from the max rate in the market.
+    uint8[] maxOracleRate15BPS;
 }
 
 /// @dev Holds account level context information used to determine settlement and

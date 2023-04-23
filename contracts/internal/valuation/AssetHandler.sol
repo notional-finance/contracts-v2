@@ -80,37 +80,42 @@ library AssetHandler {
         return notional.mulInRatePrecision(discountFactor);
     }
 
+    function getRiskAdjustedfCashDiscount(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal view returns (int256 discountFactor) {
+        uint256 oracleRate = cashGroup.calculateRiskAdjustedfCashOracleRate(maturity, blockTime);
+        discountFactor = getDiscountFactor(maturity.sub(blockTime), oracleRate);
+        int256 maxDiscountFactor = cashGroup.getMaxDiscountFactor();
+        if (maxDiscountFactor < discountFactor) discountFactor = maxDiscountFactor;
+    }
+
+    function getRiskAdjustedDebtDiscount(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal view returns (int256 discountFactor) {
+        uint256 oracleRate = cashGroup.calculateRiskAdjustedDebtOracleRate(maturity, blockTime);
+        discountFactor = oracleRate == 0 ? 
+            // Short circuit the expensive calculation if the oracle rate is floored to zero here.
+            Constants.RATE_PRECISION :
+            getDiscountFactor(maturity.sub(blockTime), oracleRate);
+    }
+
     /// @notice Present value of an fCash asset with risk adjustments. Positive fCash value will be discounted more
     /// heavily than the oracle rate given and vice versa for negative fCash.
     function getRiskAdjustedPresentfCashValue(
         CashGroupParameters memory cashGroup,
         int256 notional,
         uint256 maturity,
-        uint256 blockTime,
-        uint256 oracleRate
-    ) internal pure returns (int256) {
+        uint256 blockTime
+    ) internal view returns (int256) {
         if (notional == 0) return 0;
-        // NOTE: this will revert if maturity < blockTime. That is the correct behavior because we cannot
-        // discount matured assets.
-        uint256 timeToMaturity = maturity.sub(blockTime);
 
-        int256 discountFactor;
-        if (notional > 0) {
-            // If fCash is positive then discounting by a higher rate will result in a smaller
-            // discount factor (e ^ -x), meaning a lower positive fCash value.
-            discountFactor = getDiscountFactor(
-                timeToMaturity,
-                oracleRate.add(cashGroup.getfCashHaircut())
-            );
-        } else {
-            uint256 debtBuffer = cashGroup.getDebtBuffer();
-            // If the adjustment exceeds the oracle rate we floor the value of the fCash
-            // at the notional value. We don't want to require the account to hold more than
-            // absolutely required.
-            if (debtBuffer >= oracleRate) return notional;
-
-            discountFactor = getDiscountFactor(timeToMaturity, oracleRate - debtBuffer);
-        }
+        int256 discountFactor = notional > 0 ?
+            getRiskAdjustedfCashDiscount(cashGroup, maturity, blockTime) :
+            getRiskAdjustedDebtDiscount(cashGroup, maturity, blockTime);
 
         require(discountFactor <= Constants.RATE_PRECISION); // dev: get risk adjusted pv, invalid discount factor
         return notional.mulInRatePrecision(discountFactor);
@@ -148,16 +153,7 @@ library AssetHandler {
             // j will mark the index where we don't have this currency anymore
             if (a.currencyId != cashGroup.currencyId) break;
 
-            uint256 oracleRate = cashGroup.calculateOracleRate(a.maturity, blockTime);
-
-            int256 pv =
-                getRiskAdjustedPresentfCashValue(
-                    cashGroup,
-                    a.notional,
-                    a.maturity,
-                    blockTime,
-                    oracleRate
-                );
+            int256 pv = getRiskAdjustedPresentfCashValue(cashGroup, a.notional, a.maturity, blockTime);
             presentValueUnderlying = presentValueUnderlying.add(pv);
         }
 

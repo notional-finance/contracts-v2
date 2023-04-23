@@ -26,45 +26,55 @@ library CashGroup {
     // Bit number references for each parameter in the 32 byte word (0-indexed)
     uint256 private constant MARKET_INDEX_BIT = 31;
     uint256 private constant RATE_ORACLE_TIME_WINDOW_BIT = 30;
-    uint256 private constant _DEPRECATED_TOTAL_FEE_BIT = 29;
+    uint256 private constant MAX_DISCOUNT_FACTOR_BIT = 29;
     uint256 private constant RESERVE_FEE_SHARE_BIT = 28;
     uint256 private constant DEBT_BUFFER_BIT = 27;
     uint256 private constant FCASH_HAIRCUT_BIT = 26;
-    uint256 private constant SETTLEMENT_PENALTY_BIT = 25;
+    uint256 private constant _DEPRECATED_BIT = 25;
     uint256 private constant LIQUIDATION_FCASH_HAIRCUT_BIT = 24;
     uint256 private constant LIQUIDATION_DEBT_BUFFER_BIT = 23;
-    // 7 bytes allocated, one byte per market for the liquidity token haircut
-    uint256 private constant LIQUIDITY_TOKEN_HAIRCUT_FIRST_BIT = 22;
-    // 7 bytes allocated, one byte per market for the rate scalar
-    uint256 private constant _DEPRECATED_RATE_SCALAR_FIRST_BIT = 15; // @deprecated
+    // 7 bytes allocated, one byte per market for the min oracle rate
+    uint256 private constant MIN_ORACLE_RATE_FIRST_BIT = 22;
+    // 7 bytes allocated, one byte per market for the max oracle rate
+    uint256 private constant MAX_ORACLE_RATE_FIRST_BIT = 15; 
 
     // Offsets for the bytes of the different parameters
     uint256 private constant MARKET_INDEX = (31 - MARKET_INDEX_BIT) * 8;
     uint256 private constant RATE_ORACLE_TIME_WINDOW = (31 - RATE_ORACLE_TIME_WINDOW_BIT) * 8;
-    uint256 private constant _DEPRECATED_TOTAL_FEE = (31 - _DEPRECATED_TOTAL_FEE_BIT) * 8;
+    uint256 private constant MAX_DISCOUNT_FACTOR = (31 - MAX_DISCOUNT_FACTOR_BIT) * 8;
     uint256 private constant RESERVE_FEE_SHARE = (31 - RESERVE_FEE_SHARE_BIT) * 8;
     uint256 private constant DEBT_BUFFER = (31 - DEBT_BUFFER_BIT) * 8;
     uint256 private constant FCASH_HAIRCUT = (31 - FCASH_HAIRCUT_BIT) * 8;
-    uint256 private constant SETTLEMENT_PENALTY = (31 - SETTLEMENT_PENALTY_BIT) * 8;
+    uint256 private constant _DEPRECATED_SETTLEMENT_PENALTY = (31 - _DEPRECATED_BIT) * 8;
     uint256 private constant LIQUIDATION_FCASH_HAIRCUT = (31 - LIQUIDATION_FCASH_HAIRCUT_BIT) * 8;
     uint256 private constant LIQUIDATION_DEBT_BUFFER = (31 - LIQUIDATION_DEBT_BUFFER_BIT) * 8;
-    uint256 private constant LIQUIDITY_TOKEN_HAIRCUT = (31 - LIQUIDITY_TOKEN_HAIRCUT_FIRST_BIT) * 8;
-    uint256 private constant _DEPRECATED_RATE_SCALAR = (31 - _DEPRECATED_RATE_SCALAR_FIRST_BIT) * 8;
+    uint256 private constant MIN_ORACLE_RATE = (31 - MIN_ORACLE_RATE_FIRST_BIT) * 8;
+    uint256 private constant MAX_ORACLE_RATE = (31 - MAX_ORACLE_RATE_FIRST_BIT) * 8;
 
-    /// @notice Haircut on liquidity tokens to account for the risk associated with changes in the
-    /// proportion of cash to fCash within the pool. This is set as a percentage less than or equal to 100.
-    function getLiquidityHaircut(CashGroupParameters memory cashGroup, uint256 assetType)
-        internal
-        pure
-        returns (uint8)
+    function getMaxDiscountFactor(CashGroupParameters memory cashGroup)
+        internal pure returns (int256)
     {
-        require(
-            Constants.MIN_LIQUIDITY_TOKEN_INDEX <= assetType &&
-            assetType <= Constants.MAX_LIQUIDITY_TOKEN_INDEX
-        ); // dev: liquidity haircut invalid asset type
-        uint256 offset =
-            LIQUIDITY_TOKEN_HAIRCUT + 8 * (assetType - Constants.MIN_LIQUIDITY_TOKEN_INDEX);
-        return uint8(uint256(cashGroup.data >> offset));
+        uint256 maxDiscountFactor = uint256(uint8(uint256(cashGroup.data >> MAX_DISCOUNT_FACTOR))) * Constants.BASIS_POINT;
+        // Overflow/Underflow is not possible due to storage size limits
+        return Constants.RATE_PRECISION - int256(maxDiscountFactor);
+    }
+
+    function getMinOracleRate(CashGroupParameters memory cashGroup, uint256 marketIndex)
+        internal pure returns (uint256)
+    {
+        require(0 < marketIndex);
+        require(marketIndex <= Constants.MAX_TRADED_MARKET_INDEX);
+        uint256 offset = MIN_ORACLE_RATE + 8 * (marketIndex - 1);
+        return uint256(uint8(uint256(cashGroup.data >> offset))) * Constants.FIVE_BASIS_POINTS;
+    }
+
+    function getMaxOracleRate(CashGroupParameters memory cashGroup, uint256 marketIndex)
+        internal pure returns (uint256)
+    {
+        require(0 < marketIndex);
+        require(marketIndex <= Constants.MAX_TRADED_MARKET_INDEX);
+        uint256 offset = MAX_ORACLE_RATE + 8 * (marketIndex - 1);
+        return uint256(uint8(uint256(cashGroup.data >> offset))) * Constants.FIFTEEN_BASIS_POINTS;
     }
 
     /// @notice Percentage of the total trading fee that goes to the reserve
@@ -95,16 +105,6 @@ library CashGroup {
     {
         // This is denominated in 5 minute increments in storage
         return uint256(uint8(uint256(cashGroup.data >> RATE_ORACLE_TIME_WINDOW))) * Constants.FIVE_MINUTES;
-    }
-
-    /// @notice Penalty rate for settling cash debts denominated in basis points
-    function getSettlementPenalty(CashGroupParameters memory cashGroup)
-        internal
-        pure
-        returns (uint256)
-    {
-        return
-            uint256(uint8(uint256(cashGroup.data >> SETTLEMENT_PENALTY))) * Constants.FIVE_BASIS_POINTS;
     }
 
     /// @notice Haircut for positive fCash during liquidation denominated rate precision
@@ -187,26 +187,100 @@ library CashGroup {
         }
     }
 
+    function calculateRiskAdjustedfCashOracleRate(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal view returns (uint256 oracleRate) {
+        uint256 marketIndex; uint256 shortMaturity; uint256 longMaturity;
+        (oracleRate, marketIndex, shortMaturity, longMaturity) = _calculateOracleRate(
+            cashGroup, maturity, blockTime
+        );
+
+        oracleRate = oracleRate.add(getfCashHaircut(cashGroup));
+        uint256 minOracleRate;
+        if (shortMaturity == 0 || shortMaturity == blockTime) {
+            // If short maturity == blockTime then it is a sub 3 month ifCash asset and marketIndex
+            // will equal 1 at this point. Use the shortest dated market's oracle rate in that case.
+            minOracleRate = getMinOracleRate(cashGroup, marketIndex);
+        } else {
+            // Use the min oracle rate of whichever market index is closer. No overflows or underflows
+            // can happen since maturities are checked in _calculateOracleRate.
+            minOracleRate = (maturity - shortMaturity) < (longMaturity - maturity) ?
+                getMinOracleRate(cashGroup, marketIndex - 1) :
+                getMinOracleRate(cashGroup, marketIndex);
+        }
+
+        if (oracleRate < minOracleRate) oracleRate = minOracleRate;
+    }
+
+    function calculateRiskAdjustedDebtOracleRate(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) internal view returns (uint256 oracleRate) {
+        uint256 marketIndex; uint256 shortMaturity; uint256 longMaturity;
+        (oracleRate, marketIndex, shortMaturity, longMaturity) = _calculateOracleRate(
+            cashGroup, maturity, blockTime
+        );
+
+        uint256 debtBuffer = getDebtBuffer(cashGroup);
+        // If the adjustment exceeds the oracle rate we floor the oracle rate at zero,
+        // We don't want to require the account to hold more than absolutely required.
+        if (oracleRate <= debtBuffer) return 0;
+
+        oracleRate = oracleRate - debtBuffer;
+        uint256 maxOracleRate;
+        if (shortMaturity == 0 || shortMaturity == blockTime) {
+            // If short maturity == blockTime then it is a sub 3 month ifCash asset and marketIndex
+            // will equal 1 at this point. Use the shortest dated market's oracle rate in that case.
+            maxOracleRate = getMaxOracleRate(cashGroup, marketIndex);
+        } else {
+            // Use the max oracle rate of whichever market index is closer. No overflows or underflows
+            // can happen since maturities are checked in _calculateOracleRate.
+            maxOracleRate = (maturity - shortMaturity) < (longMaturity - maturity) ?
+                getMaxOracleRate(cashGroup, marketIndex - 1) :
+                getMaxOracleRate(cashGroup, marketIndex);
+        }
+
+        if (maxOracleRate < oracleRate) oracleRate = maxOracleRate;
+    }
+    
+
     /// @dev Gets an oracle rate given any valid maturity.
     function calculateOracleRate(
         CashGroupParameters memory cashGroup,
         uint256 maturity,
         uint256 blockTime
     ) internal view returns (uint256) {
-        (uint256 marketIndex, bool idiosyncratic) =
+        (uint256 oracleRate, /* */, /* */, /* */) = _calculateOracleRate(cashGroup, maturity, blockTime);
+        return oracleRate;
+    }
+
+    function _calculateOracleRate(
+        CashGroupParameters memory cashGroup,
+        uint256 maturity,
+        uint256 blockTime
+    ) private view returns (
+        uint256 oracleRate,
+        uint256 marketIndex,
+        uint256 shortMaturity,
+        uint256 longMaturity
+    ) {
+        bool idiosyncratic;
+        (marketIndex, idiosyncratic) =
             DateTime.getMarketIndex(cashGroup.maxMarketIndex, maturity, blockTime);
         uint256 timeWindow = getRateOracleTimeWindow(cashGroup);
 
         if (!idiosyncratic) {
-            return Market.getOracleRate(cashGroup.currencyId, maturity, timeWindow, blockTime);
+            oracleRate = Market.getOracleRate(cashGroup.currencyId, maturity, timeWindow, blockTime);
         } else {
             uint256 referenceTime = DateTime.getReferenceTime(blockTime);
             // DateTime.getMarketIndex returns the market that is past the maturity if idiosyncratic
-            uint256 longMaturity = referenceTime.add(DateTime.getTradedMarket(marketIndex));
+            longMaturity = referenceTime.add(DateTime.getTradedMarket(marketIndex));
             uint256 longRate =
                 Market.getOracleRate(cashGroup.currencyId, longMaturity, timeWindow, blockTime);
 
-            uint256 shortMaturity;
             uint256 shortRate;
             if (marketIndex == 1) {
                 // In this case the short market is the annualized asset supply rate
@@ -224,7 +298,7 @@ library CashGroup {
                 );
             }
 
-            return interpolateOracleRate(shortMaturity, longMaturity, shortRate, longRate, maturity);
+            oracleRate = interpolateOracleRate(shortMaturity, longMaturity, shortRate, longRate, maturity);
         }
     }
 
@@ -247,49 +321,43 @@ library CashGroup {
         // The reason is that borrowers will not have a further maturity to roll from their 3 month fixed to a 6 month
         // fixed. It also complicates the logic in the nToken initialization method. Additionally, we cannot have cash
         // groups with 0 market index, it has no effect.
-        require(2 <= cashGroup.maxMarketIndex && cashGroup.maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX,
-            "CG: invalid market index"
-        );
-        require(
-            cashGroup.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS,
-            "CG: invalid reserve share"
-        );
-        require(cashGroup.liquidityTokenHaircuts.length == cashGroup.maxMarketIndex);
+        require(2 <= cashGroup.maxMarketIndex && cashGroup.maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX);
+        require(cashGroup.reserveFeeShare <= Constants.PERCENTAGE_DECIMALS);
+        // Max discount factor must be set to a non-zero value
+        require(0 < cashGroup.maxDiscountFactorBPS);
+        require(cashGroup.minOracleRate5BPS.length == cashGroup.maxMarketIndex);
         // This is required so that fCash liquidation can proceed correctly
         require(cashGroup.liquidationfCashHaircut5BPS < cashGroup.fCashHaircut5BPS);
         require(cashGroup.liquidationDebtBuffer5BPS < cashGroup.debtBuffer5BPS);
 
         // Market indexes cannot decrease or they will leave fCash assets stranded in the future with no valuation curve
         uint8 previousMaxMarketIndex = getMaxMarketIndex(currencyId);
-        require(
-            previousMaxMarketIndex <= cashGroup.maxMarketIndex,
-            "CG: market index cannot decrease"
-        );
+        require(previousMaxMarketIndex <= cashGroup.maxMarketIndex);
 
         // Per cash group settings
         bytes32 data =
             (bytes32(uint256(cashGroup.maxMarketIndex)) |
                 (bytes32(uint256(cashGroup.rateOracleTimeWindow5Min)) << RATE_ORACLE_TIME_WINDOW) |
-                (bytes32(0) << _DEPRECATED_TOTAL_FEE) |
+                (bytes32(uint256(cashGroup.maxDiscountFactorBPS)) << MAX_DISCOUNT_FACTOR) |
                 (bytes32(uint256(cashGroup.reserveFeeShare)) << RESERVE_FEE_SHARE) |
                 (bytes32(uint256(cashGroup.debtBuffer5BPS)) << DEBT_BUFFER) |
                 (bytes32(uint256(cashGroup.fCashHaircut5BPS)) << FCASH_HAIRCUT) |
-                (bytes32(uint256(cashGroup.settlementPenaltyRate5BPS)) << SETTLEMENT_PENALTY) |
+                (bytes32(uint256(0)) << _DEPRECATED_SETTLEMENT_PENALTY) |
                 (bytes32(uint256(cashGroup.liquidationfCashHaircut5BPS)) <<
                     LIQUIDATION_FCASH_HAIRCUT) |
                 (bytes32(uint256(cashGroup.liquidationDebtBuffer5BPS)) << LIQUIDATION_DEBT_BUFFER));
 
         // Per market group settings
-        for (uint256 i = 0; i < cashGroup.liquidityTokenHaircuts.length; i++) {
+        require(cashGroup.minOracleRate5BPS.length == cashGroup.maxOracleRate15BPS.length);
+        for (uint256 i = 0; i < cashGroup.minOracleRate5BPS.length; i++) {
+            data = data | (bytes32(uint256(cashGroup.minOracleRate5BPS[i])) << (MIN_ORACLE_RATE + i * 8));
+            // Check that min is always less than max
             require(
-                cashGroup.liquidityTokenHaircuts[i] <= Constants.PERCENTAGE_DECIMALS,
-                "CG: invalid token haircut"
+                cashGroup.minOracleRate5BPS[i] * Constants.FIVE_BASIS_POINTS < cashGroup.maxOracleRate15BPS[i] * Constants.FIFTEEN_BASIS_POINTS
             );
-
-            data =
-                data |
-                (bytes32(uint256(cashGroup.liquidityTokenHaircuts[i])) <<
-                    (LIQUIDITY_TOKEN_HAIRCUT + i * 8));
+        }
+        for (uint256 i = 0; i < cashGroup.maxOracleRate15BPS.length; i++) {
+            data = data | (bytes32(uint256(cashGroup.maxOracleRate15BPS[i])) << (MAX_ORACLE_RATE + i * 8));
         }
 
         mapping(uint256 => bytes32) storage store = LibStorage.getCashGroupStorage();
@@ -304,27 +372,27 @@ library CashGroup {
     {
         bytes32 data = _getCashGroupStorageBytes(currencyId);
         uint8 maxMarketIndex = uint8(data[MARKET_INDEX_BIT]);
-        uint8[] memory tokenHaircuts = new uint8[](uint256(maxMarketIndex));
-        uint8[] memory rateScalars = new uint8[](uint256(maxMarketIndex));
+        uint8[] memory minOracleRate = new uint8[](uint256(maxMarketIndex));
+        uint8[] memory maxOracleRate = new uint8[](uint256(maxMarketIndex));
 
         for (uint8 i = 0; i < maxMarketIndex; i++) {
-            tokenHaircuts[i] = uint8(data[LIQUIDITY_TOKEN_HAIRCUT_FIRST_BIT - i]);
-            rateScalars[i] = uint8(data[_DEPRECATED_RATE_SCALAR_FIRST_BIT - i]);
+            minOracleRate[i] = uint8(data[MIN_ORACLE_RATE_FIRST_BIT - i]);
+            maxOracleRate[i] = uint8(data[MAX_ORACLE_RATE_FIRST_BIT - i]);
         }
 
         return
             CashGroupSettings({
                 maxMarketIndex: maxMarketIndex,
                 rateOracleTimeWindow5Min: uint8(data[RATE_ORACLE_TIME_WINDOW_BIT]),
-                totalFeeBPS: uint8(data[_DEPRECATED_TOTAL_FEE_BIT]),
+                maxDiscountFactorBPS: uint8(data[MAX_DISCOUNT_FACTOR_BIT]),
                 reserveFeeShare: uint8(data[RESERVE_FEE_SHARE_BIT]),
                 debtBuffer5BPS: uint8(data[DEBT_BUFFER_BIT]),
                 fCashHaircut5BPS: uint8(data[FCASH_HAIRCUT_BIT]),
-                settlementPenaltyRate5BPS: uint8(data[SETTLEMENT_PENALTY_BIT]),
+                _unused: uint8(0),
                 liquidationfCashHaircut5BPS: uint8(data[LIQUIDATION_FCASH_HAIRCUT_BIT]),
                 liquidationDebtBuffer5BPS: uint8(data[LIQUIDATION_DEBT_BUFFER_BIT]),
-                liquidityTokenHaircuts: tokenHaircuts,
-                rateScalars: rateScalars
+                minOracleRate5BPS: minOracleRate,
+                maxOracleRate15BPS: maxOracleRate
             });
     }
 

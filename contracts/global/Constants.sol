@@ -94,6 +94,8 @@ library Constants {
     uint256 internal constant FIVE_BASIS_POINTS = 5 * BASIS_POINT;
     // Used for residual purchase incentive and cash withholding buffer
     uint256 internal constant TEN_BASIS_POINTS = 10 * BASIS_POINT;
+    // Used for max oracle rate
+    uint256 internal constant FIFTEEN_BASIS_POINTS = 15 * BASIS_POINT;
     // Used in max rate calculations
     uint256 internal constant MAX_LOWER_INCREMENT = 150;
     uint256 internal constant MAX_LOWER_INCREMENT_VALUE = 150 * 25 * BASIS_POINT;

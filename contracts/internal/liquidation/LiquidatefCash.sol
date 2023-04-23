@@ -53,31 +53,27 @@ library LiquidatefCash {
         bool isNotionalPositive
     ) private view returns (int256 riskAdjustedDiscountFactor, int256 liquidationDiscountFactor) {
         uint256 oracleRate = factors.collateralCashGroup.calculateOracleRate(maturity, blockTime);
-        uint256 timeToMaturity = maturity.sub(blockTime);
 
         if (isNotionalPositive) {
             // This is the discount factor used to calculate the fCash present value during free collateral
-            riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
-                timeToMaturity,
-                oracleRate.add(factors.collateralCashGroup.getfCashHaircut())
+            riskAdjustedDiscountFactor = AssetHandler.getRiskAdjustedfCashDiscount(
+                factors.collateralCashGroup, maturity, blockTime
             );
 
             // This is the discount factor that liquidators get to purchase fCash at, will be larger than
             // the risk adjusted discount factor.
             liquidationDiscountFactor = AssetHandler.getDiscountFactor(
-                timeToMaturity,
+                maturity.sub(blockTime),
                 oracleRate.add(factors.collateralCashGroup.getLiquidationfCashHaircut())
             );
         } else {
-            uint256 buffer = factors.collateralCashGroup.getDebtBuffer();
-            riskAdjustedDiscountFactor = AssetHandler.getDiscountFactor(
-                timeToMaturity,
-                oracleRate < buffer ? 0 : oracleRate.sub(buffer)
+            riskAdjustedDiscountFactor = AssetHandler.getRiskAdjustedDebtDiscount(
+                factors.collateralCashGroup, maturity, blockTime
             );
 
-            buffer = factors.collateralCashGroup.getLiquidationDebtBuffer();
+            uint256 buffer = factors.collateralCashGroup.getLiquidationDebtBuffer();
             liquidationDiscountFactor = AssetHandler.getDiscountFactor(
-                timeToMaturity,
+                maturity.sub(blockTime),
                 oracleRate < buffer ? 0 : oracleRate.sub(buffer)
             );
         }

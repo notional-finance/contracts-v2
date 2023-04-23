@@ -273,11 +273,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         CashGroupParameters memory cg = CashGroup.buildCashGroupView(currencyId);
         if (riskAdjusted) {
             presentValue = AssetHandler.getRiskAdjustedPresentfCashValue(
-                cg,
-                notional,
-                maturity,
-                blockTime,
-                cg.calculateOracleRate(maturity, blockTime)
+                cg, notional, maturity, blockTime
             );
         } else {
             presentValue = AssetHandler.getPresentfCashValue(
