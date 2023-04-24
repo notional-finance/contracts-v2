@@ -17,6 +17,8 @@ interface NotionalCalculations {
         view
         returns (int256);
 
+    function convertNTokenToUnderlying(uint16 currencyId, int256 nTokenBalance) external view returns (int256);
+
     function getfCashAmountGivenCashAmount(
         uint16 currencyId,
         int88 netCashToAccount,

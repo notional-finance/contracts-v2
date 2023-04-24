@@ -68,4 +68,12 @@ interface nERC1155Interface {
         uint40 maturity,
         uint8 assetType
     ) external pure returns (uint256 id);
+    
+    function encode(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        address vaultAddress,
+        bool isfCashDebt
+    ) external pure returns (uint256);
 }

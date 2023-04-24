@@ -35,7 +35,7 @@ contract PrimeCashProxy is BaseERC4626Proxy {
     }
 
     function _balanceOf(address account) internal view override returns (uint256 balance) {
-        (int256 cashBalance, /* */, /* */) = NOTIONAL.getAccountBalance(currencyId, account);
+        int256 cashBalance = NOTIONAL.getBalanceOfPrimeCash(currencyId, account);
 
         // If cash balance is negative, return a zero to maintain compatibility with uint
         return cashBalance < 0 ? 0 : uint256(cashBalance);

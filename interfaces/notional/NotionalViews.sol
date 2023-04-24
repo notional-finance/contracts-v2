@@ -87,6 +87,8 @@ interface NotionalViews {
 
     function getPrimeCashHoldingsOracle(uint16 currencyId) external view returns (address);
 
+    function getPrimeInterestRateCurve(uint16 currencyId) external view returns (InterestRateParameters memory);
+
     function getTotalfCashDebtOutstanding(uint16 currencyId, uint256 maturity) external view returns (int256);
 
     function getSettlementRate(uint16 currencyId, uint40 maturity)
@@ -152,6 +154,11 @@ interface NotionalViews {
             uint256 lastClaimTime
         );
 
+    function getBalanceOfPrimeCash(
+        uint16 currencyId,
+        address account
+    ) external view returns (int256 cashBalance);
+
     function getAccountPortfolio(address account) external view returns (PortfolioAsset[] memory);
 
     function getfCashNotional(
@@ -173,4 +180,12 @@ interface NotionalViews {
     function getRebalancingCooldown(uint16 currencyId) external view returns (uint40);
 
     function getStoredTokenBalances(address[] calldata tokens) external view returns (uint256[] memory balances);
+
+    function decodeERC1155Id(uint256 id) external view returns (
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        address vaultAddress,
+        bool isfCashDebt
+    );
 }

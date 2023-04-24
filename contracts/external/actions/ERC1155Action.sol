@@ -4,7 +4,8 @@ pragma abicoder v2;
 
 import {
     AccountContext,
-    PortfolioAsset
+    PortfolioAsset,
+    MarketParameters
 } from '../../global/Types.sol';
 import {StorageLayoutV1} from "../../global/StorageLayoutV1.sol";
 import {Constants} from "../../global/Constants.sol";
@@ -14,9 +15,12 @@ import {Emitter} from "../../internal/Emitter.sol";
 import {AccountContextHandler} from "../../internal/AccountContextHandler.sol";
 import {DateTime} from "../../internal/markets/DateTime.sol";
 import {CashGroup} from "../../internal/markets/CashGroup.sol";
+import {Market} from "../../internal/markets/Market.sol";
+import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
 import {TransferAssets} from "../../internal/portfolio/TransferAssets.sol";
 import {PortfolioHandler} from "../../internal/portfolio/PortfolioHandler.sol";
 import {BitmapAssetsHandler} from "../../internal/portfolio/BitmapAssetsHandler.sol";
+import {AssetHandler} from "../../internal/valuation/AssetHandler.sol";
 
 import {FreeCollateralExternal} from "../FreeCollateralExternal.sol";
 import {SettleAssetsExternal} from "../SettleAssetsExternal.sol";
@@ -54,7 +58,10 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
     /// @param id the ERC1155 id
     /// @return notional balance of the ERC1155 id as a signed integer
     function signedBalanceOf(address account, uint256 id) public view override returns (int256 notional) {
-        if (Emitter.isfCash(id)) {
+        if (nTokenHandler.nTokenAddress(Emitter.decodeCurrencyId(id)) == account) {
+            // Special handling for nToken balances since they do not work like regular account balances.
+            return _balanceInNToken(account, id);
+        } else if (Emitter.isfCash(id)) {
             (uint16 currencyId, uint256 maturity, bool isfCashDebt) = Emitter.decodefCashId(id);
             AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
 
@@ -74,7 +81,7 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         } else {
             // In this case, the id is referencing a vault asset and we make a call back to retrieve the relevant
             // data. This is pretty inefficient for on chain calls but will work fine for off chain calls
-            IVaultAccountHealth(address(this)).signedBalanceOfVaultTokenId(account, id);
+            return IVaultAccountHealth(address(this)).signedBalanceOfVaultTokenId(account, id);
         }
     }
 
@@ -151,6 +158,36 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         return 0;
     }
 
+    function _balanceInNToken(address nTokenAccount, uint256 id) internal view returns (int256 balance) {
+        (uint16 currencyId, uint256 maturity, bool isfCashDebt) = Emitter.decodefCashId(id);
+        // Allow the balanceOf to search all of the max markets, if the returned market index exceeds the asset array length then,
+        // the function will return a zero balance rather than revert.
+        (uint256 marketIndex, bool isIdiosyncratic) = DateTime.getMarketIndex(Constants.MAX_TRADED_MARKET_INDEX, maturity, block.timestamp);
+
+        if (isIdiosyncratic || isfCashDebt) {
+            // If asking for an idiosyncratic market or fCash debt, then the fCash balance will only be in the bitmap
+            balance = _balanceInBitmap(nTokenAccount, currencyId, currencyId, maturity);
+
+            // Flip the sign to positive if asking for the fCash debt
+            if (isfCashDebt) return balance < 0 ? balance.neg() : 0;
+        } else {
+            // If asking for the positive fCash balance, that means we need to load the market and get the cash claims
+            (/* */, /* */, /* */, uint8 assetArrayLength, /* */) = nTokenHandler.getNTokenContext(nTokenAccount);
+
+            // Market index is beyond the maximum length of the market so return a zero balance.
+            if (marketIndex > assetArrayLength) return 0;
+
+            PortfolioAsset[] memory liquidityTokens = PortfolioHandler.getSortedPortfolio(nTokenAccount, assetArrayLength);
+            MarketParameters memory market;
+            // rateOracleTimeWindow is not used here, so it is set to 1 to save some gas. This also only loads the current settlement
+            // market, if markets are not initialized this will not return the proper balance.
+            Market.loadMarket(market, currencyId, maturity, block.timestamp, true, 1);
+            if (market.totalLiquidity == 0) return 0;
+
+            (/* int256 cashClaim */, balance) = AssetHandler.getCashClaims(liquidityTokens[marketIndex - 1], market);
+        }
+    }
+
     /// @notice Transfer of a single fCash or liquidity token asset between accounts. Allows `from` account to transfer more fCash
     /// than they have as long as they pass a subsequent free collateral check. This enables OTC trading of fCash assets.
     /// @param from account to transfer from
@@ -187,8 +224,6 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
 
             // prettier-ignore
             (fromContext, /* toContext */) = _transfer(from, to, assets);
-
-            emit TransferSingle(msg.sender, from, to, id, amount);
         } else {
             fromContext = AccountContextHandler.getAccountContext(from);
         }
@@ -239,7 +274,6 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         );
 
         _checkPostTransferEvent(from, to, fromContext, toContext, data, toTransferNegative);
-        emit TransferBatch(msg.sender, from, to, ids, amounts);
 
         // Do this at the end to prevent re-entrancy
         if (Address.isContract(to)) {
@@ -284,7 +318,7 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         (PortfolioAsset[] memory assets, /* */) = _decodeToAssets(ids, amounts);
         return assets;
     }
-    
+
     function _decodeTofCashAsset(uint256 id, PortfolioAsset memory asset) private pure {
         require(Emitter.isfCash(id), "Only fCash Transfer");
         bool isfCashDebt;
@@ -336,6 +370,17 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         uint8 /* assetType */
     ) external pure override returns (uint256) {
         return Emitter.encodefCashId(currencyId, maturity, 0);
+    }
+
+    // TODO: this needs to move into views
+    function encode(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        address vaultAddress,
+        bool isfCashDebt
+    ) external pure override returns (uint256) {
+        return Emitter.encodeId(currencyId, maturity, assetType, vaultAddress, isfCashDebt);
     }
 
     /// @dev Ensures that all maturities specified are valid for the currency id (i.e. they do not

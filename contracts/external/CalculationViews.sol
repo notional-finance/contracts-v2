@@ -80,6 +80,13 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         return tokensToMint.toUint();
     }
 
+    function convertNTokenToUnderlying(uint16 currencyId, int256 nTokenBalance) external view override returns (int256) {
+        (int256 totalPrimePV, nTokenPortfolio memory nToken) = _getNTokenPV(currencyId);
+        int256 valueInPrimeCash = nTokenBalance.mul(totalPrimePV).div(nToken.totalSupply);
+        int256 valueInUnderlying = nToken.cashGroup.primeRate.convertToUnderlying(valueInPrimeCash);
+        return _convertToAmountExternal(currencyId, valueInUnderlying.abs()).toInt();
+    }
+
     /// @notice Returns the present value of the nToken's assets denominated in asset tokens
     function nTokenPresentValueAssetDenominated(uint16 currencyId) external view override returns (int256) {
         (int256 totalPrimePV, /* */) = _getNTokenPV(currencyId);

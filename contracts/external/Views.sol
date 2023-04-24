@@ -43,6 +43,7 @@ import {BalanceHandler} from "../internal/balances/BalanceHandler.sol";
 import {PortfolioHandler} from "../internal/portfolio/PortfolioHandler.sol";
 import {BitmapAssetsHandler} from "../internal/portfolio/BitmapAssetsHandler.sol";
 import {AccountContextHandler} from "../internal/AccountContextHandler.sol";
+import {Emitter} from "../internal/Emitter.sol";
 
 import {NotionalViews} from "../../interfaces/notional/NotionalViews.sol";
 import {FreeCollateralExternal} from "./FreeCollateralExternal.sol";
@@ -266,6 +267,12 @@ contract Views is StorageLayoutV2, NotionalViews {
 
     function getPrimeCashHoldingsOracle(uint16 currencyId) external view override returns (address) {
         return address(PrimeCashExchangeRate.getPrimeCashHoldingsOracle(currencyId));
+    }
+
+    function getPrimeInterestRateCurve(uint16 currencyId) external view override returns (
+        InterestRateParameters memory
+    ) {
+        return InterestRateCurve.getPrimeCashInterestRateParameters(currencyId);
     }
 
     function getTotalfCashDebtOutstanding(
@@ -493,7 +500,7 @@ contract Views is StorageLayoutV2, NotionalViews {
         int256 cashBalance = balanceStorage.cashBalance;
 
         // Only return cash balances less than zero
-        debtBalance = cashBalance < 0 ? debtBalance : 0;
+        debtBalance = cashBalance < 0 ? cashBalance : 0;
     }
 
     /// @notice Returns account balances for a given currency
@@ -510,6 +517,20 @@ contract Views is StorageLayoutV2, NotionalViews {
             lastClaimTime,
             /* */
         ) = BalanceHandler.getBalanceStorageView(account, currencyId, block.timestamp);
+    }
+
+    /// @notice Returns the balance of figure for prime cash for the prime cash proxy, the logic is slightly modified
+    /// for the nToken account because it needs to return the sum of all cash held in markets.
+    function getBalanceOfPrimeCash(
+        uint16 currencyId,
+        address account
+    ) external view override returns (int256 cashBalance) {
+        (cashBalance, /* */, /* */, /* */) = BalanceHandler.getBalanceStorageView(account, currencyId, block.timestamp);
+
+        if (account == nTokenHandler.nTokenAddress(currencyId)) {
+            MarketParameters[] memory markets = _getActiveMarketsAtBlockTime(currencyId, block.timestamp);
+            for (uint256 i; i < markets.length; i++) cashBalance = cashBalance.add(markets[i].totalPrimeCash);
+        }
     }
 
     /// @notice Returns account portfolio of assets
@@ -573,6 +594,17 @@ contract Views is StorageLayoutV2, NotionalViews {
             balances[i] = store[tokens[i]];
         }
     }
+
+    function decodeERC1155Id(uint256 id) external view override returns (
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        address vaultAddress,
+        bool isfCashDebt
+    ) {
+        return Emitter.decodeId(id);
+    }
+    
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
     function getLibInfo() external pure returns (address, address) {
