@@ -97,7 +97,7 @@ contract MockVaultConfiguration is AbstractSettingsRouter {
     }
 
     function setVaultAccount(VaultAccount memory vaultAccount, address vault) external {
-        vaultAccount.setVaultAccount(getVaultConfig(vault), true);
+        vaultAccount.setVaultAccount(getVaultConfig(vault), true, true);
     }
 
     function setfCashBorrowCapacity(

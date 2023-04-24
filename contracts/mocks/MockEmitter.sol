@@ -2,6 +2,8 @@
 pragma solidity >=0.8.11;
 
 contract MockERC1155Emitter {
+    event Transfer(address indexed from, address indexed to, uint256 value);
+
     event TransferSingle(
         address indexed operator,
         address indexed from,
@@ -19,6 +21,8 @@ contract MockERC1155Emitter {
     event URI(string value, uint256 indexed id);
 
     mapping(uint256 => string) public uri;
+    uint256 public totalSupply;
+    mapping(address => uint256) public balanceOf;
 
     function supportsInterface(bytes4 interfaceID) external view returns (bool) {
       return interfaceID == 0x01ffc9a7 ||    // ERC-165 support (i.e. `bytes4(keccak256('supportsInterface(bytes4)'))`).
@@ -44,6 +48,24 @@ contract MockERC1155Emitter {
         uint256[] calldata values
     ) external {
         emit TransferBatch(operator, from, to, ids, values);
+    }
+
+    function setTotalSupply(uint256 value) public {
+        totalSupply = value;
+    }
+
+    function setBalanceOf(address owner, uint256 value) public {
+        balanceOf[owner] = value;
+    }
+
+    function emitERC20TransferBatch(
+        address[] calldata from,
+        address[] calldata to,
+        uint256[] calldata values
+    ) external {
+        for (uint256 i; i < from.length; i++) {
+            emit Transfer(from[i], to[i], values[i]);
+        }
     }
 
     function setURI(
@@ -74,9 +96,9 @@ contract MockERC1155Emitter {
         revert();
     }
 
-    function balanceOf(address account, uint256 id) external view returns (uint256) {
-        return 0;
-    }
+    // function balanceOf(address account, uint256 id) external view returns (uint256) {
+    //     return 0;
+    // }
 
     function balanceOfBatch(address[] calldata accounts, uint256[] calldata ids)
         external

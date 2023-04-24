@@ -274,6 +274,7 @@ contract MultiBorrowStrategyVault is BaseStrategyVault {
             (msgValue, /* */, /* */, /* */) = NOTIONAL.getDepositFromfCashLend(
                 uint16(Constants.ETH_CURRENCY_ID), fCashToRepay, maturity, 0, block.timestamp
             );
+            if (msgValue == 0) msgValue = fCashToRepay * 1e10;
         }
 
         int256 refundedCash = accountSecondaryCashHeld[0];
