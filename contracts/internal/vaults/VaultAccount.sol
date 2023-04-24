@@ -96,20 +96,22 @@ library VaultAccountLib {
         // Clear temp cash balance, it is not updated during liquidation
         vaultAccount.tempCashBalance = 0;
 
-        _setVaultAccount(vaultAccount, vaultConfig, s, checkMinBorrow, true);
+        // No events emitted
+        _setVaultAccount(vaultAccount, vaultConfig, s, checkMinBorrow, false);
     }
 
     /// @notice Sets a single account's vault position in storage
     function setVaultAccount(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig,
-        bool checkMinBorrow 
+        bool checkMinBorrow,
+        bool emitEvents
     ) internal {
         mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
             .getVaultAccount();
         VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
 
-        _setVaultAccount(vaultAccount, vaultConfig, s, checkMinBorrow, false);
+        _setVaultAccount(vaultAccount, vaultConfig, s, checkMinBorrow, emitEvents);
 
         // Cash balances should never be preserved after a non-liquidation transaction,
         // during enter, exit, roll and settle any cash balances should be applied to
@@ -123,7 +125,7 @@ library VaultAccountLib {
         VaultConfig memory vaultConfig,
         VaultAccountStorage storage s,
         bool checkMinBorrow,
-        bool isLiquidation
+        bool emitEvents
     ) private {
         // The temporary cash balance must be cleared to zero by the end of the transaction
         require(vaultAccount.tempCashBalance == 0); // dev: cash balance not cleared
@@ -153,8 +155,8 @@ library VaultAccountLib {
             vaultAccount.accountDebtUnderlying
         ).neg().toUint();
 
-        if (!isLiquidation) {
-            // Liquidation will emit its own custom events
+        if (emitEvents) {
+            // Liquidation will emit its own custom event instead of these
             Emitter.emitVaultAccountChanges(vaultAccount, vaultConfig, s, newDebtStorageValue);
         }
 
@@ -284,7 +286,9 @@ library VaultAccountLib {
         // Sets the maturity on the vault account, deposits tokens into the vault, and updates the vault state 
         vaultSharesAdded = vaultState.enterMaturity(vaultAccount, vaultConfig, strategyTokenDeposit, vaultData);
         vaultAccount.lastUpdateBlockTime = block.timestamp;
-        setVaultAccount({vaultAccount: vaultAccount, vaultConfig: vaultConfig, checkMinBorrow: true});
+        setVaultAccount({
+            vaultAccount: vaultAccount, vaultConfig: vaultConfig, checkMinBorrow: true, emitEvents: true
+        });
     }
 
     ///  @notice Borrows fCash to enter a vault and pays fees

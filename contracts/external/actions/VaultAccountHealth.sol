@@ -6,8 +6,10 @@ import {
     PrimeRate,
     VaultState,
     VaultBorrowCapacityStorage,
+    VaultAccountStorage,
     VaultAccount,
     VaultConfig,
+    VaultAccountSecondaryDebtShareStorage,
     VaultStateStorage
 } from "../../global/Types.sol";
 import {Constants} from "../../global/Constants.sol";
@@ -270,26 +272,32 @@ contract VaultAccountHealth is IVaultAccountHealth {
     function signedBalanceOfVaultTokenId(address account, uint256 id) external view override returns (int256) {
         (uint256 assetType, uint16 currencyId, uint256 maturity, address vault) = Emitter.decodeVaultId(id);
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
-        if (maturity != vaultAccount.maturity) return 0;
+
+        mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage.getVaultAccount();
+        VaultAccountStorage storage s = store[account][vaultConfig.vault];
+
+        uint256 storedMaturity = s.maturity;
+        if (maturity != storedMaturity) return 0;
 
         if (assetType == Constants.VAULT_SHARE_ASSET_TYPE) {
-            return vaultAccount.vaultShares.toInt();
+            // No overflow due to storage size
+            return int256(s.vaultShares);
         } else if (currencyId == vaultConfig.borrowCurrencyId && assetType == Constants.VAULT_DEBT_ASSET_TYPE) {
-            // Flip this to a positive number
-            return vaultAccount.accountDebtUnderlying.neg();
+            // Returns a positive number that reflects the stored value, not the underlying valuation
+            return int256(s.accountDebt);
         } else if (currencyId == vaultConfig.borrowCurrencyId && assetType == Constants.VAULT_CASH_ASSET_TYPE) {
-            return vaultAccount.tempCashBalance;
+            return int256(s.primaryCash);
         }
 
         if (vaultConfig.hasSecondaryBorrows()) {
             int256 one;
             int256 two;
             if (assetType == Constants.VAULT_DEBT_ASSET_TYPE) {
-                PrimeRate[2] memory pr = VaultSecondaryBorrow.getSecondaryPrimeRateView(vaultConfig, block.timestamp);
-                (/* */, one, two) = VaultSecondaryBorrow.getAccountSecondaryDebt(vaultConfig, account, pr);
+                VaultAccountSecondaryDebtShareStorage storage secondary = 
+                    LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
+                (one, two) = (int256(secondary.accountDebtOne), int256(secondary.accountDebtTwo));
             } else if (assetType == Constants.VAULT_CASH_ASSET_TYPE) {
-                (one, two) = VaultSecondaryBorrow.getSecondaryCashHeld(vaultAccount.account, vaultConfig.vault);
+                (one, two) = (int256(s.secondaryCashOne), int256(s.secondaryCashTwo));
             }
 
             if (currencyId == vaultConfig.secondaryBorrowCurrencies[0]) return one;

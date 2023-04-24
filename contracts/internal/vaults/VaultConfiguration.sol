@@ -379,9 +379,11 @@ library VaultConfiguration {
         vaultAccount.tempCashBalance = vaultAccount.tempCashBalance.add(primeCashMinted);
 
         // TokenHandler will emit a mint event and then the account will transfer that to the vault
-        Emitter.emitTransferPrimeCash(
-            vaultAccount.account, vaultConfig.vault, vaultConfig.borrowCurrencyId, primeCashMinted
-        );
+        if (primeCashMinted > 0) {
+            Emitter.emitTransferPrimeCash(
+                vaultAccount.account, vaultConfig.vault, vaultConfig.borrowCurrencyId, primeCashMinted
+            );
+        }
     }
 
     /// @notice Redeems and transfers prime cash to the vault from Notional
@@ -541,16 +543,18 @@ library VaultConfiguration {
         // MINT PRIME (vault, underlyingToReceiver + primeCashRaised)
         // TRANSFER PRIME (vault, account, underlyingToReceiver)
         // BURN PRIME (account, underlyingToReceiver)
-        uint256 primeCashToReceiver = vaultConfig.primeRate.convertFromUnderlying(
-            underlyingToken.convertToInternal(underlyingToReceiver.toInt())
-        ).toUint();
-        Emitter.emitVaultMintTransferBurn(
-            vaultConfig.vault,
-            receiver,
-            vaultConfig.borrowCurrencyId,
-            primeCashRaised.toUint().add(primeCashToReceiver),
-            primeCashToReceiver
-        );
+        if (underlyingToReceiver > 0) {
+            uint256 primeCashToReceiver = vaultConfig.primeRate.convertFromUnderlying(
+                underlyingToken.convertToInternal(underlyingToReceiver.toInt())
+            ).toUint();
+            Emitter.emitVaultMintTransferBurn(
+                vaultConfig.vault,
+                receiver,
+                vaultConfig.borrowCurrencyId,
+                primeCashRaised.toUint().add(primeCashToReceiver),
+                primeCashToReceiver
+            );
+        }
     }
 
     /// @notice Executes a trade on the AMM.

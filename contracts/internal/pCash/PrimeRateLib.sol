@@ -320,7 +320,9 @@ library PrimeRateLib {
     ) internal pure returns (int256) {
         // debtStorage must be negative
         require(debtStorage < 1);
-        return debtStorage.mul(pr.debtFactor).div(Constants.DOUBLE_SCALAR_PRECISION);
+        if (debtStorage == 0) return 0;
+
+        return debtStorage.mul(pr.debtFactor).div(Constants.DOUBLE_SCALAR_PRECISION).sub(1);
     }
 
     function convertUnderlyingToDebtStorage(

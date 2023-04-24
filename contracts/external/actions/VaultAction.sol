@@ -271,6 +271,10 @@ contract VaultAction is ActionGuards, IVaultAction {
         int256 netPrimeCash,
         PrimeRate memory pr
     ) private returns (int256 underlyingTokensTransferred) {
+        // TODO: need to emit a mint / transfer / burn on the secondary if any excess is returned
+        // to the vault account
+        // TODO: consider switching all vault secondary borrow interactions to WETH
+
         // ETH transfers to the vault are always in native ETH, not wrapped
         if (netPrimeCash > 0) {
             underlyingTokensTransferred = VaultConfiguration.transferFromNotional(

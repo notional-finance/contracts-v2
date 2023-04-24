@@ -53,7 +53,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultAccount.accruePrimeCashFeesToDebt(vaultConfig);
 
         // Skip Min Borrow Check so that accounts can always be settled
-        vaultAccount.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: false});
+        vaultAccount.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: false, emitEvents: true});
 
         if (didTransfer) {
             // If the vault did a transfer (i.e. withdrew cash) we have to check their collateral ratio. There
@@ -273,7 +273,7 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             // If the account has no position in the vault at this point, set the maturity to zero as well
             vaultAccount.maturity = 0;
         }
-        vaultAccount.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: true});
+        vaultAccount.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: true, emitEvents: true});
 
         // It's possible that the user redeems more vault shares than they lend (it is not always the case
         // that they will be increasing their collateral ratio here, so we check that this is the case). No

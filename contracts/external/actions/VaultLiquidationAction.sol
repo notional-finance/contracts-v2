@@ -92,6 +92,11 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
             liquidator, currencyId, token.convertToExternal(depositUnderlyingInternal), pr, false 
         );
 
+        Emitter.emitVaultDeleverage(
+            liquidator, account, vault, currencyId, vaultState.maturity,
+            currencyIndex == 0 ? depositAmountPrimeCash : 0, vaultSharesToLiquidator, pr
+        );
+
         // Do not skip the min borrow check here
         vaultAccount.vaultShares = vaultAccount.vaultShares.sub(vaultSharesToLiquidator);
         if (vaultAccount.maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
@@ -111,11 +116,6 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
 
         _transferVaultSharesToLiquidator(
             liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity
-        );
-
-        Emitter.emitVaultDeleverage(
-            liquidator, account, vault, currencyId, vaultState.maturity,
-            depositAmountPrimeCash, vaultSharesToLiquidator
         );
     }
 
@@ -294,7 +294,7 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         require(liquidator.maturity == 0 || liquidator.maturity == maturity, "Maturity Mismatch"); // dev: has vault shares
         liquidator.maturity = maturity;
         liquidator.vaultShares = liquidator.vaultShares.add(vaultSharesToLiquidator);
-        liquidator.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: true});
+        liquidator.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: true, emitEvents: false});
     }
 
     function _getSecondaryCashFactors(
