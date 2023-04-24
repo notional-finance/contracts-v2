@@ -300,8 +300,8 @@ def test_settle_and_extend(environment, accounts):
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
-    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
+    cashGroup[9] = CurrencyDefaults["minOracleRate"][0:3]
+    cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updateDepositParameters(
@@ -444,8 +444,8 @@ def test_floor_rates_at_kink1(environment, accounts):
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:3]
-    cashGroup[10] = CurrencyDefaults["rateScalar"][0:3]
+    cashGroup[9] = CurrencyDefaults["minOracleRate"][0:3]
+    cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updateDepositParameters(
@@ -495,8 +495,8 @@ def test_constant_oracle_rates_across_initialize_time(environment, accounts):
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the two year markets
     cashGroup[0] = 4
-    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:4]
-    cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
+    cashGroup[9] = CurrencyDefaults["minOracleRate"][0:4]
+    cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:4]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updateDepositParameters(
@@ -538,8 +538,8 @@ def test_delayed_second_initialize_markets(environment, accounts):
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the two year markets
     cashGroup[0] = 4
-    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:4]
-    cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
+    cashGroup[9] = CurrencyDefaults["minOracleRate"][0:4]
+    cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:4]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updateDepositParameters(

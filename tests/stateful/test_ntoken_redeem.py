@@ -554,8 +554,8 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the two year markets
     cashGroup[0] = 4
-    cashGroup[9] = CurrencyDefaults["tokenHaircut"][0:4]
-    cashGroup[10] = CurrencyDefaults["rateScalar"][0:4]
+    cashGroup[9] = CurrencyDefaults["minOracleRate"][0:4]
+    cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:4]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updateDepositParameters(
