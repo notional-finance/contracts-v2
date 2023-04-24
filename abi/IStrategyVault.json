@@ -8,7 +8,7 @@
             },
             {
                 "internalType": "uint256",
-                "name": "strategyTokens",
+                "name": "vaultShares",
                 "type": "uint256"
             },
             {
@@ -26,6 +26,35 @@
             }
         ],
         "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "vaultShares",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            }
+        ],
+        "name": "convertVaultSharesToPrimeMaturity",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "primeStrategyTokens",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
         "type": "function"
     },
     {
@@ -68,7 +97,7 @@
         "outputs": [
             {
                 "internalType": "uint256",
-                "name": "strategyTokensMinted",
+                "name": "vaultSharesMinted",
                 "type": "uint256"
             }
         ],
@@ -102,7 +131,7 @@
             },
             {
                 "internalType": "uint256",
-                "name": "strategyTokens",
+                "name": "vaultShares",
                 "type": "uint256"
             },
             {
@@ -127,35 +156,6 @@
                 "internalType": "uint256",
                 "name": "transferToReceiver",
                 "type": "uint256"
-            }
-        ],
-        "stateMutability": "nonpayable",
-        "type": "function"
-    },
-    {
-        "inputs": [
-            {
-                "internalType": "address",
-                "name": "token",
-                "type": "address"
-            },
-            {
-                "internalType": "uint256",
-                "name": "underlyingRequired",
-                "type": "uint256"
-            },
-            {
-                "internalType": "bytes",
-                "name": "data",
-                "type": "bytes"
-            }
-        ],
-        "name": "repaySecondaryBorrowCallback",
-        "outputs": [
-            {
-                "internalType": "bytes",
-                "name": "returnData",
-                "type": "bytes"
             }
         ],
         "stateMutability": "nonpayable",

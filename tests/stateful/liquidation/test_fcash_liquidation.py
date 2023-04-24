@@ -3,13 +3,11 @@ import math
 import brownie
 import pytest
 from brownie import MockERC20
-from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from liquidation_fixtures import *
-from scripts.config import CurrencyDefaults, nTokenDefaults
-from tests.constants import RATE_PRECISION, SECONDS_IN_QUARTER
-from tests.helpers import get_balance_trade_action, get_lend_action, get_tref
+from tests.helpers import get_balance_trade_action
+from tests.snapshot import EventChecker
 
 chain = Chain()
 
@@ -19,7 +17,7 @@ def isolation(fn_isolation):
     pass
 
 
-def check_local_fcash_liquidation(env, accounts, currencyId, maturities):
+def check_local_fcash_liquidation(env, accounts, currencyId, maturities, assetsToAccount, assetsToLiquidator):
     fcBefore = env.notional.getFreeCollateral(accounts[2])
     (transfersCalculated, netLocalCalculated) = env.notional.calculatefCashLocalLiquidation.call(
         accounts[2], currencyId, maturities, len(maturities) * [0]
@@ -39,16 +37,25 @@ def check_local_fcash_liquidation(env, accounts, currencyId, maturities):
     else:
         balanceBefore = token.balanceOf(accounts[0])
 
-    txn = env.notional.liquidatefCashLocal(
-        accounts[2],
-        currencyId,
-        maturities,
-        len(maturities) * [0],
-        {
-            "from": accounts[0],
-            "value": localUnderlying + 2e18 if currencyId == 1 and localUnderlying > 0 else 0,
-        },
-    )
+    with EventChecker(env, 'Liquidation',
+        liquidator=accounts[0],
+        account=accounts[2],
+        localCurrency=currencyId,
+        collateralCurrency=currencyId,
+        assetsToAccount=assetsToAccount,
+        assetsToLiquidator=assetsToLiquidator
+    ) as e:
+        txn = env.notional.liquidatefCashLocal(
+            accounts[2],
+            currencyId,
+            maturities,
+            len(maturities) * [0],
+            {
+                "from": accounts[0],
+                "value": localUnderlying + 2e18 if currencyId == 1 and localUnderlying > 0 else 0,
+            },
+        )
+        e['txn'] = txn
 
     cashBalanceAfter = env.notional.getAccountBalance(currencyId, accounts[0])[0]
     if currencyId == 1:
@@ -70,6 +77,7 @@ def check_local_fcash_liquidation(env, accounts, currencyId, maturities):
 
     check_liquidation_invariants(env, accounts[2], fcBefore)
 
+    return (netLocal, transfers)
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_local_fcash_borrow_fcash(env, accounts, currencyId):
@@ -125,7 +133,10 @@ def test_local_fcash_borrow_fcash(env, accounts, currencyId):
 
     portfolio = env.notional.getAccountPortfolio(accounts[2])
     maturities = list(reversed([asset[1] for asset in portfolio if asset[3] > 0]))
-    check_local_fcash_liquidation(env, accounts, currencyId, maturities)
+    check_local_fcash_liquidation(env, accounts, currencyId, maturities, 
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'fCash' and x[0]['underlying'] == currencyId,
+    )
 
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
@@ -175,14 +186,17 @@ def test_local_fcash_borrow_lend_cash(env, accounts, currencyId):
     portfolio = env.notional.getAccountPortfolio(accounts[2])
     maturities = list(reversed([asset[1] for asset in portfolio if asset[3] < 0]))
 
-    check_local_fcash_liquidation(env, accounts, currencyId, maturities)
+    check_local_fcash_liquidation(env, accounts, currencyId, maturities,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'fCash' and x[0]['underlying'] == currencyId,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId,
+    )
 
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_local_fcash_borrow_prime(env, accounts, currencyId):
     decimals = env.notional.getCurrency(currencyId)["underlyingToken"]["decimals"]
     env.notional.enablePrimeBorrow(True, {"from": accounts[2]})
-    depositActionAmount = 4.75 * decimals
+    depositActionAmount = 4.5 * decimals
 
     # Borrow prime and hold an fCash position
     action = get_balance_trade_action(
@@ -227,8 +241,10 @@ def test_local_fcash_borrow_prime(env, accounts, currencyId):
     portfolio = env.notional.getAccountPortfolio(accounts[2])
     maturities = list(reversed([asset[1] for asset in portfolio if asset[3] > 0]))
 
-    check_local_fcash_liquidation(env, accounts, currencyId, maturities)
-
+    check_local_fcash_liquidation(env, accounts, currencyId, maturities,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'fCash' and x[0]['underlying'] == currencyId,
+    )
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_liquidate_local_multiple_maturities(env, accounts, currencyId):
@@ -287,9 +303,10 @@ def test_liquidate_local_multiple_maturities(env, accounts, currencyId):
     portfolio = env.notional.getAccountPortfolio(accounts[2])
     maturities = list(reversed([asset[1] for asset in portfolio]))
 
-    check_local_fcash_liquidation(env, accounts, currencyId, maturities)
+    check_local_fcash_liquidation(env, accounts, currencyId, maturities, lambda x: True, lambda x: True)
 
 
+@pytest.mark.only
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
     isPrime=strategy("bool"),
@@ -401,14 +418,23 @@ def test_cross_currency_fcash(env, accounts, currencyId, isPrime, numAssets):
     else:
         balanceBefore = token.balanceOf(accounts[0])
 
-    txn = env.notional.liquidatefCashCrossCurrency(
-        accounts[2],
-        currencyId,
-        collateralCurrency,
-        maturities,
-        [0] * len(maturities),
-        {"from": accounts[0], "value": localUnderlying + 2e18 if currencyId == 1 else 0},
-    )
+    with EventChecker(env, 'Liquidation',
+        liquidator=accounts[0],
+        account=accounts[2],
+        localCurrency=currencyId,
+        collateralCurrency=collateralCurrency,
+        assetsToAccount=lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId,
+        assetsToLiquidator=lambda x: len(x) == 1 and x[0]['assetType'] == 'fCash' and x[0]['underlying'] == collateralCurrency,
+    ) as e:
+        txn = env.notional.liquidatefCashCrossCurrency(
+            accounts[2],
+            currencyId,
+            collateralCurrency,
+            maturities,
+            [0] * len(maturities),
+            {"from": accounts[0], "value": localUnderlying + 2e18 if currencyId == 1 else 0},
+        )
+        e['txn'] = txn
 
     if currencyId == 1:
         balanceAfter = accounts[0].balance()

@@ -243,9 +243,6 @@ def test_repay_secondary_currency_succeeds_over_max_capacity(environment, accoun
 
     check_system_invariants(environment, accounts, [vault])
 
-
-
-
 def test_revert_when_secondary_maturity_mismatch(environment, accounts, vault):
     environment.notional.updateVault(
         vault.address,

@@ -1,13 +1,15 @@
 import brownie
+import math
 import pytest
 import eth_abi
 from brownie.test import given, strategy
 from brownie.convert.datatypes import Wei, HexString
 from brownie.network.state import Chain
 from fixtures import *
-from tests.constants import PRIME_CASH_VAULT_MATURITY, SECONDS_IN_QUARTER
+from tests.constants import PRIME_CASH_VAULT_MATURITY
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.helpers import get_balance_trade_action
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -76,7 +78,9 @@ def enter_vault(multiCurrencyVault, environment, account, isPrime):
 
 @given(isPrime=strategy("bool"))
 def test_enter_multi_currency_vault(accounts, multiCurrencyVault, environment, isPrime):
-    maturity = enter_vault(multiCurrencyVault, environment, accounts[1], isPrime)
+    with EventChecker(environment, 'Vault Entry', vaults=[multiCurrencyVault]) as e:
+        maturity = enter_vault(multiCurrencyVault, environment, accounts[1], isPrime)
+        e['txn'] = brownie.history[-1]
 
     vaultAccount = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     secondaryDebt = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -105,32 +109,36 @@ def test_increase_multi_currency_vault_position(accounts, multiCurrencyVault, en
 
     if increasePrimary:
         # Will result in a proportional borrow
-        environment.notional.enterVault(
-            accounts[1],
-            multiCurrencyVault.address,
-            0,
-            maturity,
-            1_000e8,
-            0,
-            eth_abi.encode_abi(["uint256[2]"], [[0, 0]]),
-            {"from": accounts[1]}
-        )
+        with EventChecker(environment, 'Vault Entry', vaults=[multiCurrencyVault]) as e:
+            txn = environment.notional.enterVault(
+                accounts[1],
+                multiCurrencyVault.address,
+                0,
+                maturity,
+                1_000e8,
+                0,
+                eth_abi.encode_abi(["uint256[2]"], [[0, 0]]),
+                {"from": accounts[1]}
+            )
+            e['txn'] = txn
         vaultAccount = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
         secondaryDebt = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
         assert pytest.approx(vaultAccount['accountDebtUnderlying'], abs=10_000) == -101_000e8
         # Some amount of secondary was borrowed automatically by the vault
         assert secondaryDebt['accountSecondaryDebt'][0] < -10e8
     else:
-        environment.notional.enterVault(
-            accounts[1],
-            multiCurrencyVault.address,
-            0,
-            maturity,
-            0,
-            0,
-            eth_abi.encode_abi(["uint256[2]"], [[Wei(5e8), 0]]),
-            {"from": accounts[1]}
-        )
+        with EventChecker(environment, 'Vault Entry', vaults=[multiCurrencyVault]) as e:
+            txn = environment.notional.enterVault(
+                accounts[1],
+                multiCurrencyVault.address,
+                0,
+                maturity,
+                0,
+                0,
+                eth_abi.encode_abi(["uint256[2]"], [[Wei(5e8), 0]]),
+                {"from": accounts[1]}
+            )
+            e['txn'] = txn
 
         vaultAccount = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
         secondaryDebt = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -175,17 +183,36 @@ def test_vault_exit_types(accounts, multiCurrencyVault, environment, exitType, i
 
     poolClaims = multiCurrencyVault.getPoolClaims(vaultSharesExit)
 
-    # TODO: event emission can go wrong here if vault shares decrease and prime debt increases
-    environment.notional.exitVault(
-        accounts[1],
-        multiCurrencyVault,
-        accounts[1],
-        vaultSharesExit,
-        daiRepaid,
-        0,
-        eth_abi.encode_abi(['uint256[2]','int256[3]'], [[ethRepaid, 0], [daiTraded, 0, 0]]),
-        {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Vault Exit', vaults=[multiCurrencyVault]) as e:
+        txn = environment.notional.exitVault(
+            accounts[1],
+            multiCurrencyVault,
+            accounts[1],
+            vaultSharesExit,
+            daiRepaid,
+            0,
+            eth_abi.encode_abi(['uint256[2]','int256[3]'], [[ethRepaid, 0], [daiTraded, 0, 0]]),
+            {"from": accounts[1]}
+        )
+        e['txn'] = txn
+
+    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
+    # grouped = group_events(decoded)
+    
+    # assert len(grouped['Vault Exit']) == 1
+    # if exitType == 0:
+    #     if isPrime:
+    #         assert len(grouped['Vault Redeem']) == 0
+    #     else:
+    #         assert len(grouped['Vault Redeem']) == 1
+    
+    #     assert len(grouped['Vault Secondary Debt']) == 0
+    # elif exitType == 1:
+    #     assert len(grouped['Vault Redeem']) == 1
+    #     assert len(grouped['Vault Secondary Debt']) == 1
+    # else:
+    #     assert len(grouped['Vault Redeem']) == 1
+    #     assert len(grouped['Vault Secondary Debt']) == 1
 
     daiBalanceAfter = environment.token['DAI'].balanceOf(accounts[1])
     ethBalanceAfter = accounts[1].balance()
@@ -223,9 +250,50 @@ def test_vault_exit_types(accounts, multiCurrencyVault, environment, exitType, i
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 
-@pytest.mark.todo
 def test_vault_exit_at_zero_interest(accounts, multiCurrencyVault, environment):
-    pass
+    maturity = enter_vault(multiCurrencyVault, environment, accounts[1], False)
+    chain.mine(timedelta=65)
+
+    vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
+
+    # Reduce liquidity in ETH so lending fails on exit
+    environment.notional.nTokenRedeem(
+        accounts[0], 1, 44_500e8, True, True, {"from": accounts[0]}
+    )
+    (amountAsset, _, _, _) = environment.notional.getDepositFromfCashLend(
+        1, 9e8, maturity, 0, chain.time()
+    )
+    assert amountAsset == 0
+
+    accounts[0].transfer(multiCurrencyVault, 1e18)
+    with EventChecker(environment, 'Vault Exit', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.exitVault(
+            accounts[1],
+            multiCurrencyVault,
+            accounts[1],
+            vaultAccountBefore['vaultShares'],
+            -vaultAccountBefore['accountDebtUnderlying'],
+            0,
+            eth_abi.encode_abi(['uint256[2]','int256[3]'], [[Wei(10e8), 0], [0, 0, 0]]),
+            {"from": accounts[1]}
+        )
+
+    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
+    # grouped = group_events(decoded)
+    # assert len(grouped['Vault Exit']) == 1
+    # assert len(grouped['Vault Redeem']) == 1
+    # assert len(grouped['Vault Secondary Debt']) == 1
+    # assert len(grouped['Vault Exit [Lend at Zero]']) == 1
+
+    # TODO: switch this to read from the system instead
+    (primeRate, _, _, _) = environment.notional.getPrimeFactors(1, chain.time() + 1)
+    environment.notional.setReserveCashBalance(
+        1,
+        environment.notional.getReserveBalance(1)
+        + math.floor(10e8 * 1e36 / primeRate["supplyFactor"]),
+    )
+    vaultfCashOverrides = [{"currencyId": 1, "maturity": maturity, "fCash": -10e8}]
+    check_system_invariants(environment, accounts, [multiCurrencyVault], vaultfCashOverrides)
 
 @given(rollToPrime=strategy("bool"), isPrime=strategy("bool"))
 def test_roll_position(accounts, multiCurrencyVault, environment, isPrime, rollToPrime):
@@ -253,15 +321,24 @@ def test_roll_position(accounts, multiCurrencyVault, environment, isPrime, rollT
             {"from": accounts[1]}
         )
 
-    txn = environment.notional.rollVaultPosition(
-        accounts[1],
-        multiCurrencyVault,
-        105_000e8,
-        maturity,
-        10_000e18, 0, 0,
-        eth_abi.encode_abi(['uint256[2]'], [[Wei(11e8), 0]]),
-        {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Vault Roll', vaults=[multiCurrencyVault]) as e:
+        txn = environment.notional.rollVaultPosition(
+            accounts[1],
+            multiCurrencyVault,
+            105_000e8,
+            maturity,
+            10_000e18, 0, 0,
+            eth_abi.encode_abi(['uint256[2]'], [[Wei(11e8), 0]]),
+            {"from": accounts[1]}
+        )
+        e['txn'] = txn
+
+    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
+    # grouped = group_events(decoded)
+    # assert len(grouped['Vault Entry']) == 0
+    # assert len(grouped['Vault Roll']) == 1
+    # assert len(grouped['Vault Secondary Debt']) == 2
+    # assert len(grouped['Vault Transfer']) == 2
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -282,6 +359,7 @@ def test_roll_position(accounts, multiCurrencyVault, environment, isPrime, rollT
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 
 
+@pytest.mark.only
 def test_settle(accounts, multiCurrencyVault, environment):
     enter_vault(multiCurrencyVault, environment, accounts[1], False)
     maturity = environment.notional.getActiveMarkets(1)[0][1]
@@ -294,11 +372,20 @@ def test_settle(accounts, multiCurrencyVault, environment):
     with brownie.reverts(dev_revert_msg="dev: unauthorized"):
         environment.notional.settleSecondaryBorrowForAccount(multiCurrencyVault, accounts[0])
 
-    txn = environment.notional.settleVaultAccount(
-        accounts[1],
-        multiCurrencyVault,
-        {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Vault Settle', vaults=[multiCurrencyVault]) as e:
+        txn = environment.notional.settleVaultAccount(
+            accounts[1],
+            multiCurrencyVault,
+            {"from": accounts[1]}
+        )
+        e['txn'] = txn
+    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
+    # grouped = group_events(decoded)
+    # assert len(grouped['Vault Settle']) == 1
+    # assert len(grouped['Vault Secondary Debt']) == 1
+    # assert len(grouped['Settle Cash']) == 2
+    # assert len(grouped['Settle fCash']) == 2
+    # assert grouped['Vault Secondary Debt'][0]['groupType'] == 'Vault Secondary Settle'
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -381,14 +468,16 @@ def deleveraged_account(accounts, multiCurrencyVault, environment, isPrime, curr
     (healthBefore, maxDeposit, vaultShares) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
 
-    environment.notional.deleverageAccount(
-        accounts[1],
-        multiCurrencyVault,
-        accounts[2],
-        currencyIndex,
-        maxDeposit[currencyIndex],
-        {"from": accounts[2], "value": maxDeposit[1] * 1e10 if currencyIndex == 1 else 0}
-    )
+    with EventChecker(environment, 'Vault Deleverage', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.deleverageAccount(
+            accounts[1],
+            multiCurrencyVault,
+            accounts[2],
+            currencyIndex,
+            maxDeposit[currencyIndex],
+            {"from": accounts[2], "value": maxDeposit[1] * 1e10 if currencyIndex == 1 else 0}
+        )
+
 
     return (vaultAccountBefore, healthBefore, maxDeposit, vaultShares)
 
@@ -428,14 +517,16 @@ def test_deleverage_secondary(accounts, multiCurrencyVault, environment, isPrime
     liquidatorAccount = environment.notional.getVaultAccount(accounts[2], multiCurrencyVault)
     assert liquidatorAccount['vaultShares'] == vaultShares[currencyIndex]
 
-    environment.notional.exitVault(
-        accounts[2],
-        multiCurrencyVault,
-        accounts[2],
-        liquidatorAccount["vaultShares"],
-        0, 0, eth_abi.encode(["uint256[2]", "int256[3]"], [[0, 0], [0, 0, 0]]),
-        {"from": accounts[2]},
-    )
+    with EventChecker(environment, 'Vault Exit', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.exitVault(
+            accounts[2],
+            multiCurrencyVault,
+            accounts[2],
+            liquidatorAccount["vaultShares"],
+            0, 0, eth_abi.encode(["uint256[2]", "int256[3]"], [[0, 0], [0, 0, 0]]),
+            {"from": accounts[2]},
+        )
+
     assert healthBefore['collateralRatio'] < healthAfter['collateralRatio']
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
@@ -489,14 +580,16 @@ def test_liquidator_can_liquidate_cash(accounts, multiCurrencyVault, environment
         {"from": accounts[2], "value": depositAmount if currencyIndex == 1 else 0},
     )
 
-    environment.notional.liquidateVaultCashBalance(
-        accounts[1],
-        multiCurrencyVault,
-        accounts[2],
-        currencyIndex,
-        purchaseAmount,
-        {"from": accounts[2]},
-    )
+    with EventChecker(environment, 'Vault Liquidate Cash', vaults=[multiCurrencyVault]) as e:
+        txn = environment.notional.liquidateVaultCashBalance(
+            accounts[1],
+            multiCurrencyVault,
+            accounts[2],
+            currencyIndex,
+            purchaseAmount,
+            {"from": accounts[2]},
+        )
+        e['txn'] = txn
     
     if currencyIndex == 0:
         vaultAccount = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
@@ -524,14 +617,16 @@ def test_liquidator_can_liquidate_second_time(accounts, multiCurrencyVault, envi
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtBefore = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
 
-    environment.notional.deleverageAccount(
-        accounts[1],
-        multiCurrencyVault,
-        accounts[2],
-        currencyIndex,
-        maxDeposit[currencyIndex],
-        {"from": accounts[2], "value": maxDeposit[1] * 1e10 if currencyIndex == 1 else 0}
-    )
+    with EventChecker(environment, 'Vault Deleverage', vaults=[multiCurrencyVault]) as e:
+        txn = environment.notional.deleverageAccount(
+            accounts[1],
+            multiCurrencyVault,
+            accounts[2],
+            currencyIndex,
+            maxDeposit[currencyIndex],
+            {"from": accounts[2], "value": maxDeposit[1] * 1e10 if currencyIndex == 1 else 0}
+        )
+        e['txn'] = txn
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -555,16 +650,17 @@ def test_liquidated_can_enter(accounts, multiCurrencyVault, environment, currenc
     accountDebtBefore = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
     poolBalancesBefore = multiCurrencyVault.getPoolBalances()
 
-    environment.notional.enterVault(
-        accounts[1],
-        multiCurrencyVault,
-        10_000e18,
-        vaultAccountBefore["maturity"],
-        10_000e8,
-        0,
-        eth_abi.encode_abi(["uint256[2]"], [[Wei(3e8), 0]]),
-        { "from": accounts[1] },
-    )
+    with EventChecker(environment, 'Vault Entry', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.enterVault(
+            accounts[1],
+            multiCurrencyVault,
+            10_000e18,
+            vaultAccountBefore["maturity"],
+            10_000e8,
+            0,
+            eth_abi.encode_abi(["uint256[2]"], [[Wei(3e8), 0]]),
+            { "from": accounts[1] },
+        )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -588,16 +684,17 @@ def test_liquidated_can_exit(accounts, multiCurrencyVault, environment, currency
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
 
     accounts[1].transfer(multiCurrencyVault, 4e18)
-    environment.notional.exitVault(
-        accounts[1],
-        multiCurrencyVault,
-        accounts[1],
-        vaultAccountBefore["vaultShares"],
-        -vaultAccountBefore["accountDebtUnderlying"],
-        0,
-        eth_abi.encode_abi(['uint256[2]','int256[3]'], [[Wei(10e8), 0], [0, 0, 0]]),
-        {"from": accounts[1]},
-    )
+    with EventChecker(environment, 'Vault Exit', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.exitVault(
+            accounts[1],
+            multiCurrencyVault,
+            accounts[1],
+            vaultAccountBefore["vaultShares"],
+            -vaultAccountBefore["accountDebtUnderlying"],
+            0,
+            eth_abi.encode_abi(['uint256[2]','int256[3]'], [[Wei(10e8), 0], [0, 0, 0]]),
+            {"from": accounts[1]},
+        )
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -615,14 +712,15 @@ def test_liquidated_can_roll(accounts, multiCurrencyVault, environment, currency
 
     poolBalancesBefore = multiCurrencyVault.getPoolBalances()
 
-    environment.notional.rollVaultPosition(
-        accounts[1],
-        multiCurrencyVault,
-        100_000e8,
-        PRIME_CASH_VAULT_MATURITY,
-        0, 0, 0, eth_abi.encode_abi(['uint256[2]'], [[Wei(3e8) if currencyIndex == 1 else Wei(10e8), 0]]),
-        {"from": accounts[1]},
-    )
+    with EventChecker(environment, 'Vault Roll', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.rollVaultPosition(
+            accounts[1],
+            multiCurrencyVault,
+            100_000e8,
+            PRIME_CASH_VAULT_MATURITY,
+            0, 0, 0, eth_abi.encode_abi(['uint256[2]'], [[Wei(3e8) if currencyIndex == 1 else Wei(10e8), 0]]),
+            {"from": accounts[1]},
+        )
     poolBalancesAfter = multiCurrencyVault.getPoolBalances()
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
@@ -653,7 +751,8 @@ def test_liquidated_can_settle(accounts, multiCurrencyVault, environment, curren
     environment.notional.initializeMarkets(1, False)
     environment.notional.initializeMarkets(2, False)
 
-    environment.notional.settleVaultAccount(accounts[1], multiCurrencyVault)
+    with EventChecker(environment, 'Vault Settle', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.settleVaultAccount(accounts[1], multiCurrencyVault)
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)

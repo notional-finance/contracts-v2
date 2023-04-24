@@ -8,6 +8,7 @@ from tests.helpers import (
     get_balance_trade_action,
     initialize_environment,
 )
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -46,15 +47,11 @@ def test_deposit_underlying_token_from_self(environment, accounts):
     currencyId = 2
     environment.token["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
     environment.token["DAI"].transfer(accounts[1], 100e18, {"from": accounts[0]})
-    txn = environment.notional.depositUnderlyingToken(
-        accounts[1], currencyId, 100e18, {"from": accounts[1]}
-    )
-
-    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert environment.approxInternal(
-        "DAI", txn.events["CashBalanceChange"]["netCashChange"], 100e8
-    )
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.depositUnderlyingToken(
+            accounts[1], currencyId, 100e18, {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -69,14 +66,11 @@ def test_deposit_underlying_token_from_self(environment, accounts):
 
 
 def test_deposit_eth_underlying(environment, accounts):
-    txn = environment.notional.depositUnderlyingToken(
-        accounts[1], 1, 100e18, {"from": accounts[1], "value": 100e18}
-    )
-    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"]["currencyId"] == 1
-    assert environment.approxInternal(
-        "ETH", txn.events["CashBalanceChange"]["netCashChange"], 100e8
-    )
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.depositUnderlyingToken(
+            accounts[1], 1, 100e18, {"from": accounts[1], "value": 100e18}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -91,41 +85,21 @@ def test_deposit_eth_underlying(environment, accounts):
 
 
 def test_deposit_underlying_token_from_other(environment, accounts):
-    currencyId = 2
-    txn = environment.notional.depositUnderlyingToken(
-        accounts[1], currencyId, 100e18, {"from": accounts[0]}
-    )
-
-    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert environment.approxInternal(
-        "DAI", txn.events["CashBalanceChange"]["netCashChange"], 100e8
-    )
-
-    context = environment.notional.getAccountContext(accounts[1])
-    activeCurrenciesList = active_currencies_to_list(context[4])
-    assert activeCurrenciesList == [(currencyId, False, True)]
-
-    balances = environment.notional.getAccountBalance(currencyId, accounts[1])
-    assert environment.approxInternal("DAI", balances[0], 100e8)
-    assert balances[1] == 0
-    assert balances[2] == 0
-
-    check_system_invariants(environment, accounts)
+    with brownie.reverts(dev_revert_msg="dev: unauthorized"):
+        environment.notional.depositUnderlyingToken(
+            accounts[1], 2, 100e18, {"from": accounts[0]}
+        )
 
 
 def test_deposit_asset_token_from_self(environment, accounts):
     currencyId = 2
     environment.cToken["DAI"].transfer(accounts[1], 5000e8, {"from": accounts[0]})
     environment.cToken["DAI"].approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
-    txn = environment.notional.depositAssetToken(
-        accounts[1], currencyId, 5000e8, {"from": accounts[1]}
-    )
-    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert environment.approxInternal(
-        "DAI", txn.events["CashBalanceChange"]["netCashChange"], 100e8
-    )
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.depositAssetToken(
+            accounts[1], currencyId, 5000e8, {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -160,8 +134,11 @@ def test_withdraw_token_to_borrow(environment, accounts):
     environment.notional.depositUnderlyingToken(
         accounts[1], 1, 100e18, {"from": accounts[1], "value": 100e18}
     )
+
     # Now can borrow
-    environment.notional.withdraw(2, 100e8, True, {"from": accounts[1]})
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.withdraw(2, 100e8, True, {"from": accounts[1]})
+        c['txn'] = txn
 
     environment.notional.enablePrimeBorrow(False, {"from": accounts[1]})
 
@@ -199,10 +176,10 @@ def test_withdraw_and_redeem_token_pass_fc(environment, accounts):
 
     balanceBefore = environment.token["DAI"].balanceOf(accounts[1], {"from": accounts[0]})
     cashBalance = environment.notional.getAccountBalance(currencyId, accounts[1])[0]
-    txn = environment.notional.withdraw(currencyId, cashBalance, True, {"from": accounts[1]})
-    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"]["currencyId"] == currencyId
-    assert txn.events["CashBalanceChange"]["netCashChange"] == -cashBalance
+
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.withdraw(currencyId, cashBalance, True, {"from": accounts[1]})
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -232,13 +209,9 @@ def test_withdraw_and_redeem_eth(environment, accounts, redeemToETH):
         balanceBefore = environment.WETH.balanceOf(accounts[1])
 
     cashBalance = environment.notional.getAccountBalance(1, accounts[1])[0]
-    txn = environment.notional.withdraw(1, cashBalance, redeemToETH, {"from": accounts[1]})
-
-    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"]["currencyId"] == 1
-    assert environment.approxInternal(
-        "ETH", txn.events["CashBalanceChange"]["netCashChange"], -100e8
-    )
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.withdraw(1, cashBalance, redeemToETH, {"from": accounts[1]})
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -267,11 +240,9 @@ def test_withdraw_full_balance(environment, accounts):
 
     balances = environment.notional.getAccountBalance(1, accounts[1])
     balanceBefore = accounts[1].balance()
-    txn = environment.notional.withdraw(1, 2 ** 88 - 1, True, {"from": accounts[1]})
-
-    assert txn.events["CashBalanceChange"]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"]["currencyId"] == 1
-    assert txn.events["CashBalanceChange"]["netCashChange"] == -balances[0]
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.withdraw(1, 2 ** 88 - 1, True, {"from": accounts[1]})
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])

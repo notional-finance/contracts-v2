@@ -14,6 +14,7 @@ from tests.helpers import (
     initialize_environment,
     setup_residual_environment,
 )
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -41,7 +42,6 @@ def get_market_proportion(currencyId, environment):
 
     return proportions
 
-
 def test_deleverage_markets_no_lend(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
@@ -51,26 +51,35 @@ def test_deleverage_markets_no_lend(environment, accounts):
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
     marketsBefore = environment.notional.getActiveMarkets(currencyId)
     reserveBalanceBefore = environment.notional.getReserveBalance(currencyId)
+    assert environment.notional.getAccountBalance(currencyId, nTokenAddress)['cashBalance'] == 0
 
-    txn = environment.notional.batchBalanceAction(
-        accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000000e8
-            )
-        ],
-        {"from": accounts[0]},
-    )
-    LOGGER.info("NO LEND GAS COST: {}".format(txn.gas_used))
+    with EventChecker(
+        environment, 'Mint nToken',
+        minter=accounts[0].address,
+        netLiquidity=lambda x: len(x) == 0,
+        deposit=environment.approxPrimeCash('DAI', 1_000_000e18),
+        nTokensMinted=environment.approxPrimeCash('DAI', 1_000_000e18),
+        feesPaidToReserve=0
+    ) as c:
+        txn = environment.notional.batchBalanceAction(
+            accounts[0],
+            [
+                get_balance_action(
+                    currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=1_000_000e18
+                )
+            ],
+            {"from": accounts[0]},
+        )
+        c['txn'] = txn
 
+    nTokenCashAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)['cashBalance']
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
     marketsAfter = environment.notional.getActiveMarkets(currencyId)
     reserveBalanceAfter = environment.notional.getReserveBalance(currencyId)
 
     assert portfolioBefore == portfolioAfter
     assert ifCashAssetsBefore == ifCashAssetsAfter
-    assert environment.approxInternal("DAI", balanceAfter[0], 1_000_000e8)
+    assert environment.approxInternal("DAI", nTokenCashAfter, 1_000_000e8)
     assert marketsBefore == marketsAfter
     assert reserveBalanceBefore == reserveBalanceAfter
 
@@ -86,12 +95,20 @@ def test_deleverage_markets_lend(environment, accounts):
     marketProportionsBefore = get_market_proportion(currencyId, environment)
     reserveBalanceBefore = environment.notional.getReserveBalance(currencyId)
 
-    txn = environment.notional.batchBalanceAction(
-        accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=50_000e8)],
-        {"from": accounts[0]},
-    )
-    LOGGER.info("LEND GAS COST: {}".format(txn.gas_used))
+    with EventChecker(
+        environment, 'Mint nToken',
+        minter=accounts[0].address,
+        netLiquidity=lambda l: all([x['netfCash'] < 0 for x in l]),
+        deposit=environment.approxPrimeCash('DAI', 1_000e18),
+        nTokensMinted=environment.approxPrimeCash('DAI', 1_000e18),
+        feesPaidToReserve=lambda x: x > 0
+    ) as c:
+        txn = environment.notional.batchBalanceAction(
+            accounts[0],
+            [get_balance_action(currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=1_000e18)],
+            {"from": accounts[0]},
+        )
+        c['txn'] = txn
 
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
     balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
@@ -112,7 +129,6 @@ def test_deleverage_markets_lend(environment, accounts):
 
     check_system_invariants(environment, accounts)
 
-
 def test_deleverage_markets_lend_and_provide(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
@@ -123,16 +139,24 @@ def test_deleverage_markets_lend_and_provide(environment, accounts):
     marketProportionsBefore = get_market_proportion(currencyId, environment)
     reserveBalanceBefore = environment.notional.getReserveBalance(currencyId)
 
-    txn = environment.notional.batchBalanceAction(
-        accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintNToken", depositActionAmount=500_000e8
-            )
-        ],
-        {"from": accounts[0]},
-    )
-    LOGGER.info("LEND AND PROVIDE GAS COST: {}".format(txn.gas_used))
+    with EventChecker(
+        environment, 'Mint nToken',
+        minter=accounts[0].address,
+        netLiquidity=lambda l: all([x['netfCash'] < 0 for x in l]),
+        deposit=environment.approxPrimeCash('DAI', 10_000e18),
+        nTokensMinted=environment.approxPrimeCash('DAI', 10_000e18),
+        feesPaidToReserve=lambda x: x > 0
+    ) as c:
+        # TODO: we don't see cash liquidity increasing here
+        c['txn'] = environment.notional.batchBalanceAction(
+            accounts[0],
+            [
+                get_balance_action(
+                    currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=10_000e18
+                )
+            ],
+            {"from": accounts[0]},
+        )
 
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
     balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
@@ -231,7 +255,13 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
         ],
         depositActionAmount=100e18,
     )
-    environment.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
+
+    with EventChecker(environment, "Account Action",
+        account=accounts[2],
+        netfCashAssets=lambda n: n[ifCashAssetsBefore[2][1]] == ifCashAssetsBefore[2][3],
+        netCash=lambda n: n[2] > 0
+    ) as c:
+        c['txn'] = environment.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
 
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
     (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, nTokenAddress)
@@ -246,7 +276,6 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
 
     check_system_invariants(environment, accounts)
 
-
 def test_purchase_ntoken_residual_positive(environment, accounts):
     currencyId = 2
     setup_residual_environment(
@@ -254,7 +283,6 @@ def test_purchase_ntoken_residual_positive(environment, accounts):
     )
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    (cashBalanceBefore, _, _) = environment.notional.getAccountBalance(currencyId, nTokenAddress)
 
     blockTime = chain.time()
     # 96 hour buffer period
@@ -305,7 +333,13 @@ def test_purchase_ntoken_residual_positive(environment, accounts):
         ],
         depositActionAmount=110e18,
     )
-    environment.notional.batchBalanceAndTradeAction(accounts[0], [action], {"from": accounts[0]})
+    with EventChecker(environment, 'Account Action',
+        account=accounts[0],
+        netfCashAssets=lambda n: n[ifCashAssetsBefore[2][1]] == ifCashAssetsBefore[2][3],
+        netCash=lambda n: n[2] < 5500e8 # Net cash is less than the deposit
+    ) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(accounts[0], [action], {"from": accounts[0]})
+        c['txn'] = txn
 
     (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
     (cashBalanceAfter, _, _) = environment.notional.getAccountBalance(currencyId, nTokenAddress)
@@ -330,11 +364,13 @@ def test_transfer_tokens(environment, accounts):
 
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + 10 * SECONDS_IN_DAY)
-    txn = environment.nToken[currencyId].transfer(accounts[1], 100e8)
+    with EventChecker(environment, 'Account Action',
+        incentivesEarned=lambda x: x > 0,
+        netNTokens=lambda x: x[2] == -100e8
+    ) as e:
+        txn = environment.nToken[currencyId].transfer(accounts[1], 100e8)
+        e['txn'] = txn
 
-    assert txn.events["Transfer"][1]["from"] == accounts[0]
-    assert txn.events["Transfer"][1]["to"] == accounts[1]
-    assert txn.events["Transfer"][1]["value"] == 100e8
     assert environment.nToken[currencyId].totalSupply() == totalSupplyBefore
     assert environment.nToken[currencyId].balanceOf(accounts[1]) == 100e8
     assert environment.nToken[currencyId].balanceOf(accounts[0]) == totalSupplyBefore - 100e8
@@ -462,7 +498,6 @@ def test_transfer_all_allowance(environment, accounts):
     assert environment.nToken[1].balanceOf(accounts[2]) == 100e8
     assert environment.nToken[2].balanceOf(accounts[2]) == 100e8
 
-
 def test_purchase_ntoken_residual_and_sweep_cash(environment, accounts):
     currencyId = 2
     cashGroup = list(environment.notional.getCashGroup(currencyId))
@@ -549,7 +584,13 @@ def test_purchase_ntoken_residual_and_sweep_cash(environment, accounts):
         _,
         _,
     ) = environment.notional.getNTokenAccount(nTokenAddress)
-    txn = environment.notional.sweepCashIntoMarkets(2)
+
+    with EventChecker(environment, 'Sweep Cash into Markets',
+        newLiquidity=lambda x: len(x) == 4
+    ) as c:
+        txn = environment.notional.sweepCashIntoMarkets(2)
+        c['txn'] = txn
+
     (portfolioAfter, _) = environment.notional.getNTokenPortfolio(nTokenAddress)
     (_, totalSupplyAfter, _, _, _, cashBalanceAfter, _, _) = environment.notional.getNTokenAccount(
         nTokenAddress

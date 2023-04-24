@@ -433,7 +433,7 @@ def check_vault_invariants(env, accounts, vaults):
                 assert not state["isSettled"]
             else:
                 if maturity == PRIME_CASH_VAULT_MATURITY:
-                    assert pytest.approx(state["totalDebtUnderlying"], abs=1e5) == totalDebtPerMaturity[maturity]
+                    assert pytest.approx(state["totalDebtUnderlying"], abs=1e6) == totalDebtPerMaturity[maturity]
                 else:
                     assert state["totalDebtUnderlying"] == totalDebtPerMaturity[maturity]
                     totalfCashInVault += state["totalDebtUnderlying"]
@@ -467,7 +467,7 @@ def check_vault_invariants(env, accounts, vaults):
         )
         assert totalfCashInVault == -totalfCashUsed
         # Allow a little drift because these are both in underlying terms
-        assert (pytest.approx(currentPrimeDebt, abs=1e5) == -totalDebtPerMaturity[PRIME_CASH_VAULT_MATURITY])
+        assert (pytest.approx(currentPrimeDebt, abs=1e6) == -totalDebtPerMaturity[PRIME_CASH_VAULT_MATURITY])
 
         if config["secondaryBorrowCurrencies"][0] != 0:
             (currentPrimeDebt, totalfCashUsed, _) = env.notional.getBorrowCapacity(

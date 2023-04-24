@@ -11,6 +11,7 @@ from tests.helpers import (
     get_lend_action,
     initialize_environment,
 )
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -199,7 +200,6 @@ def test_set_account_approval(environment, accounts):
     environment.notional.setApprovalForAll(accounts[1], False, {"from": accounts[0]})
     assert not environment.notional.isApprovedForAll(accounts[0], accounts[1])
 
-
 def test_transfer_has_fcash(environment, accounts):
     action = get_balance_trade_action(
         2,
@@ -212,14 +212,13 @@ def test_transfer_has_fcash(environment, accounts):
     assets = environment.notional.getAccountPortfolio(accounts[1])
     erc1155id = environment.notional.encodeToId(assets[0][0], assets[0][1], assets[0][2])
 
-    txn = environment.notional.safeTransferFrom(
-        accounts[1], accounts[0], erc1155id, 10e8, bytes(), {"from": accounts[1]}
-    )
-
-    assert txn.events["TransferSingle"]["from"] == accounts[1]
-    assert txn.events["TransferSingle"]["to"] == accounts[0]
-    assert txn.events["TransferSingle"]["id"] == erc1155id
-    assert txn.events["TransferSingle"]["value"] == 10e8
+    with EventChecker(environment, "Account Action",
+        netfCashAssets=lambda x: list(x.values()) == [-10e8]
+    ) as e:
+        txn = environment.notional.safeTransferFrom(
+            accounts[1], accounts[0], erc1155id, 10e8, bytes(), {"from": accounts[1]}
+        )
+        e['txn'] = txn
 
     toAssets = environment.notional.getAccountPortfolio(accounts[0])
     assert toAssets[0][0] == assets[0][0]
@@ -257,14 +256,13 @@ def test_batch_transfer_has_fcash(environment, accounts):
         environment.notional.encodeToId(assets[0][0], assets[0][1], assets[0][2]),
         environment.notional.encodeToId(assets[1][0], assets[1][1], assets[1][2]),
     ]
-    txn = environment.notional.safeBatchTransferFrom(
-        accounts[1], accounts[0], erc1155ids, [10e8, 10e8], bytes(), {"from": accounts[1]}
-    )
-
-    assert txn.events["TransferBatch"]["from"] == accounts[1]
-    assert txn.events["TransferBatch"]["to"] == accounts[0]
-    assert txn.events["TransferBatch"]["ids"] == erc1155ids
-    assert txn.events["TransferBatch"]["values"] == [10e8, 10e8]
+    with EventChecker(environment, "Account Action",
+        netfCashAssets=lambda x: list(x.values()) == [-10e8, -10e8]
+    ) as e:
+        txn = environment.notional.safeBatchTransferFrom(
+            accounts[1], accounts[0], erc1155ids, [10e8, 10e8], bytes(), {"from": accounts[1]}
+        )
+        e['txn'] = txn
 
     toAssets = environment.notional.getAccountPortfolio(accounts[0])
     assert len(toAssets) == 2
@@ -459,7 +457,6 @@ def test_transfer_fail_liquidity_tokens(environment, accounts):
 
     check_system_invariants(environment, accounts)
 
-
 def test_transfer_borrow_fcash_deposit_collateral(environment, accounts):
     markets = environment.notional.getActiveMarkets(2)
     erc1155id = environment.notional.encodeToId(2, markets[0][1], 1)
@@ -471,9 +468,14 @@ def test_transfer_borrow_fcash_deposit_collateral(environment, accounts):
         ],
     )
 
-    environment.notional.safeTransferFrom(
-        accounts[1], accounts[0], erc1155id, 50e8, data, {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Account Action',
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values())[0] == -50e8
+    ) as e:
+        txn = environment.notional.safeTransferFrom(
+            accounts[1], accounts[0], erc1155id, 50e8, data, {"from": accounts[1]}
+        )
+        e['txn'] = txn
 
     fromAssets = environment.notional.getAccountPortfolio(accounts[1])
     toAssets = environment.notional.getAccountPortfolio(accounts[0])
@@ -489,7 +491,6 @@ def test_transfer_borrow_fcash_deposit_collateral(environment, accounts):
     assert environment.notional.getFreeCollateral(accounts[1])[0] > 0
 
     check_system_invariants(environment, accounts)
-
 
 def test_transfer_borrow_fcash_borrow_market(environment, accounts):
     markets = environment.notional.getActiveMarkets(2)
@@ -518,9 +519,15 @@ def test_transfer_borrow_fcash_borrow_market(environment, accounts):
         ],
     )
 
-    environment.notional.safeBatchTransferFrom(
-        accounts[1], accounts[0], [erc1155id], [50e8], data, {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Account Action',
+        maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values())[0] == -50e8
+    ) as e:
+        txn = environment.notional.safeBatchTransferFrom(
+            accounts[1], accounts[0], [erc1155id], [50e8], data, {"from": accounts[1]}
+        )
+        e['txn'] = txn
 
     fromAssets = environment.notional.getAccountPortfolio(accounts[1])
     toAssets = environment.notional.getAccountPortfolio(accounts[0])
@@ -543,9 +550,14 @@ def test_transfer_borrow_fcash_redeem_ntoken(environment, accounts):
         fn_name="nTokenRedeem", args=[accounts[0].address, 2, int(10e8), True, False]
     )
 
-    environment.notional.safeTransferFrom(
-        accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[0]}
-    )
+    with EventChecker(environment, 'Account Action',
+        maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
+        account=accounts[0],
+        netfCashAssets=lambda x: list(x.values())[0] == -50e8
+    ) as e:
+        e['txn'] = environment.notional.safeTransferFrom(
+            accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[0]}
+        )
 
     check_system_invariants(environment, accounts)
 
@@ -570,9 +582,13 @@ def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
         ],
     )
 
-    transferOp.initiateTransfer(
-        accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Account Action',
+        account=accounts[0],
+        netfCashAssets=lambda x: list(x.values())[0] == -50e8
+    ) as e:
+        e['txn'] = transferOp.initiateTransfer(
+            accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[1]}
+        )
 
     fromAssets = environment.notional.getAccountPortfolio(accounts[1])
     toAssets = environment.notional.getAccountPortfolio(accounts[0])
@@ -627,9 +643,15 @@ def test_bidirectional_fcash_transfer(environment, accounts):
     environment.notional.depositUnderlyingToken(
         accounts[1], 1, 1e18, {"from": accounts[1], "value": 1e18}
     )
-    environment.notional.safeBatchTransferFrom(
-        accounts[0], accounts[1], erc1155ids, amounts, "", {"from": accounts[0]}
-    )
+
+    with EventChecker(environment, 'Account Action',
+        maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
+        account=accounts[0],
+        netfCashAssets=lambda x: list(x.values()) == [-50e8, 50e8]
+    ) as e:
+        e['txn'] = environment.notional.safeBatchTransferFrom(
+            accounts[0], accounts[1], erc1155ids, amounts, "", {"from": accounts[0]}
+        )
 
     fromAssets = environment.notional.getAccountPortfolio(accounts[0])
     toAssets = environment.notional.getAccountPortfolio(accounts[1])
@@ -671,9 +693,14 @@ def test_bidirectional_fcash_transfer_to_account_will_trade(
         ],
     )
 
-    transferOp.initiateBatchTransfer(
-        accounts[0], accounts[1], erc1155ids, amounts, data, {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Account Action',
+        maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
+        account=accounts[0],
+        netfCashAssets=lambda x: list(x.values()) == [-50e8, 50e8]
+    ) as e:
+        e['txn'] = transferOp.initiateBatchTransfer(
+            accounts[0], accounts[1], erc1155ids, amounts, data, {"from": accounts[1]}
+        )
 
     fromAssets = environment.notional.getAccountPortfolio(accounts[0])
     toAssets = environment.notional.getAccountPortfolio(accounts[1])
@@ -701,9 +728,13 @@ def test_transfer_and_batch_lend(environment, accounts):
     )
     data = environment.notional.batchLend.encode_input(accounts[1].address, [action])
 
-    environment.notional.safeTransferFrom(
-        accounts[1], accounts[0], erc1155id, 100e8, data, {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Account Action',
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [-100e8]
+    ) as e:
+        e['txn'] = environment.notional.safeTransferFrom(
+            accounts[1], accounts[0], erc1155id, 100e8, data, {"from": accounts[1]}
+        )
 
     fromAssets = environment.notional.getAccountPortfolio(accounts[1])
     toAssets = environment.notional.getAccountPortfolio(accounts[0])
@@ -737,9 +768,13 @@ def test_batch_transfer_and_batch_lend(environment, accounts):
     )
     data = environment.notional.batchLend.encode_input(accounts[1].address, [action])
 
-    environment.notional.safeBatchTransferFrom(
-        accounts[1], accounts[0], erc1155ids, [100e8, 50e8], data, {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Account Action',
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [-100e8, -50e8]
+    ) as e:
+        e['txn'] = environment.notional.safeBatchTransferFrom(
+            accounts[1], accounts[0], erc1155ids, [100e8, 50e8], data, {"from": accounts[1]}
+        )
 
     fromAssets = environment.notional.getAccountPortfolio(accounts[1])
     toAssets = environment.notional.getAccountPortfolio(accounts[0])
@@ -760,9 +795,13 @@ def test_create_and_settle_one_month_fcash(environment, accounts):
         accounts[1], 1, 10e18, {"from": accounts[1], "value": 10e18}
     )
     # account[1] will incur fCash debt. account[0] will have fCash
-    environment.notional.safeTransferFrom(
-        accounts[1], accounts[0], erc1155id, 100e8, "", {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Account Action',
+        maturities=[maturity],
+        netfCashAssets=lambda x: x[(2, maturity)] == -100e8
+    ) as e:
+        e['txn'] = environment.notional.safeTransferFrom(
+            accounts[1], accounts[0], erc1155id, 100e8, "", {"from": accounts[1]}
+        )
 
     fcBefore = environment.notional.getFreeCollateral(accounts[1])[0]
 

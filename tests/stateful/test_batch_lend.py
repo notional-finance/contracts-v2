@@ -12,6 +12,7 @@ from tests.helpers import (
     get_tref,
     initialize_environment,
 )
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -98,12 +99,17 @@ def test_lend_sufficient_cash_no_transfer(environment, useUnderlying, useBitmap,
     )
 
     balanceBefore = environment.token["DAI"].balanceOf(accounts[1])
-    txn = environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values())[0] == 100e8,
+        feesPaidToReserve=lambda x: x[2] > 0,
+        netCash=lambda x: x[2] < 0
+    ) as c:
+        txn = environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+        c['txn'] = txn
     balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
 
     assert balanceAfter == balanceBefore
-    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
-    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
 
     context = environment.notional.getAccountContext(accounts[1]).dict()
     if useBitmap:
@@ -123,7 +129,6 @@ def test_lend_sufficient_cash_no_transfer(environment, useUnderlying, useBitmap,
     assert portfolio[0][2] == 1
     assert portfolio[0][3] == 100e8
     check_system_invariants(environment, accounts)
-
 
 @given(useUnderlying=strategy("bool"), useBitmap=strategy("bool"))
 def test_lend_sufficient_cash_transfer(environment, useUnderlying, useBitmap, accounts):
@@ -152,7 +157,14 @@ def test_lend_sufficient_cash_transfer(environment, useUnderlying, useBitmap, ac
         token = environment.cToken["DAI"]
 
     balanceBefore = token.balanceOf(accounts[1])
-    txn = environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values())[0] == 100e8,
+        feesPaidToReserve=lambda x: x[2] > 0,
+        netCash=lambda x: x[2] == 0
+    ) as c:
+        txn = environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+        c['txn'] = txn
     balanceAfter = token.balanceOf(accounts[1])
 
     if useUnderlying:
@@ -241,7 +253,14 @@ def test_multi_currency_lend_actions(environment, useUnderlying, accounts):
         useUnderlying,
     )
 
-    environment.notional.batchLend(accounts[1], [action1, action2], {"from": accounts[1]})
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [100e8, 100e8],
+        feesPaidToReserve=lambda x: x[2] > 0 and x[3] > 0,
+        netCash=lambda x: x[2] == 0 and x[3] < 5000
+    ) as c:
+        txn = environment.notional.batchLend(accounts[1], [action1, action2], {"from": accounts[1]})
+        c['txn'] = txn
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     assert len(portfolio) == 2
     assert portfolio[0][0] == 2
@@ -279,7 +298,13 @@ def test_multiple_lend_trades(environment, currencyId, useUnderlying, useBitmap,
     )
 
     markets = environment.notional.getActiveMarkets(currencyId)
-    environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [100e8, 100e8],
+    ) as c:
+        txn = environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+        c['txn'] = txn
+
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     assert len(portfolio) == 2
     assert portfolio[0][0] == currencyId
@@ -296,7 +321,6 @@ def test_multiple_lend_trades(environment, currencyId, useUnderlying, useBitmap,
     assert cash < 5000
 
     check_system_invariants(environment, accounts)
-
 
 @given(useBitmap=strategy("bool"))
 def test_settle_and_lend_using_cash(environment, accounts, useBitmap):
@@ -318,7 +342,9 @@ def test_settle_and_lend_using_cash(environment, accounts, useBitmap):
     environment.notional.initializeMarkets(2, False)
 
     balanceBefore = environment.token["DAI"].balanceOf(accounts[1])
-    environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
+        c['txn'] = txn
     balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
 
     # The net transfer should be small, only to account for the time to maturity increasing

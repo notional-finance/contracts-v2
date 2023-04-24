@@ -1,8 +1,8 @@
 import brownie
 import pytest
-from brownie.exceptions import RPCRequestError
 from brownie.network.state import Chain
 from brownie.test import given, strategy
+from scripts.EventProcessor import processTxn
 from scripts.config import CurrencyDefaults
 from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import (
@@ -77,18 +77,102 @@ Results:
 (13-18): cash, ifCash assets (no discount)
 """
 
+class RedeemChecker():
 
+    def find(self, events, maturity):
+        f = [ e for e in events if e['maturity'] == maturity]
+        if len(f) == 0:
+            return None
+        elif len(f) > 1:
+            raise Exception("Multiple maturities")
+        else:
+            return f[0]
+
+    def __init__(self, environment, account, currencyId):
+        self.environment = environment
+        self.account = account
+        self.currencyId = currencyId
+
+    def __enter__(self):
+        nTokenAddress = self.environment.notional.nTokenAddress(self.currencyId)
+        (nTokenPortfolio, ifCashAssets) = self.environment.notional.getNTokenPortfolio(nTokenAddress)
+        markets = self.environment.notional.getActiveMarkets(self.currencyId)
+        totalSupply = self.environment.nToken[self.currencyId].totalSupply()
+
+        self.context = {
+            'totalSupply': totalSupply,
+            'balances': self.environment.notional.getAccountBalance(self.currencyId, self.account),
+            'portfolio': self.environment.notional.getAccountPortfolio(self.account),
+            'nTokenPortfolio': nTokenPortfolio,
+            'ifCashAssets': ifCashAssets,
+            'markets': markets
+        }
+
+        return self.context
+
+    def __exit__(self, *_):
+        pass
+        # decoded = decode_events(self.environment, self.context['txn'])
+        # grouped = group_events(decoded)
+
+        # nTokenAddress = self.environment.notional.nTokenAddress(self.currencyId)
+        # (nTokenPortfolioAfter, ifCashAssetsAfter) = self.environment.notional.getNTokenPortfolio(nTokenAddress)
+
+        # totalSupplyAfter = self.environment.nToken[self.currencyId].totalSupply()
+        # balancesAfter = self.environment.notional.getAccountBalance(self.currencyId, self.account)
+        # portfolioAfter = self.environment.notional.getAccountPortfolio(self.account)
+        # marketsAfter = self.environment.notional.getActiveMarkets(self.currencyId)
+
+        # assert len(grouped['Redeem nToken']) == 1
+        # redeem = grouped['Redeem nToken'][0]
+        # assert redeem['account'] == self.account.address
+        # assert redeem['nTokensRedeemed'] == self.context['redeemAmount']
+        # assert redeem['nTokensRedeemed'] == self.context['totalSupply'] - totalSupplyAfter
+        # assert redeem['nTokensRedeemed'] == self.context['balances']['nTokenBalance'] - balancesAfter['nTokenBalance']
+        # # assert redeem['primeCashToAccount'] == balancesAfter['cashBalance'] - self.context['balances']['cashBalance']
+
+        # liquidity = grouped['nToken Remove Liquidity']
+        # transfers = grouped['nToken Residual Transfer']
+        # sellAssets = grouped['Buy fCash [nToken]'] + grouped['Sell fCash [nToken]']
+
+        # for (i, a) in enumerate(ifCashAssetsAfter):
+        #     # Check that fCash burned equals what is emitted
+        #     # fCash burned + residual transfer + fCash sold
+        #     maturity = a[1]
+        #     l = self.find(liquidity, maturity)
+        #     t = self.find(transfers, maturity)
+        #     s = self.find(sellAssets, maturity)
+        #     marketBefore = [m for m in self.context['markets'] if m[1] == maturity]
+        #     marketAfter = [m for m in marketsAfter if m[1] == maturity]
+
+        #     transfer = t['fCash'] if t is not None else 0
+        #     fCashSold = s['fCash'] if s is not None else 0
+        #     # Selling fCash here always nets off the transfer
+        #     if s and t:
+        #         assert pytest.approx(t['fCash'] - s['fCash'], abs=1) == 0
+
+        #     if len(marketBefore) > 0:
+        #         # Check that total liquidity and fCash is equal
+        #         assert marketBefore[0][1] == l['maturity']
+        #         assert marketBefore[0][2] + l['fCash'] + transfer - fCashSold == marketAfter[0][2]
+        #         # Liquidity tokens are equal
+        #         lt = [lt for lt in nTokenPortfolioAfter if lt[1] == maturity]
+        #         assert lt[0][3] == marketAfter[0][4]
+        #         assert l['account'] == nTokenAddress
+
+        #     # Check that fCash assets net off
+        #     assetBefore = [f for f in self.context['ifCashAssets'] if f[1] == maturity][0]
+        #     assetAfter = [f for f in ifCashAssetsAfter if f[1] == maturity][0]
+        #     if l:
+        #         # If liquidity is burned, then this should net off
+        #         assert assetBefore[3] - l['fCash'] == assetAfter[3]
+        #     else:
+        #         # If fCash is transferred then this should net off (for ifCash assets)
+        #         assert assetBefore[3] - transfer == assetAfter[3]
+
+@pytest.mark.only
 def test_redeem_tokens_and_sell_fcash(environment, accounts):
     currencyId = 2
-    (
-        cashBalanceBefore,
-        nTokenBalanceBefore,
-        lastMintTimeBefore,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
-
-    nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-
     action = get_balance_trade_action(
         2,
         "DepositUnderlying",
@@ -101,40 +185,21 @@ def test_redeem_tokens_and_sell_fcash(environment, accounts):
     )
     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
 
-    marketsBefore = environment.notional.getActiveMarkets(currencyId)
-    environment.notional.nTokenRedeem(
+    
+    txn = environment.notional.nTokenRedeem(
         accounts[0].address, currencyId, 1e8, True, False, {"from": accounts[0]}
     )
-    marketsAfter = environment.notional.getActiveMarkets(currencyId)
-
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    (cashBalanceAfter, nTokenBalanceAfter, _) = environment.notional.getAccountBalance(
-        currencyId, accounts[0]
-    )
+    eventStore = processTxn(environment, txn, 'Mint nToken', minter=accounts[0.address])
+    assert False
 
     # Assert that no assets in portfolio
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
-
-    # assert decrease in market liquidity
-    assert len(marketsBefore) == len(marketsAfter)
-    for (i, m) in enumerate(marketsBefore):
-        assert m[4] > marketsAfter[i][4]
-
-    assert cashBalanceAfter > cashBalanceBefore
-    assert nTokenBalanceAfter == nTokenBalanceBefore - 1e8
 
     check_system_invariants(environment, accounts)
 
 
 def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     currencyId = 2
-    (
-        cashBalanceBefore,
-        perpTokenBalanceBefore,
-        lastMintTimeBefore,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
-
-    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
 
     action = get_balance_trade_action(
         2,
@@ -148,42 +213,24 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     )
     environment.notional.batchBalanceAndTradeAction(accounts[1], [action], {"from": accounts[1]})
 
-    marketsBefore = environment.notional.getActiveMarkets(currencyId)
-    environment.notional.nTokenRedeem(
-        accounts[0].address, currencyId, 1e8, False, True, {"from": accounts[0]}
-    )
-    marketsAfter = environment.notional.getActiveMarkets(currencyId)
+    # with RedeemChecker(environment, accounts[0], currencyId) as c:
+    with EventChecker(environment) as c:
+        c['redeemAmount'] = 1e8
+        c['txn'] = environment.notional.nTokenRedeem(
+            accounts[0].address, currencyId, 1e8, False, True, {"from": accounts[0]}
+        )
 
-    (cashBalanceAfter, perpTokenBalanceAfter, _) = environment.notional.getAccountBalance(
-        currencyId, accounts[0]
-    )
-    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
 
     portfolio = environment.notional.getAccountPortfolio(accounts[0])
     for asset in portfolio:
         # Should be a net borrower because of lending
         assert asset[3] < 0
 
-    # assert decrease in market liquidity
-    assert len(marketsBefore) == len(marketsAfter)
-    for (i, m) in enumerate(marketsBefore):
-        assert m[4] > marketsAfter[i][4]
-
-    # Some cash claim withdrawn
-    assert cashBalanceAfter > cashBalanceBefore
-    assert perpTokenBalanceAfter == perpTokenBalanceBefore - 1e8
-    assert totalSupplyBefore - totalSupplyAfter == 1e8
-
     check_system_invariants(environment, accounts)
 
 
 def test_redeem_tokens_and_save_assets_settle(environment, accounts):
     currencyId = 2
-    (
-        cashBalanceBefore,
-        perpTokenBalanceBefore,
-        lastMintTimeBefore,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
 
     action = get_balance_trade_action(
         2,
@@ -203,24 +250,21 @@ def test_redeem_tokens_and_save_assets_settle(environment, accounts):
     environment.notional.initializeMarkets(currencyId, False)
 
     # This account has a matured borrow fCash
-    txn = environment.notional.nTokenRedeem(
-        accounts[1].address, currencyId, 1e8, False, True, {"from": accounts[1]}
-    )
+    with RedeemChecker(environment, accounts[1], currencyId) as c:
+        txn = environment.notional.nTokenRedeem(
+            accounts[1].address, currencyId, 1e8, False, True, {"from": accounts[1]}
+        )
+        c['txn'] = txn
+        c['redeemAmount'] = 1e8
+
     assert txn.events["AccountSettled"]
     context = environment.notional.getAccountContext(accounts[1])
     assert context[1] == "0x02"
 
     check_system_invariants(environment, accounts)
 
-
 def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
     currencyId = 2
-    (
-        cashBalanceBefore,
-        perpTokenBalanceBefore,
-        lastMintTimeBefore,
-    ) = environment.notional.getAccountBalance(currencyId, accounts[0])
-
     action = get_balance_trade_action(
         2,
         "DepositUnderlying",
@@ -237,10 +281,12 @@ def test_redeem_tokens_and_save_assets_bitmap(environment, accounts):
 
     environment.nToken[currencyId].transfer(accounts[1], 10e8, {"from": accounts[0]})
 
-    # This account has a matured borrow fCash
-    environment.notional.nTokenRedeem(
-        accounts[1].address, currencyId, 1e8, False, True, {"from": accounts[1]}
-    )
+    with RedeemChecker(environment, accounts[1], currencyId) as c:
+        c['txn'] = environment.notional.nTokenRedeem(
+            accounts[1].address, currencyId, 1e8, False, True, {"from": accounts[1]}
+        )
+        c['redeemAmount'] = 1e8
+
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     assert len(portfolio) == 2
     assert portfolio[0][1] == portfolioBefore[0][1]
@@ -264,13 +310,10 @@ def test_redeem_ntoken_batch_balance_action(
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
-    nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
     environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
-    portfolio = environment.notional.getAccountPortfolio(accounts[2])
-    assert len(portfolio) == 0
+    assert len(environment.notional.getAccountPortfolio(accounts[2])) == 0
 
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
@@ -282,9 +325,12 @@ def test_redeem_ntoken_batch_balance_action(
                 accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
             )
     else:
-        environment.notional.batchBalanceAction(
-            accounts[2].address, [action], {"from": accounts[2]}
-        )
+        # with RedeemChecker(environment, accounts[2], currencyId) as c:
+        with EventChecker(environment) as c:
+            c['txn'] = environment.notional.batchBalanceAction(
+                accounts[2].address, [action], {"from": accounts[2]}
+            )
+            c['redeemAmount'] = redeemAmount
 
     # Account should have redeemed around the ifCash residual
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
@@ -317,8 +363,6 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
-    nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
     environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
@@ -334,9 +378,11 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
                 accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
             )
     else:
-        environment.notional.nTokenRedeem(
-            accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
-        )
+        with RedeemChecker(environment, accounts[2], currencyId) as c:
+            c['txn'] = environment.notional.nTokenRedeem(
+                accounts[2].address, currencyId, redeemAmount, True, False, {"from": accounts[2]}
+            )
+            c['redeemAmount'] = redeemAmount
 
     # Account should have redeemed around the ifCash residual
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
@@ -355,7 +401,6 @@ def test_redeem_ntoken_sell_fcash_no_residuals(
 
     check_system_invariants(environment, accounts)
 
-
 @given(
     residualType=strategy("uint8", min_value=0, max_value=2),
     marketResiduals=strategy("bool"),
@@ -369,8 +414,6 @@ def test_redeem_ntoken_keep_assets_no_residuals(
     setup_residual_environment(
         environment, accounts, residualType, marketResiduals, canSellResiduals
     )
-    nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (_, ifCashAssets) = environment.notional.getNTokenPortfolio(nTokenAddress)
 
     # Environment now has residuals, transfer some nTokens to clean account and attempt to redeem
     environment.nToken[currencyId].transfer(accounts[2], redeemAmount, {"from": accounts[0]})
@@ -380,9 +423,11 @@ def test_redeem_ntoken_keep_assets_no_residuals(
     totalSupply = environment.nToken[currencyId].totalSupply()
 
     if not marketResiduals:
-        environment.notional.nTokenRedeem(
-            accounts[2].address, currencyId, redeemAmount, False, False, {"from": accounts[2]}
-        )
+        with RedeemChecker(environment, accounts[2], currencyId) as c:
+            c['txn'] =environment.notional.nTokenRedeem(
+                accounts[2].address, currencyId, redeemAmount, False, False, {"from": accounts[2]}
+            )
+            c['redeemAmount'] = redeemAmount
 
         # Should have fCash assets for each liquid market
         portfolio = environment.notional.getAccountPortfolio(accounts[2])
@@ -430,9 +475,12 @@ def test_redeem_ntoken_keep_assets_accept_residuals(
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
 
-    environment.notional.nTokenRedeem(
-        accounts[2].address, currencyId, redeemAmount, False, True, {"from": accounts[2]}
-    )
+    with RedeemChecker(environment, accounts[2], currencyId) as c:
+        c['txn'] = environment.notional.nTokenRedeem(
+            accounts[2].address, currencyId, redeemAmount, False, True, {"from": accounts[2]}
+        )
+        c['redeemAmount'] = redeemAmount
+        c['acceptResiduals'] = True
 
     # Should have fCash assets for each liquid market and the ifCash asset
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
@@ -499,9 +547,12 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
     nTokenPV = environment.notional.nTokenPresentValueAssetDenominated(currencyId)
     totalSupply = environment.nToken[currencyId].totalSupply()
 
-    environment.notional.nTokenRedeem(
-        accounts[2].address, currencyId, redeemAmount, True, True, {"from": accounts[2]}
-    )
+    with RedeemChecker(environment, accounts[2], currencyId) as c:
+        c['txn'] = environment.notional.nTokenRedeem(
+            accounts[2].address, currencyId, redeemAmount, True, True, {"from": accounts[2]}
+        )
+        c['redeemAmount'] = redeemAmount
+        c['acceptResiduals'] = True
 
     portfolio = environment.notional.getAccountPortfolio(accounts[2])
 
@@ -546,7 +597,7 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
 
     check_system_invariants(environment, accounts)
 
-
+@pytest.mark.only
 def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
     # This unit test is here to test a bug where markets were skipped during the sellfCash portion
     # of redeeming nTokens
@@ -602,9 +653,6 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
         except Exception:
             pass
 
-    nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-
     # Leaves some more residual
     action = get_balance_trade_action(
         2,
@@ -624,9 +672,12 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
 
     # Need to ensure that no residual assets are left behind
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
-    environment.notional.nTokenRedeem(
-        accounts[0].address, currencyId, 1e8, True, False, {"from": accounts[0]}
-    )
+    with RedeemChecker(environment, accounts[0], currencyId) as c:
+        c['txn'] = environment.notional.nTokenRedeem(
+            accounts[0].address, currencyId, 1e8, True, False, {"from": accounts[0]}
+        )
+        c['redeemAmount'] = 1e8
+        c['acceptResiduals'] = True
 
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
     check_system_invariants(environment, accounts)

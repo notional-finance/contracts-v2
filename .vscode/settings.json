@@ -4,6 +4,7 @@
         "autouse",
         "finalizef",
         "liquidatef",
+        "lookback",
         "NODEBT",
         "Rebalance",
         "Rebalancing"

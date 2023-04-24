@@ -1,15 +1,13 @@
 import math
 
-import brownie
 import pytest
 from brownie import MockERC20
-from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from liquidation_fixtures import *
-from scripts.config import CurrencyDefaults, nTokenDefaults
-from tests.constants import RATE_PRECISION, SECONDS_IN_QUARTER
-from tests.helpers import get_balance_trade_action, get_lend_action, get_tref
+from scripts.config import nTokenDefaults
+from tests.helpers import get_balance_trade_action
+from tests.snapshot import EventChecker
 
 chain = Chain()
 
@@ -19,7 +17,7 @@ def isolation(fn_isolation):
     pass
 
 
-def check_local_currency_liquidation(accounts, env, currencyId):
+def check_local_currency_liquidation(accounts, env, currencyId, assetsToAccount, assetsToLiquidator):
     fcBeforeNToken = env.notional.getFreeCollateral(accounts[2])
     (localPrimeCash, _) = env.notional.calculateLocalCurrencyLiquidation.call(
         accounts[2], currencyId, 0
@@ -36,12 +34,22 @@ def check_local_currency_liquidation(accounts, env, currencyId):
     else:
         balanceBefore = token.balanceOf(accounts[0])
 
-    txn = env.notional.liquidateLocalCurrency(
-        accounts[2],
-        currencyId,
-        0,
-        {"from": accounts[0], "value": localUnderlying + 2e18 if currencyId == 1 else 0},
-    )
+    with EventChecker(env, 'Liquidation',
+        liquidator=accounts[0],
+        account=accounts[2],
+        localCurrency=currencyId,
+        collateralCurrency=None,
+        assetsToAccount=assetsToAccount,
+        assetsToLiquidator=assetsToLiquidator
+    ) as e:
+        txn = env.notional.liquidateLocalCurrency(
+            accounts[2],
+            currencyId,
+            0,
+            {"from": accounts[0], "value": localUnderlying + 2e18 if currencyId == 1 else 0},
+        )
+        e['txn'] = txn
+
     assert txn.events["LiquidateLocalCurrency"]
     netLocal = txn.events["LiquidateLocalCurrency"]["netLocalFromLiquidator"]
 
@@ -53,7 +61,6 @@ def check_local_currency_liquidation(accounts, env, currencyId):
     assert pytest.approx(netLocal, rel=1e-5) == localPrimeCash
     assert pytest.approx(balanceBefore - balanceAfter, rel=1e-5) == localUnderlying
     check_liquidation_invariants(env, accounts[2], fcBeforeNToken)
-
 
 def setup_collateral_liquidation(env, accounts, currencyId, nTokenShare):
     # Borrow local currency, deposit ETH collateral every time unless ETH is local
@@ -92,7 +99,7 @@ def setup_collateral_liquidation(env, accounts, currencyId, nTokenShare):
     return (maxBorrowLocal, buffer, oracle)
 
 
-def check_collateral_currency_liquidation(env, accounts, currencyId, oracle):
+def check_collateral_currency_liquidation(env, accounts, currencyId, oracle, assetsToAccount):
     collateralCurrency = 1 if currencyId != 1 else 2
 
     # Decrease ETH value
@@ -125,16 +132,24 @@ def check_collateral_currency_liquidation(env, accounts, currencyId, oracle):
 
     balanceBeforeNToken = env.nToken[collateralCurrency].balanceOf(accounts[0])
 
-    txn = env.notional.liquidateCollateralCurrency(
-        accounts[2],
-        currencyId,
-        collateralCurrency,
-        0,
-        0,
-        True,
-        True,
-        {"from": accounts[0], "value": localUnderlying + 2e18 if currencyId == 1 else 0},
-    )
+    with EventChecker(env, 'Liquidation',
+        liquidator=accounts[0],
+        account=accounts[2],
+        localCurrency=currencyId,
+        collateralCurrency=collateralCurrency,
+        assetsToAccount=assetsToAccount
+    ) as e:
+        txn = env.notional.liquidateCollateralCurrency(
+            accounts[2],
+            currencyId,
+            collateralCurrency,
+            0,
+            0,
+            True,
+            True,
+            {"from": accounts[0], "value": localUnderlying + 2e18 if currencyId == 1 else 0},
+        )
+        e['txn'] = txn
 
     assert txn.events["LiquidateCollateralCurrency"]
     netLocal = txn.events["LiquidateCollateralCurrency"]["netLocalFromLiquidator"]
@@ -156,11 +171,13 @@ def check_collateral_currency_liquidation(env, accounts, currencyId, oracle):
 
     check_liquidation_invariants(env, accounts[2], fcBefore)
 
+    return (netNToken, netCash, netLocal)
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_liquidate_local_currency_prime_ntoken(env, accounts, currencyId):
     decimals = env.notional.getCurrency(currencyId)["underlyingToken"]["decimals"]
 
+    # Borrowing in prime cash to provide liquidity via nToken
     env.notional.enablePrimeBorrow(True, {"from": accounts[2]})
     depositActionAmount = 150.1 * decimals
 
@@ -183,7 +200,11 @@ def test_liquidate_local_currency_prime_ntoken(env, accounts, currencyId):
     # Undercollateralized after 45 days of debt accrual
     chain.mine(1, timedelta=86400 * 45)
 
-    check_local_currency_liquidation(accounts, env, currencyId)
+    check_local_currency_liquidation(
+        accounts, env, currencyId,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'nToken' and x[0]['underlying'] == currencyId,
+    )
 
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
@@ -220,16 +241,19 @@ def test_liquidate_local_currency_fcash_ntoken(env, accounts, currencyId):
     tokenDefaults[1] = 75
     env.notional.updateTokenCollateralParameters(currencyId, *(tokenDefaults))
 
-    check_local_currency_liquidation(accounts, env, currencyId)
+    check_local_currency_liquidation(accounts, env, currencyId,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'nToken' and x[0]['underlying'] == currencyId,
+    )
 
 
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
-    nTokenShare=strategy("uint", min_value=0, max_value=100),
+    nTokenShare=strategy("uint", min_value=0, max_value=10),
 )
 def test_liquidate_collateral_currency_fcash(env, accounts, currencyId, nTokenShare):
     (maxBorrowLocal, aggregateBuffer, oracle) = setup_collateral_liquidation(
-        env, accounts, currencyId, nTokenShare
+        env, accounts, currencyId, nTokenShare * 10
     )
 
     fCashAmount = -math.floor(
@@ -254,17 +278,19 @@ def test_liquidate_collateral_currency_fcash(env, accounts, currencyId, nTokenSh
     )
     env.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
 
-    check_collateral_currency_liquidation(env, accounts, currencyId, oracle)
+    check_collateral_currency_liquidation(env, accounts, currencyId, oracle,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId
+    )
 
 
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
-    nTokenShare=strategy("uint", min_value=0, max_value=100),
+    nTokenShare=strategy("uint", min_value=0, max_value=10),
 )
 def test_liquidate_collateral_currency_prime(env, accounts, currencyId, nTokenShare):
     decimals = env.notional.getCurrency(currencyId)["underlyingToken"]["decimals"]
     (maxBorrowLocal, aggregateBuffer, oracle) = setup_collateral_liquidation(
-        env, accounts, currencyId, nTokenShare
+        env, accounts, currencyId, nTokenShare * 10
     )
     env.notional.enablePrimeBorrow(True, {"from": accounts[2]})
 
@@ -274,4 +300,6 @@ def test_liquidate_collateral_currency_prime(env, accounts, currencyId, nTokenSh
     )
     env.notional.withdraw(currencyId, maxBorrowPrimeCash, True, {"from": accounts[2]})
 
-    check_collateral_currency_liquidation(env, accounts, currencyId, oracle)
+    check_collateral_currency_liquidation(env, accounts, currencyId, oracle,
+        lambda x: len(x) == 1 and x[0]['assetType'] == 'pCash' and x[0]['underlying'] == currencyId
+    )

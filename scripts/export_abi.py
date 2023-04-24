@@ -11,3 +11,11 @@ def main():
     StrategyVaultABI = ContractsV2Project._build.get("IStrategyVault")["abi"]
     with open("abi/IStrategyVault.json", "w") as f:
         json.dump(StrategyVaultABI, f, sort_keys=True, indent=4)
+
+    ERC4626ABI = ContractsV2Project._build.get("IERC4626")["abi"]
+    with open("abi/ERC4626.json", "w") as f:
+        json.dump(ERC4626ABI, f, sort_keys=True, indent=4)
+
+    PrimeCashHoldingsOracle = ContractsV2Project._build.get("IPrimeCashHoldingsOracle")["abi"]
+    with open("abi/PrimeCashHoldingsOracle.json", "w") as f:
+        json.dump(PrimeCashHoldingsOracle, f, sort_keys=True, indent=4)

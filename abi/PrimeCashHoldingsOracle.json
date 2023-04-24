@@ -1,0 +1,228 @@
+[
+    {
+        "inputs": [],
+        "name": "decimals",
+        "outputs": [
+            {
+                "internalType": "uint8",
+                "name": "",
+                "type": "uint8"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address[]",
+                "name": "_holdings",
+                "type": "address[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "depositAmounts",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "getDepositCalldataForRebalancing",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "address[]",
+                        "name": "targets",
+                        "type": "address[]"
+                    },
+                    {
+                        "internalType": "bytes[]",
+                        "name": "callData",
+                        "type": "bytes[]"
+                    },
+                    {
+                        "internalType": "uint256[]",
+                        "name": "msgValue",
+                        "type": "uint256[]"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "underlyingDepositAmount",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "assetToken",
+                        "type": "address"
+                    }
+                ],
+                "internalType": "struct DepositData[]",
+                "name": "depositData",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint256",
+                "name": "withdrawAmount",
+                "type": "uint256"
+            }
+        ],
+        "name": "getRedemptionCalldata",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "address[]",
+                        "name": "targets",
+                        "type": "address[]"
+                    },
+                    {
+                        "internalType": "bytes[]",
+                        "name": "callData",
+                        "type": "bytes[]"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "expectedUnderlying",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "assetToken",
+                        "type": "address"
+                    }
+                ],
+                "internalType": "struct RedeemData[]",
+                "name": "redeemData",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address[]",
+                "name": "_holdings",
+                "type": "address[]"
+            },
+            {
+                "internalType": "uint256[]",
+                "name": "withdrawAmounts",
+                "type": "uint256[]"
+            }
+        ],
+        "name": "getRedemptionCalldataForRebalancing",
+        "outputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "address[]",
+                        "name": "targets",
+                        "type": "address[]"
+                    },
+                    {
+                        "internalType": "bytes[]",
+                        "name": "callData",
+                        "type": "bytes[]"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "expectedUnderlying",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "address",
+                        "name": "assetToken",
+                        "type": "address"
+                    }
+                ],
+                "internalType": "struct RedeemData[]",
+                "name": "redeemData",
+                "type": "tuple[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getTotalUnderlyingValueStateful",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "nativePrecision",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "internalPrecision",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "getTotalUnderlyingValueView",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "nativePrecision",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "internalPrecision",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "holdingValuesInUnderlying",
+        "outputs": [
+            {
+                "internalType": "uint256[]",
+                "name": "",
+                "type": "uint256[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "holdings",
+        "outputs": [
+            {
+                "internalType": "address[]",
+                "name": "",
+                "type": "address[]"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "underlying",
+        "outputs": [
+            {
+                "internalType": "address",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    }
+]

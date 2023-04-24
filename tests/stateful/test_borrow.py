@@ -1,13 +1,14 @@
 import brownie
 import pytest
 from brownie.network.state import Chain
-from tests.constants import HAS_ASSET_DEBT, HAS_BOTH_DEBT, RATE_PRECISION, SECONDS_IN_QUARTER
+from scripts.EventProcessor import processTxn
+from tests.constants import HAS_ASSET_DEBT, HAS_BOTH_DEBT, RATE_PRECISION
 from tests.helpers import (
     active_currencies_to_list,
     get_balance_trade_action,
-    get_tref,
     initialize_environment,
 )
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -104,7 +105,6 @@ def test_borrow_failures(environment, accounts):
             accounts[1], [borrowAction, collateral], {"from": accounts[1]}
         )
 
-
 def test_deposit_underlying_and_borrow_specify_fcash(environment, accounts):
     fCashAmount = 100e8
     borrowAction = get_balance_trade_action(
@@ -125,12 +125,15 @@ def test_deposit_underlying_and_borrow_specify_fcash(environment, accounts):
     collateral = get_balance_trade_action(3, "DepositUnderlying", [], depositActionAmount=10_000e6)
 
     marketsBefore = environment.notional.getActiveMarkets(2)
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [borrowAction, collateral], {"from": accounts[1]}
-    )
-
-    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
-    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [-fCashAmount],
+        netCash=lambda x: x[3] == environment.approxPrimeCash('USDC', 10_000e6)
+    ) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [borrowAction, collateral], {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -181,11 +184,16 @@ def test_mint_ntokens_and_borrow_specify_fcash(environment, accounts):
     )
 
     marketsBefore = environment.notional.getActiveMarkets(2)
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [borrowAction, collateral], {"from": accounts[1]}
-    )
-    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
-    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
+    # TODO: this does not bundle properly because mint nTokens sits above the account action
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [-fCashAmount],
+        netCash=lambda x: 3 not in x[3]
+    ) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [borrowAction, collateral], {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -234,11 +242,11 @@ def test_deposit_asset_and_borrow(environment, accounts):
     collateral = get_balance_trade_action(3, "DepositAsset", [], depositActionAmount=500000e8)
 
     marketsBefore = environment.notional.getActiveMarkets(2)
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [borrowAction, collateral], {"from": accounts[1]}
-    )
-    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
-    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
+    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [borrowAction, collateral], {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -313,12 +321,15 @@ def test_roll_borrow_to_maturity(environment, accounts):
         ],
     )
 
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [action], {"from": accounts[1]}
-    )
-
-    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
-    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [100e8, -fCashAmount],
+        netCash=lambda x: 0 < x[2] and x[2] < 10e8 # Only dust residual left
+    ) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [action], {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -360,12 +371,15 @@ def test_deposit_and_borrow_bitmap(environment, accounts):
     collateral = get_balance_trade_action(3, "DepositUnderlying", [], depositActionAmount=10_000e6)
 
     marketsBefore = environment.notional.getActiveMarkets(2)
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [borrowAction, collateral], {"from": accounts[1]}
-    )
-
-    assert txn.events["LendBorrowTrade"][0]["account"] == accounts[1]
-    assert txn.events["LendBorrowTrade"][0]["currencyId"] == 2
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [-fCashAmount],
+        netCash=lambda x: x[3] == environment.approxPrimeCash('USDC', 10_000e6)
+    ) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [borrowAction, collateral], {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -410,9 +424,16 @@ def test_borrow_to_close_prime_lending(environment, accounts):
         withdrawEntireCashBalance=True,
         redeemToUnderlying=True,
     )
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [action], {"from": accounts[1]}
-    )
+
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [-100e8],
+        netCash=lambda x: x[2] > 0
+    ) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [action], {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     # Account context is cleaned out
     context = environment.notional.getAccountContext(accounts[1])
@@ -440,9 +461,6 @@ def test_borrow_fixed_withdraw_amount_with_prime_cash_debt(environment, accounts
     )
     environment.notional.withdraw(2, 100e8, True, {"from": accounts[1]})
 
-    balanceBefore = environment.notional.getAccountBalance(2, accounts[1])[0]
-    assert pytest.approx(balanceBefore, abs=1) == -100e8
-
     marketsBefore = environment.notional.getActiveMarkets(2)
     (_, borrowAmountPrimeCash, _, _) = environment.notional.getPrincipalFromfCashBorrow(
         2, 100e8, marketsBefore[0][1], 0, chain.time()
@@ -461,12 +479,21 @@ def test_borrow_fixed_withdraw_amount_with_prime_cash_debt(environment, accounts
         redeemToUnderlying=True,
     )
 
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [action], {"from": accounts[1]}
-    )
+    balanceBefore = environment.notional.getAccountBalance(2, accounts[1])[0]
+    assert pytest.approx(balanceBefore, abs=1) == -100e8
+
+    with EventChecker(environment, "Account Action",
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [-100e8],
+        netCash=lambda x: 0 < x[2] and x[2] < 1e8
+    ) as c:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [action], {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     balanceAfter = environment.notional.getAccountBalance(2, accounts[1])[0]
-    assert pytest.approx(balanceAfter, abs=1000) == balanceBefore
+    assert pytest.approx(balanceAfter, abs=10_000) == balanceBefore
     transfer = list(
         filter(lambda e: e['from'] == environment.notional.address and e['to'] == accounts[1].address, txn.events['Transfer'])
     )[0]

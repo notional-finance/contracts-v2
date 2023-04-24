@@ -4,6 +4,7 @@ from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.constants import HAS_CASH_DEBT
 from tests.helpers import active_currencies_to_list, get_balance_action, initialize_environment
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -61,28 +62,22 @@ def test_fails_on_unauthorized_caller(environment, accounts):
             {"from": accounts[0]},
         )
 
-
 def test_deposit_deprecated_asset_batch(environment, accounts):
-    txn = environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(2, "DepositAsset", depositActionAmount=5000e8),
-            get_balance_action(3, "DepositAsset", depositActionAmount=5000e8),
-        ],
-        {"from": accounts[1]},
-    )
-
-    assert txn.events["CashBalanceChange"][0]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"][0]["currencyId"] == 2
-    assert environment.approxExternal(
-        "DAI", txn.events["CashBalanceChange"][0]["netCashChange"], 100e18
-    )
-
-    assert txn.events["CashBalanceChange"][1]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"][1]["currencyId"] == 3
-    assert environment.approxExternal(
-        "USDC", txn.events["CashBalanceChange"][1]["netCashChange"], 100e6
-    )
+    with EventChecker(
+        environment, 'Account Action',
+        account=accounts[1].address,
+        netCash=lambda x: x[2] == environment.approxPrimeCash('DAI', 100e18) and
+            x[3] == environment.approxPrimeCash('USDC', 100e6)
+    ) as c:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(2, "DepositAsset", depositActionAmount=5000e8),
+                get_balance_action(3, "DepositAsset", depositActionAmount=5000e8),
+            ],
+            {"from": accounts[1]},
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -102,26 +97,21 @@ def test_deposit_deprecated_asset_batch(environment, accounts):
 
 
 def test_deposit_underlying_batch(environment, accounts):
-    txn = environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(2, "DepositUnderlying", depositActionAmount=100e18),
-            get_balance_action(3, "DepositUnderlying", depositActionAmount=100e6),
-        ],
-        {"from": accounts[1]},
-    )
-
-    assert txn.events["CashBalanceChange"][0]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"][0]["currencyId"] == 2
-    assert environment.approxExternal(
-        "DAI", txn.events["CashBalanceChange"][0]["netCashChange"], 100e18
-    )
-
-    assert txn.events["CashBalanceChange"][1]["account"] == accounts[1]
-    assert txn.events["CashBalanceChange"][1]["currencyId"] == 3
-    assert environment.approxExternal(
-        "USDC", txn.events["CashBalanceChange"][1]["netCashChange"], 100e6
-    )
+    with EventChecker(
+        environment, 'Account Action',
+        account=accounts[1].address,
+        netCash=lambda x: x[2] == environment.approxPrimeCash('DAI', 100e18) and
+            x[3] == environment.approxPrimeCash('USDC', 100e6)
+    ) as c:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(2, "DepositUnderlying", depositActionAmount=100e18),
+                get_balance_action(3, "DepositUnderlying", depositActionAmount=100e6),
+            ],
+            {"from": accounts[1]},
+        )
+        c['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -142,36 +132,27 @@ def test_deposit_underlying_batch(environment, accounts):
 
 @given(useUnderlying=strategy("bool"))
 def test_deposit_and_mint_ntoken(environment, accounts, useUnderlying):
-    if useUnderlying:
-        txn = environment.notional.batchBalanceAction(
-            accounts[1],
-            [
-                get_balance_action(2, "DepositUnderlyingAndMintNToken", depositActionAmount=100e18),
-                get_balance_action(3, "DepositUnderlyingAndMintNToken", depositActionAmount=100e6),
-            ],
-            {"from": accounts[1]},
-        )
-    else:
-        txn = environment.notional.batchBalanceAction(
-            accounts[1],
-            [
-                get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
-                get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
-            ],
-            {"from": accounts[1]},
-        )
+    with EventChecker(environment, "Mint nToken") as e:
+        if useUnderlying:
+            txn = environment.notional.batchBalanceAction(
+                accounts[1],
+                [
+                    get_balance_action(2, "DepositUnderlyingAndMintNToken", depositActionAmount=100e18),
+                    get_balance_action(3, "DepositUnderlyingAndMintNToken", depositActionAmount=100e6),
+                ],
+                {"from": accounts[1]},
+            )
+        else:
+            txn = environment.notional.batchBalanceAction(
+                accounts[1],
+                [
+                    get_balance_action(2, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
+                    get_balance_action(3, "DepositAssetAndMintNToken", depositActionAmount=5000e8),
+                ],
+                {"from": accounts[1]},
+            )
 
-    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert environment.approxInternal(
-        "DAI", txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"], 100e8
-    )
-
-    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert environment.approxInternal(
-        "USDC", txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"], 100e8
-    )
+        e['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -201,22 +182,17 @@ def test_redeem_ntoken(environment, accounts):
     daiNTokenBalance = environment.notional.getAccountBalance(2, accounts[1])[1]
     usdcNTokenBalance = environment.notional.getAccountBalance(3, accounts[1])[1]
 
-    txn = environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(2, "RedeemNToken", depositActionAmount=daiNTokenBalance),
-            get_balance_action(3, "RedeemNToken", depositActionAmount=usdcNTokenBalance),
-        ],
-        {"from": accounts[1]},
-    )
+    with EventChecker(environment, "Redeem nToken") as e:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(2, "RedeemNToken", depositActionAmount=daiNTokenBalance),
+                get_balance_action(3, "RedeemNToken", depositActionAmount=usdcNTokenBalance),
+            ],
+            {"from": accounts[1]},
+        )
 
-    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -daiNTokenBalance
-
-    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -usdcNTokenBalance
+        e['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -231,7 +207,6 @@ def test_redeem_ntoken(environment, accounts):
     assert balances[1] == 0
 
     check_system_invariants(environment, accounts)
-
 
 def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
     environment.notional.batchBalanceAction(
@@ -249,37 +224,31 @@ def test_redeem_ntoken_and_withdraw_underlying(environment, accounts):
     daiNTokenBalance = environment.notional.getAccountBalance(2, accounts[1])[1]
     usdcNTokenBalance = environment.notional.getAccountBalance(3, accounts[1])[1]
 
-    txn = environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(
-                2,
-                "RedeemNToken",
-                depositActionAmount=daiNTokenBalance * 0.1,
-                withdrawEntireCashBalance=True,
-                redeemToUnderlying=True,
-            ),
-            get_balance_action(
-                3,
-                "RedeemNToken",
-                depositActionAmount=usdcNTokenBalance * 0.1,
-                withdrawEntireCashBalance=True,
-                redeemToUnderlying=True,
-            ),
-        ],
-        {"from": accounts[1]},
-    )
+    with EventChecker(environment, "Redeem nToken") as e:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(
+                    2,
+                    "RedeemNToken",
+                    depositActionAmount=daiNTokenBalance * 0.1,
+                    withdrawEntireCashBalance=True,
+                    redeemToUnderlying=True,
+                ),
+                get_balance_action(
+                    3,
+                    "RedeemNToken",
+                    depositActionAmount=usdcNTokenBalance * 0.1,
+                    withdrawEntireCashBalance=True,
+                    redeemToUnderlying=True,
+                ),
+            ],
+            {"from": accounts[1]},
+        )
+        e['txn'] = txn
 
     daiBalanceAfter = environment.token["DAI"].balanceOf(accounts[1])
     usdcBalanceAfter = environment.token["USDC"].balanceOf(accounts[1])
-
-    assert txn.events["nTokenSupplyChange"][0]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][0]["currencyId"] == 2
-    assert txn.events["nTokenSupplyChange"][0]["tokenSupplyChange"] == -daiNTokenBalance * 0.1
-
-    assert txn.events["nTokenSupplyChange"][1]["account"] == accounts[1]
-    assert txn.events["nTokenSupplyChange"][1]["currencyId"] == 3
-    assert txn.events["nTokenSupplyChange"][1]["tokenSupplyChange"] == -usdcNTokenBalance * 0.1
 
     context = environment.notional.getAccountContext(accounts[1])
     activeCurrenciesList = active_currencies_to_list(context[4])
@@ -316,11 +285,13 @@ def test_convert_cash_to_ntoken(environment, accounts):
             {"from": accounts[1]},
         )
 
-    environment.notional.batchBalanceAction(
-        accounts[1],
-        [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=balances[0])],
-        {"from": accounts[1]},
-    )
+    with EventChecker(environment, "Mint nToken") as e:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [get_balance_action(2, "ConvertCashToNToken", depositActionAmount=balances[0])],
+            {"from": accounts[1]},
+        )
+        e['txn'] = txn
 
     balances = environment.notional.getAccountBalance(2, accounts[1])
     assert balances[0] == 0
@@ -342,14 +313,16 @@ def test_borrow_prime_to_mint_ntoken(environment, accounts):
         )
 
     environment.notional.enablePrimeBorrow(True, {"from": accounts[1]})
-    environment.notional.batchBalanceAction(
-        accounts[1],
-        [
-            get_balance_action(2, "ConvertCashToNToken", depositActionAmount=100_000e8),
-            get_balance_action(3, "DepositUnderlying", depositActionAmount=30_000e6),
-        ],
-        {"from": accounts[1]},
-    )
+    with EventChecker(environment, "Mint nToken") as e:
+        txn = environment.notional.batchBalanceAction(
+            accounts[1],
+            [
+                get_balance_action(2, "ConvertCashToNToken", depositActionAmount=100_000e8),
+                get_balance_action(3, "DepositUnderlying", depositActionAmount=30_000e6),
+            ],
+            {"from": accounts[1]},
+        )
+        e['txn'] = txn
 
     context = environment.notional.getAccountContext(accounts[1])
     assert context["hasDebt"] == HAS_CASH_DEBT

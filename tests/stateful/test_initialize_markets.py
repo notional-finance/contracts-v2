@@ -16,6 +16,7 @@ from tests.helpers import (
     initialize_environment,
     setup_residual_environment,
 )
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 LOGGER = logging.getLogger(__name__)
@@ -250,6 +251,7 @@ def ntoken_asserts(environment, currencyId, isFirstInit, accounts, wasInit=True)
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.only
 def test_first_initialization(environment, accounts):
     currencyId = 2
     with brownie.reverts():
@@ -277,7 +279,13 @@ def test_first_initialization(environment, accounts):
         ],
         {"from": accounts[0]},
     )
-    environment.notional.initializeMarkets(currencyId, True)
+
+    with EventChecker(environment, "Initialize Markets",
+        netLiquidity=lambda x: len(x) == 2
+    ) as e:
+        txn = environment.notional.initializeMarkets(currencyId, True)
+        e['txn'] = txn
+
     ntoken_asserts(environment, currencyId, True, accounts)
 
 def test_settle_and_initialize(environment, accounts):
@@ -287,12 +295,32 @@ def test_settle_and_initialize(environment, accounts):
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     # No trading has occured
-    txn = environment.notional.initializeMarkets(currencyId, False)
+    with EventChecker(environment, "Initialize Markets") as e:
+        txn = environment.notional.initializeMarkets(currencyId, False)
+        e['txn'] = txn
+
     # Ensure that prime settlement rate does get set
     assert 'SetPrimeSettlementRate' in txn.events
+
+    nTokenAddress = environment.nToken[currencyId].address
+    decoded = decode_events(environment, txn)
+    grouped = group_events(decoded)
+    assert len(grouped['nToken Remove Liquidity']) == 1
+    assert grouped['nToken Remove Liquidity'][0]['account'] == nTokenAddress
+    # Settles the positive and negative fCash assets at the same time
+    assert len(grouped['Settle fCash']) == 2
+    assert grouped['Settle fCash'][0]['account'] == nTokenAddress
+    assert grouped['Settle fCash'][1]['account'] == nTokenAddress
+    assert grouped['Settle fCash'][0]['fCash'] + grouped['Settle fCash'][1]['fCash'] == 0
+    assert grouped['Settle fCash'][0]['maturity'] == grouped['Settle fCash'][1]['maturity']
+
+    assert len(grouped['Settle Cash']) == 0
+    assert len(grouped['nToken Add Liquidity']) == 2
+
     ntoken_asserts(environment, currencyId, False, accounts)
 
 
+@pytest.mark.only
 def test_settle_and_extend(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
@@ -315,14 +343,44 @@ def test_settle_and_extend(environment, accounts):
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
-    environment.notional.initializeMarkets(currencyId, False)
+    txn = environment.notional.initializeMarkets(currencyId, False)
     ntoken_asserts(environment, currencyId, False, accounts)
+
+    nTokenAddress = environment.nToken[currencyId].address
+    decoded = decode_events(environment, txn)
+    grouped = group_events(decoded)
+    assert len(grouped['nToken Remove Liquidity']) == 1
+    assert grouped['nToken Remove Liquidity'][0]['account'] == nTokenAddress
+    # Settles the positive and negative fCash assets at the same time
+    assert len(grouped['Settle fCash']) == 2
+    assert grouped['Settle fCash'][0]['account'] == nTokenAddress
+    assert grouped['Settle fCash'][1]['account'] == nTokenAddress
+    assert grouped['Settle fCash'][0]['fCash'] + grouped['Settle fCash'][1]['fCash'] == 0
+    assert grouped['Settle fCash'][0]['maturity'] == grouped['Settle fCash'][1]['maturity']
+
+    assert len(grouped['Settle Cash']) == 0
+    assert len(grouped['nToken Add Liquidity']) == 3
 
     # Test re-initialization the second time
     blockTime = chain.time()
     chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
-    environment.notional.initializeMarkets(currencyId, False)
+    txn = environment.notional.initializeMarkets(currencyId, False)
+
+    nTokenAddress = environment.nToken[currencyId].address
+    decoded = decode_events(environment, txn)
+    grouped = group_events(decoded)
+    assert len(grouped['nToken Remove Liquidity']) == 2
+    # Settles the positive and negative fCash assets at the same time
+    assert len(grouped['Settle fCash']) == 2
+    assert grouped['Settle fCash'][0]['account'] == nTokenAddress
+    assert grouped['Settle fCash'][1]['account'] == nTokenAddress
+    assert grouped['Settle fCash'][0]['fCash'] + grouped['Settle fCash'][1]['fCash'] == 0
+    assert grouped['Settle fCash'][0]['maturity'] == grouped['Settle fCash'][1]['maturity']
+
+    assert len(grouped['Settle Cash']) == 0
+    assert len(grouped['nToken Add Liquidity']) == 3
+
     ntoken_asserts(environment, currencyId, False, accounts)
 
 

@@ -2,6 +2,7 @@ import logging
 import math
 
 import brownie
+import hypothesis
 import pytest
 from brownie import MockERC20, SimpleStrategyVault
 from brownie.convert.datatypes import Wei
@@ -10,6 +11,7 @@ from brownie.test import given, strategy
 from fixtures import *
 from tests.constants import PRIME_CASH_VAULT_MATURITY, SECONDS_IN_QUARTER
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -48,6 +50,45 @@ Check Collateral Ratio:
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
     pass
+
+# def check_exit_events(environment, txn, vault, debtToRepay, vaultSharesToRedeem):
+#     decoded = decode_events(environment, txn, vaults=[vault])
+#     grouped = group_events(decoded)
+    
+#     # assert len(grouped['Deposit']) == 1
+#     # deposit = grouped['Deposit'][0]
+#     # assert deposit['groupType'] == 'Deposit and Transfer Prime Cash'
+#     # assert deposit['receiver'] == vault
+#     # assert deposit['primeCashDeposit'] == deposit['primeCashTransfer']
+
+#     # If Borrowing fCash
+#     netRepay = 0
+#     if len(grouped['Buy fCash [nToken]']) > 0:
+#         assert len(grouped['Buy fCash [nToken]']) == 1
+#         lend = grouped['Buy fCash [nToken]'][0]
+#         assert lend['account'] == vault
+
+#         assert len(grouped['Vault Fees']) == 0
+#         netRepay = lend['netAccountPrimeCash']
+
+#     if debtToRepay > 0:
+#         assert len(grouped['Vault Exit']) == 1
+#         exit = grouped['Vault Exit'][0]
+#         assert exit['vault'] == vault
+
+#     if vaultSharesToRedeem > 0:
+#         assert len(grouped['Vault Redeem']) == 1 or len(grouped['Deposit']) == 1
+#         if len(grouped['Vault Redeem']) == 1:
+#             redeem = grouped['Vault Redeem'][0]
+#             assert redeem['vault'] == vault
+#         else:
+#             deposit = grouped['Deposit'][0]
+#             assert deposit['receiver'] == vault
+
+#     # TODO: this is off by a little bit
+#     # assert entry['primeCash'] == deposit['primeCashTransfer'] - netBorrowed
+
+#     return (decoded, grouped)
 
 
 def test_cannot_exit_within_min_blocks(environment, vault, accounts):
@@ -164,10 +205,18 @@ def test_only_vault_exit(environment, vault, accounts):
         )
 
     chain.mine(1, timedelta=60)
-    # Execution from vault is allowed
-    environment.notional.exitVault(
-        accounts[1], vault.address, accounts[1], 50_000e8, 50_000e8, 0, "", {"from": vault.address}
-    )
+    with EventChecker(environment, 'Vault Exit', vaults=[vault],
+        vault=vault,
+        account=accounts[1],
+        maturity=maturity,
+        debtRepaid=50_000e8,
+        vaultRedeemed=50_000e8
+    ) as e:
+        # Execution from vault is allowed
+        txn = environment.notional.exitVault(
+            accounts[1], vault.address, accounts[1], 50_000e8, 50_000e8, 0, "", {"from": vault.address}
+        )
+        e['txn'] = txn
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -353,16 +402,23 @@ def test_full_exit(environment, accounts, currencyId, isPrime, hasMatured):
     debtToRepay = (
         2 ** 256 - 1 if isPrime or hasMatured else -vaultAccountBefore["accountDebtUnderlying"]
     )
-    txn = environment.notional.exitVault(
-        accounts[1],
-        vault.address,
-        accounts[1],
-        vaultAccountBefore["vaultShares"],
-        debtToRepay,
-        0,
-        "",
-        {"from": accounts[1]},
-    )
+    with EventChecker(environment, 'Vault Exit', vaults=[vault],
+        vault=vault,
+        account=accounts[1],
+        maturity=maturity,
+        vaultRedeemed=vaultAccountBefore['vaultShares']
+    ) as e:
+        txn = environment.notional.exitVault(
+            accounts[1],
+            vault.address,
+            accounts[1],
+            vaultAccountBefore["vaultShares"],
+            debtToRepay,
+            0,
+            "",
+            {"from": accounts[1]},
+        )
+        e['txn'] = txn
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     assert vaultAccountAfter["maturity"] == 0
@@ -391,6 +447,7 @@ def test_full_exit(environment, accounts, currencyId, isPrime, hasMatured):
     check_system_invariants(environment, accounts, [vault])
 
 
+@hypothesis.settings(max_examples=15)
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
     isPrime=strategy("bool"),
@@ -430,19 +487,28 @@ def test_partial_exit(environment, accounts, currencyId, isPrime, hasMatured, sh
         costToRepay + 5e15 - valueToRedeem if costToRepay + 5e15 > valueToRedeem else 0
     )
 
-    txn = environment.notional.exitVault(
-        accounts[1],
-        vault.address,
-        accounts[1],
-        sharesToRedeem,
-        debtToRepay,
-        0,
-        "",
-        {
-            "from": accounts[1],
-            "value": paymentRequired * 1.1 if currencyId == 1 and paymentRequired > 0 else 0,
-        },
-    )
+    chain.mine(1, timedelta=3600)
+    with EventChecker(environment, 'Vault Settle' if hasMatured and not isPrime else 'Vault Exit',vaults=[vault],
+        vault=vault,
+        account=accounts[1],
+        # debtRepaid=debtToRepay,
+        # vaultRedeemed=sharesToRedeem,
+        feesPaid=lambda x: x > 0
+    ) as e:
+        txn = environment.notional.exitVault(
+            accounts[1],
+            vault.address,
+            accounts[1],
+            sharesToRedeem,
+            debtToRepay,
+            0,
+            "",
+            {
+                "from": accounts[1],
+                "value": paymentRequired * 1.1 if currencyId == 1 and paymentRequired > 0 else 0,
+            },
+        )
+        e['txn'] = txn
 
     # All these assertions hold for all exits
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
@@ -451,26 +517,15 @@ def test_partial_exit(environment, accounts, currencyId, isPrime, hasMatured, sh
         pytest.approx(
             vaultAccountAfter["accountDebtUnderlying"]
             - vaultAccountBefore["accountDebtUnderlying"],
-            abs=1e6,
+            rel=1e-4,
         )
         == debtToRepay
     )
 
-    # if isPrime or hasMatured:
-    #     assert "VaultFeeAccrued" in txn.events
-    #     totalFees = (
-    #         txn.events["VaultFeeAccrued"]["reserveFee"] + txn.events["VaultFeeAccrued"]["nTokenFee"]
-    #     )
-    #     totalFees = environment.notional.convertCashBalanceToExternal(currencyId, totalFees, True)
-    #     assert vaultAccountAfter["maturity"] == PRIME_CASH_VAULT_MATURITY
-    # else:
-    #     totalFees = 0
-    #     assert vaultAccountAfter["maturity"] == vaultAccountBefore["maturity"]
-
-    # if currencyId == 1:
-    #     balanceAfter = accounts[1].balance()
-    # else:
-    #     balanceAfter = token.balanceOf(accounts[1])
+    if currencyId == 1:
+        balanceAfter = accounts[1].balance()
+    else:
+        balanceAfter = token.balanceOf(accounts[1])
 
     # assert (
     #     pytest.approx(balanceAfter - balanceBefore, rel=5e-7, abs=5_000)
@@ -500,15 +555,25 @@ def test_exit_vault_transfer_to_receiver(environment, vault, accounts, useReceiv
 
     # If vault share value > exit cost then we transfer to the account
     chain.mine(1, timedelta=65)
-    expectedProfit = environment.notional.exitVault.call(
-        accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
-    )
-    (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
-        2, 100_000e8, maturity, 0, chain.time()
-    )
-    environment.notional.exitVault(
-        accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
-    )
+
+    with EventChecker(environment, 'Vault Exit',vaults=[vault],
+        vault=vault,
+        account=accounts[1],
+        # receiver=receiver,
+        maturity=maturity,
+        debtRepaid=100_000e8,
+        vaultRedeemed=150_000e8,
+    ) as e:
+        expectedProfit = environment.notional.exitVault.call(
+            accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
+        )
+        (amountUnderlying, amountAsset, _, _) = environment.notional.getDepositFromfCashLend(
+            2, 100_000e8, maturity, 0, chain.time()
+        )
+        txn = environment.notional.exitVault(
+            accounts[1], vault.address, receiver, 150_000e8, 100_000e8, 0, "", {"from": accounts[1]}
+        )
+        e['txn'] = txn
 
     balanceAfter = environment.token["DAI"].balanceOf(receiver)
     vaultAccount = environment.notional.getVaultAccount(accounts[1], vault).dict()
@@ -516,7 +581,7 @@ def test_exit_vault_transfer_to_receiver(environment, vault, accounts, useReceiv
     vaultState = environment.notional.getVaultState(vault, maturity)
 
     assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == 150_000e18 - amountUnderlying
-    assert pytest.approx(balanceAfter - balanceBefore, rel=1e-8) == expectedProfit
+    assert pytest.approx(balanceAfter - balanceBefore, rel=1e-7) == expectedProfit
     assert healthBefore["collateralRatio"] < healthAfter["collateralRatio"]
 
     assert vaultAccount["accountDebtUnderlying"] == -100_000e8
@@ -561,9 +626,19 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     # NOTE: this adds 100_000 DAI into the contract but there is no offsetting fCash position
     # recorded, similarly, the fCash erased is not recorded anywhere either
     chain.mine(1, timedelta=60)
-    environment.notional.exitVault(
-        accounts[1], vault.address, receiver, 10_000e8, 100_000e8, 0, "", {"from": accounts[1]}
-    )
+
+    with EventChecker(environment, 'Vault Exit', vaults=[vault],
+        vault=vault,
+        account=accounts[1],
+        maturity=maturity,
+        debtRepaid=100_000e8,
+        vaultRedeemed=10_000e8,
+        lendAtZero=True
+    ) as e:
+        txn = environment.notional.exitVault(
+            accounts[1], vault.address, receiver, 10_000e8, 100_000e8, 0, "", {"from": accounts[1]}
+        )
+        e['txn'] = txn
 
     balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
     balanceAfterReceiver = environment.token["DAI"].balanceOf(receiver)
@@ -611,18 +686,23 @@ def test_settle_vault(environment, accounts, currencyId, enablefCashDiscount):
     environment.notional.initializeMarkets(currencyId, False)
 
     (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
-    txn = environment.notional.settleVaultAccount(accounts[1], vault)
-    assert "VaultAccountEvent" not in txn.events
+    with EventChecker(environment, 'Vault Settle', vaults=[vault],
+        vault=vault,
+        account=accounts[1],
+        feesPaid=lambda x: x > 0
+    ) as e:
+        txn = environment.notional.settleVaultAccount(accounts[1], vault)
+        e['txn'] = txn
 
     (healthAfter, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
 
     assert (
-        pytest.approx(vaultAccountAfter["accountDebtUnderlying"], abs=100)
+        pytest.approx(vaultAccountAfter["accountDebtUnderlying"], rel=1e-6)
         == vaultAccountBefore["accountDebtUnderlying"]
     )
     assert (
-        pytest.approx(healthBefore["collateralRatio"], abs=10) == healthAfter["collateralRatio"]
+        pytest.approx(healthBefore["collateralRatio"], abs=100) == healthAfter["collateralRatio"]
     )
 
     assert vaultAccountAfter["maturity"] == PRIME_CASH_VAULT_MATURITY

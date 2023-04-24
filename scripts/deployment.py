@@ -256,10 +256,14 @@ class TestEnvironment:
         self.cTokenAggregator = {}
         self.nToken = {}
         self.router = {}
+        self.pCash = {}
+        self.pDebt = {}
+        self.proxies = {}
         self.primeCashOracle = {}
         self.multisig = multisig
         self.primeCashScalars = {"ETH": 50, "DAI": 49, "USDC": 48, "WBTC": 47}
         self.symbol = {}
+        self.vaults = []
 
         if withGovernance:
             self._deployGovernance()
@@ -476,6 +480,52 @@ class TestEnvironment:
         nTokenAddress = self.notional.nTokenAddress(currencyId)
         self.nToken[currencyId] = Contract.from_abi(
             "nToken", nTokenAddress, abi=nTokenERC20Proxy.abi, owner=self.deployer
+        )
+
+        pCashAddress = self.notional.pCashAddress(currencyId)
+        self.pCash[currencyId] = Contract.from_abi(
+            "pCash", pCashAddress, abi=PrimeCashProxy.abi, owner=self.deployer
+        )
+
+        pDebtAddress = self.notional.pDebtAddress(currencyId)
+        self.pDebt[currencyId] = Contract.from_abi(
+            "pDebt", pDebtAddress, abi=PrimeDebtProxy.abi, owner=self.deployer
+        )
+
+        self.proxies[nTokenAddress] = { 
+            'assetType': 'nToken',
+            'currencyId': currencyId,
+            'underlying': symbol,
+            'symbol': self.nToken[currencyId].symbol()
+        }
+        self.proxies[pCashAddress] = { 
+            'assetType': 'pCash',
+            'currencyId': currencyId,
+            'underlying': symbol,
+            'symbol': self.pCash[currencyId].symbol()
+        }
+        self.proxies[pDebtAddress] = { 
+            'assetType': 'pDebt',
+            'currencyId': currencyId,
+            'underlying': symbol,
+            'symbol': self.pDebt[currencyId].symbol()
+        }
+
+    def approxPrimeCash(self, symbol, underlying, abs=150, rel=None):
+        currencyId = self.currencyId[symbol]
+        return pytest.approx(
+            self.notional.convertUnderlyingToPrimeCash(currencyId, underlying),
+            abs=abs, rel=rel
+        )
+
+    def approxUnderlying(self, symbol, primeCash, abs=150):
+        currencyId = self.currencyId[symbol]
+        decimals = 18 if symbol == "ETH" else self.token[symbol].decimals()
+        return pytest.approx(
+            self.notional.convertCashBalanceToExternal(currencyId, primeCash, True)
+            * 1e8
+            / (10 ** decimals),
+            abs=abs
         )
 
     def approxInternal(self, symbol, primeCash, underlyingInternal, abs=150):
