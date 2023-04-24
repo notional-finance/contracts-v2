@@ -23,8 +23,9 @@ interface NotionalGovernance {
     event OwnershipTransferred(address indexed previousOwner, address indexed newOwner);
     event PauseRouterAndGuardianUpdated(address indexed pauseRouter, address indexed pauseGuardian);
     event UpdateSecondaryIncentiveRewarder(uint16 indexed currencyId, address rewarder);
-    event UpdateLendingPool(address pool);
     event UpdateInterestRateCurve(uint16 indexed currencyId, uint8 indexed marketIndex);
+    event UpdateMaxUnderlyingSupply(uint16 indexed currencyId, uint256 maxUnderlyingSupply);
+    event PrimeProxyDeployed(uint16 indexed currencyId, address proxy, bool isCashProxy);
 
     function transferOwnership(address newOwner, bool direct) external;
 

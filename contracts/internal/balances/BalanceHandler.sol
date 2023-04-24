@@ -366,14 +366,16 @@ library BalanceHandler {
         // parameters are validated by the caller
         reserve = reserve.subNoNeg(assetInternalRedeemAmount);
         _setPositiveCashBalance(Constants.FEE_RESERVE, currencyId, reserve);
+        // Transfer event is emitted in Treasury Action
         emit ExcessReserveBalanceHarvested(currencyId, assetInternalRedeemAmount);
     }
 
     /// @notice sets the reserve balance, see TreasuryAction.setReserveCashBalance
     function setReserveCashBalance(uint16 currencyId, int256 newBalance) internal {
         require(newBalance >= 0); // dev: invalid balance
+        int256 previousBalance = getPositiveCashBalance(Constants.FEE_RESERVE, currencyId);
         _setPositiveCashBalance(Constants.FEE_RESERVE, currencyId, newBalance);
-        emit ReserveBalanceUpdated(currencyId, newBalance);
+        Emitter.emitMintOrBurnPrimeCash(Constants.FEE_RESERVE, currencyId, newBalance.sub(previousBalance));
     }
 
     function getPositiveCashBalance(

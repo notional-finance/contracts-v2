@@ -164,10 +164,6 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
             rateOracleTimeWindow5Min
         );
 
-        // Set the reserve cash balance to the initial donation
-        // no overflow possible due to toUint88 check above
-        BalanceHandler.setReserveCashBalance(currencyId, int256(initialPrimeSupply));
-
         bytes memory initCallData = abi.encodeWithSignature(
             "initialize(uint16,address,string,string)",
             currencyId,
@@ -188,6 +184,10 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
                 currencyId: currencyId, proxy: address(debtProxy), isCashProxy: false
             });
         }
+
+        // Set the reserve cash balance to the initial donation, must be done after proxies are set
+        // no overflow possible due to toUint88 check above
+        BalanceHandler.setReserveCashBalance(currencyId, int256(initialPrimeSupply));
 
         emit ListCurrency(currencyId);
 
@@ -235,7 +235,8 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
         uint16 currencyId,
         uint256 maxUnderlyingSupply
     ) external override onlyOwner {
-        PrimeCashExchangeRate.setMaxUnderlyingSupply(currencyId, maxUnderlyingSupply);
+        uint256 unpackedSupply = PrimeCashExchangeRate.setMaxUnderlyingSupply(currencyId, maxUnderlyingSupply);
+        emit UpdateMaxUnderlyingSupply(currencyId, unpackedSupply);
     }
 
     function updatePrimeCashHoldingsOracle(

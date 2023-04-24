@@ -14,6 +14,7 @@ import {Constants} from "../../global/Constants.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
+import {Emitter} from "../../internal/Emitter.sol";
 import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
 import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
 import {TokenHandler} from "../../internal/balances/TokenHandler.sol";
@@ -132,6 +133,8 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
     /// @notice redeems and transfers tokens to the treasury manager contract
     function _redeemAndTransfer(uint16 currencyId, int256 primeCashRedeemAmount) private returns (uint256) {
         PrimeRate memory primeRate = PrimeRateLib.buildPrimeRateStateful(currencyId);
+        Emitter.emitTransferPrimeCash(Constants.FEE_RESERVE, treasuryManagerContract, currencyId, primeCashRedeemAmount);
+
         int256 actualTransferExternal = TokenHandler.withdrawPrimeCash(
             treasuryManagerContract,
             currencyId,
