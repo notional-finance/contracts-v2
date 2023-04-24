@@ -398,9 +398,9 @@ library TokenHandler {
     function updateStoredTokenBalance(address token, uint256 oldBalance, uint256 newBalance) internal {
         mapping(address => uint256) storage store = LibStorage.getStoredTokenBalances();
         uint256 storedBalance = store[token];
-        // The stored balance must always be less than or equal to the previous balance of. prevBalanceOf
+        // The stored balance must always be less than or equal to the previous balance of. oldBalance
         // will be larger in the case when there is a donation or dust value present. If stored balance somehow
-        // drops below the prevBalanceOf then there is a critical issue in the protocol.
+        // goes above the oldBalance then there is a critical issue in the protocol.
         require(storedBalance <= oldBalance);
         int256 netBalanceChange = newBalance.toInt().sub(oldBalance.toInt());
         store[token] = int256(storedBalance).add(netBalanceChange).toUint();

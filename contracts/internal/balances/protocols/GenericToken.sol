@@ -22,6 +22,7 @@ library GenericToken {
             Deployments.WETH.deposit{value: amount}();
             safeTransferOut(address(Deployments.WETH), account, amount);
         } else {
+            // TODO: consider using .call with a manual amount of gas forwarding
             payable(account).transfer(amount);
         }
     }

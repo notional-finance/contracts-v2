@@ -520,10 +520,10 @@ library PrimeCashExchangeRate {
         );
         uint256 debtScalarIncrease = debtScalarWithFee.sub(debtScalarNoFee);
         // Total prime debt paid to the reserve is:
-        //  underlyingToReserve = totalPrimeDebt * debtScalarIncrease * underlyingScalar / RATE_PRECISION^2
-        //  primeSupplyToReserve = (underlyingToReserve * RATE_PRECISION^2) / (supplyScalar * underlyingScalar)
+        //  underlyingToReserve = totalPrimeDebt * debtScalarIncrease * underlyingScalar / SCALAR_PRECISION^2
+        //  primeSupplyToReserve = (underlyingToReserve * SCALAR_PRECISION^2) / (supplyScalar * underlyingScalar)
         //
-        // .Combining and cancelling terms results in:
+        //  Combining and cancelling terms results in:
         //  primeSupplyToReserve = (totalPrimeDebt * debtScalarIncrease) / supplyScalar
         primeSupplyToReserve = prior.totalPrimeDebt.mul(debtScalarIncrease).div(newSupplyScalar);
     }
