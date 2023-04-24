@@ -38,6 +38,8 @@ import {ITransferEmitter} from "../external/proxies/BaseERC4626Proxy.sol";
  *      ID: [bytes5(0), bytes20(vaultAddress), uint16(currencyId), uint40(maturity), uint8(VAULT_DEBT_ASSET_TYPE)]
  *  - Vault Cash Units (v3, represents cash held on a leveraged vault account after liquidation)
  *      ID: [bytes5(0), bytes20(vaultAddress), uint16(currencyId), uint40(maturity), uint8(VAULT_CASH_ASSET_TYPE)]
+ *  - Legacy nToken (v3, emitted for legacy nToken transfers)
+ *      ID: [bytes23(0), uint8(0), uint16(currencyId), uint40(0), uint8(LEGACY_NTOKEN_ASSET_TYPE)]
  *
  *  - NOTE: Liquidity Token ids are not valid within the Notional V3 schema since they are only held by the nToken
  *    and never transferred.
@@ -92,6 +94,8 @@ library Emitter {
             assetType == Constants.VAULT_DEBT_ASSET_TYPE
         ) {
             return _encodeVaultId(vaultAddress, currencyId, maturity, assetType);
+        } else if (assetType == Constants.LEGACY_NTOKEN_ASSET_TYPE) {
+            return _legacyNTokenId(currencyId);
         }
 
         revert();
@@ -167,6 +171,23 @@ library Emitter {
             (bytes32(maturity) << MATURITY_OFFSET)            |
             (bytes32(uint256(Constants.FCASH_ASSET_TYPE)))
         );
+    }
+
+    function _legacyNTokenId(uint16 currencyId) internal pure returns (uint256 id) {
+        return uint256(
+            (bytes32(uint256(currencyId)) << CURRENCY_OFFSET) |
+            (bytes32(uint256(Constants.LEGACY_NTOKEN_ASSET_TYPE)))
+        );
+    }
+
+    function _isLegacyNToken(uint16 currencyId) internal pure returns (bool) {
+        uint256 id;
+        assembly {
+            id := chainid()
+        }
+
+        // The first four currencies on mainnet are legacy nTokens.
+        return id == 1 && currencyId <= 4;
     }
 
     function _getPrimeProxy(bool isDebt, uint16 currencyId) private view returns (ITransferEmitter) {
@@ -289,7 +310,6 @@ library Emitter {
         // When lending (fCashPurchased > 0), the nToken transfers positive fCash to the
         // account. When the borrowing (fCashPurchased < 0), the account transfers positive fCash to the
         // nToken. emitTransferfCash will flip the from and to accordingly.
-        // TODO: this should emit a batch of cash and fCash transfers
         emitTransferfCash(nToken, account, currencyId, maturity, fCashPurchased);
     }
 
@@ -317,9 +337,12 @@ library Emitter {
         address nToken = LibStorage.getNTokenAddressStorage()[currencyId];
         // No scenario where this occurs, but have it here just in case
         if (netNTokenTransfer < 0) (to, from) = (from, to);
-        // Legacy nToken contracts do not have an emit method
-        try ITransferEmitter(nToken).emitTransfer(from, to, uint256(netNTokenTransfer.abs())) {} catch {
-            // TODO: emit some other equivalent event here...
+        uint256 value = uint256(netNTokenTransfer.abs());
+        if (_isLegacyNToken(currencyId)) {
+            // Legacy nToken contracts do not have an emit method so use an ERC1155 instead
+            emit TransferSingle(msg.sender, from, to, _legacyNTokenId(currencyId), value);
+        } else {
+            ITransferEmitter(nToken).emitTransfer(from, to, value);
         }
     }
 
@@ -343,8 +366,12 @@ library Emitter {
         ITransferEmitter cashProxy = ITransferEmitter(LibStorage.getPCashAddressStorage()[currencyId]);
         if (tokensToMint > 0 && primeCashDeposit > 0) {
             cashProxy.emitTransfer(account, nToken, uint256(primeCashDeposit));
-            // Legacy nToken contracts do not have an emit method
-            try ITransferEmitter(nToken).emitMintOrBurn(account, tokensToMint) {} catch {}
+            if (_isLegacyNToken(currencyId)) {
+                // Legacy nToken contracts do not have an emit method so use an ERC1155 instead
+                emit TransferSingle(msg.sender, address(0), account, _legacyNTokenId(currencyId), tokensToMint.toUint());
+            } else {
+                ITransferEmitter(nToken).emitMintOrBurn(account, tokensToMint);
+            }
         }
     }
 
@@ -358,8 +385,12 @@ library Emitter {
 
         if (primeCashRedeemed > 0 && tokensToBurn > 0) {
             cashProxy.emitTransfer(nToken, account, uint256(primeCashRedeemed));
-            // Legacy nToken contracts do not have an emit method
-            try ITransferEmitter(nToken).emitMintOrBurn(account, tokensToBurn.neg()) {} catch {}
+            if (_isLegacyNToken(currencyId)) {
+                // Legacy nToken contracts do not have an emit method so use an ERC1155 instead
+                emit TransferSingle(msg.sender, account, address(0), _legacyNTokenId(currencyId), tokensToBurn.abs().toUint());
+            } else {
+                ITransferEmitter(nToken).emitMintOrBurn(account, tokensToBurn);
+            }
         }
     }
 

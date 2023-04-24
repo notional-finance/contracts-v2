@@ -113,6 +113,8 @@ library Constants {
     uint8 internal constant VAULT_SHARE_ASSET_TYPE    = 9;
     uint8 internal constant VAULT_DEBT_ASSET_TYPE     = 10;
     uint8 internal constant VAULT_CASH_ASSET_TYPE     = 11;
+    // Used for tracking legacy nToken assets
+    uint8 internal constant LEGACY_NTOKEN_ASSET_TYPE  = 12;
 
     // Account context flags
     bytes1 internal constant HAS_ASSET_DEBT           = 0x01;
