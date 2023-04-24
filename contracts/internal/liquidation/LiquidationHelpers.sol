@@ -245,11 +245,11 @@ library LiquidationHelpers {
             );
         }
 
+        Emitter.emitTransferPrimeCash(liquidator, liquidateAccount, localCurrencyId, netLocalFromLiquidator);
+        if (netLocalNTokens > 0) Emitter.emitTransferNToken(liquidateAccount, liquidator, localCurrencyId, netLocalNTokens);
+
         liquidatorLocalBalance.netNTokenTransfer = netLocalNTokens;
         liquidatorLocalBalance.finalizeNoWithdraw(liquidator, liquidatorContext);
-
-        Emitter.emitTransferPrimeCash(liquidator, liquidateAccount, localCurrencyId, netLocalFromLiquidator);
-        Emitter.emitTransferNToken(liquidator, liquidateAccount, localCurrencyId, netLocalNTokens);
 
         return liquidatorContext;
     }
@@ -269,6 +269,9 @@ library LiquidationHelpers {
         balance.loadBalanceState(liquidator, collateralCurrencyId, liquidatorContext);
         balance.netCashChange = netCollateralToLiquidator;
 
+        if (netCollateralToLiquidator != 0) Emitter.emitTransferPrimeCash(liquidateAccount, liquidator, collateralCurrencyId, netCollateralToLiquidator);
+        if (netCollateralNTokens != 0) Emitter.emitTransferNToken(liquidateAccount, liquidator, collateralCurrencyId, netCollateralNTokens);
+
         if (withdrawCollateral) {
             // This will net off the cash balance
             balance.primeCashWithdraw = netCollateralToLiquidator.neg();
@@ -277,9 +280,6 @@ library LiquidationHelpers {
         balance.netNTokenTransfer = netCollateralNTokens;
         // Liquidator will always receive native ETH
         balance.finalizeWithWithdraw(liquidator, liquidatorContext, false);
-
-        Emitter.emitTransferPrimeCash(liquidateAccount, liquidator, collateralCurrencyId, netCollateralToLiquidator);
-        Emitter.emitTransferNToken(liquidateAccount, liquidator, collateralCurrencyId, netCollateralNTokens);
 
         return liquidatorContext;
     }

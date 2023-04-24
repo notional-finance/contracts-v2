@@ -42,6 +42,16 @@ library LiquidatefCash {
     using AccountContextHandler for AccountContext;
     using TokenHandler for Token;
 
+    event LiquidatefCashEvent(
+        address indexed liquidated,
+        address indexed liquidator,
+        uint16 localCurrencyId,
+        uint16 fCashCurrency,
+        int256 netLocalFromLiquidator,
+        uint256[] fCashMaturities,
+        int256[] fCashNotionalTransfer
+    );
+
     /// @notice Calculates the risk adjusted and liquidation discount factors used when liquidating fCash. The
     /// The risk adjusted discount factor is used to value fCash, the liquidation discount factor is used to 
     /// calculate the price of the fCash asset at a discount to the risk adjusted factor.
@@ -471,6 +481,9 @@ library LiquidatefCash {
             );
         }
 
+        // If netLocalFromLiquidator < 0, will flip the from and to addresses
+        Emitter.emitTransferPrimeCash(liquidator, liquidateAccount, localCurrency, netLocalFromLiquidator);
+
         BalanceHandler.setBalanceStorageForfCashLiquidation(
             liquidateAccount,
             c.accountContext,
@@ -478,9 +491,6 @@ library LiquidatefCash {
             netLocalFromLiquidator,
             primeRate
         );
-
-        // If netLocalFromLiquidator < 0, will flip the from and to addresses
-        Emitter.emitTransferPrimeCash(liquidator, liquidateAccount, localCurrency, netLocalFromLiquidator);
 
         bool liquidatorIncursDebt;
         (liquidatorIncursDebt, liquidatorContext) =
@@ -492,6 +502,16 @@ library LiquidatefCash {
                 fCashMaturities,
                 c
             );
+
+        emit LiquidatefCashEvent(
+            liquidateAccount,
+            liquidator,
+            localCurrency,
+            fCashCurrency,
+            c.localPrimeCashFromLiquidator,
+            fCashMaturities,
+            c.fCashNotionalTransfers
+        );
 
         liquidatorContext.setAccountContext(liquidator);
         c.accountContext.setAccountContext(liquidateAccount);

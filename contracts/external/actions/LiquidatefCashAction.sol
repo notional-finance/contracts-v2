@@ -24,16 +24,6 @@ contract LiquidatefCashAction is ActionGuards {
     using PrimeRateLib for PrimeRate;
     using SafeInt256 for int256;
 
-    event LiquidatefCashEvent(
-        address indexed liquidated,
-        address indexed liquidator,
-        uint16 localCurrencyId,
-        uint16 fCashCurrency,
-        int256 netLocalFromLiquidator,
-        uint256[] fCashMaturities,
-        int256[] fCashNotionalTransfer
-    );
-
     /// @notice Calculates fCash local liquidation amounts, may settle account so this can be called off
     // chain using a static call
     /// @param liquidateAccount account to liquidate
@@ -96,16 +86,6 @@ contract LiquidatefCashAction is ActionGuards {
             localCurrency,
             fCashMaturities,
             c
-        );
-
-        emit LiquidatefCashEvent(
-            liquidateAccount,
-            msg.sender,
-            localCurrency,
-            localCurrency,
-            c.localPrimeCashFromLiquidator,
-            fCashMaturities,
-            c.fCashNotionalTransfers
         );
 
         return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);
@@ -179,16 +159,6 @@ contract LiquidatefCashAction is ActionGuards {
             fCashCurrency,
             fCashMaturities,
             c
-        );
-
-        emit LiquidatefCashEvent(
-            liquidateAccount,
-            msg.sender,
-            localCurrency,
-            fCashCurrency,
-            c.localPrimeCashFromLiquidator,
-            fCashMaturities,
-            c.fCashNotionalTransfers
         );
 
         return (c.fCashNotionalTransfers, c.localPrimeCashFromLiquidator);

@@ -107,14 +107,11 @@ contract LiquidateCurrencyAction is ActionGuards {
             localPrimeCashFromLiquidator,
             localBalanceState.netNTokenTransfer.neg()
         );
-        liquidatorContext.setAccountContext(msg.sender);
-
         // Finalizes liquidated account changes:
         //   - credits additional change in localBalanceChange.netCashChange
         //   - removes transferred nTokens from the account
         //   - sets the account context
         localBalanceState.finalizeNoWithdraw(liquidateAccount, accountContext);
-        accountContext.setAccountContext(liquidateAccount);
 
         emit LiquidateLocalCurrency(
             liquidateAccount,
@@ -122,6 +119,9 @@ contract LiquidateCurrencyAction is ActionGuards {
             localCurrency,
             localPrimeCashFromLiquidator
         );
+
+        liquidatorContext.setAccountContext(msg.sender);
+        accountContext.setAccountContext(liquidateAccount);
 
         return (
             localPrimeCashFromLiquidator,
@@ -212,7 +212,7 @@ contract LiquidateCurrencyAction is ActionGuards {
         //     if specified
         //   - transfers ntokens to liquidator
         //   - sets account context
-        _finalizeLiquidatorBalances(
+        AccountContext memory liquidatorContext = _finalizeLiquidatorBalances(
             liquidateAccount,
             localCurrency,
             collateralCurrency,
@@ -220,13 +220,6 @@ contract LiquidateCurrencyAction is ActionGuards {
             collateralBalanceState,
             withdrawCollateral,
             redeemToUnderlying
-        );
-
-        _emitCollateralEvent(
-            liquidateAccount,
-            localCurrency,
-            localPrimeCashFromLiquidator,
-            collateralBalanceState
         );
 
         // Finalize liquidated account local balance:
@@ -244,7 +237,16 @@ contract LiquidateCurrencyAction is ActionGuards {
         //   - skips the allowPrimeBorrow check
         //   - sets the account context
         collateralBalanceState.finalizeCollateralLiquidation(liquidateAccount, accountContext);
+
+        _emitCollateralEvent(
+            liquidateAccount,
+            localCurrency,
+            localPrimeCashFromLiquidator,
+            collateralBalanceState
+        );
+
         accountContext.setAccountContext(liquidateAccount);
+        liquidatorContext.setAccountContext(msg.sender);
 
         return (
             localPrimeCashFromLiquidator,
@@ -332,9 +334,9 @@ contract LiquidateCurrencyAction is ActionGuards {
         BalanceState memory collateralBalanceState,
         bool withdrawCollateral,
         bool redeemToUnderlying
-    ) private {
+    ) private returns (AccountContext memory liquidatorContext) {
         // Will transfer local currency from the liquidator
-        AccountContext memory liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
+        liquidatorContext = LiquidationHelpers.finalizeLiquidatorLocal(
             msg.sender,
             liquidateAccount,
             localCurrency,
@@ -353,8 +355,6 @@ contract LiquidateCurrencyAction is ActionGuards {
             withdrawCollateral,
             redeemToUnderlying
         );
-
-        liquidatorContext.setAccountContext(msg.sender);
     }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
