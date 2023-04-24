@@ -80,20 +80,23 @@ library Market {
             marketIndex
         );
 
-        MarketStorage storage marketStorage = _getMarketStoragePointer(market);
-        _setMarketStorage(
-            marketStorage,
-            market.totalfCash,
-            market.totalPrimeCash,
-            market.lastImpliedRate,
-            market.oracleRate,
-            market.previousTradeTime
-        );
-        BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, netPrimeCashToReserve);
+        // A zero net prime cash value means that the trade has failed and we should not update the market state
+        if (netPrimeCash != 0) {
+            MarketStorage storage marketStorage = _getMarketStoragePointer(market);
+            _setMarketStorage(
+                marketStorage,
+                market.totalfCash,
+                market.totalPrimeCash,
+                market.lastImpliedRate,
+                market.oracleRate,
+                market.previousTradeTime
+            );
+            BalanceHandler.incrementFeeToReserve(cashGroup.currencyId, netPrimeCashToReserve);
 
-        Emitter.emitfCashMarketTrade(
-            account, cashGroup.currencyId, market.maturity, fCashToAccount, netPrimeCash, netPrimeCashToReserve
-        );
+            Emitter.emitfCashMarketTrade(
+                account, cashGroup.currencyId, market.maturity, fCashToAccount, netPrimeCash, netPrimeCashToReserve
+            );
+        }
     }
 
     function getOracleRate(
