@@ -87,6 +87,8 @@ contract AccountAction is ActionGuards {
         uint256 amountExternalPrecision
     ) external payable nonReentrant returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit underlying
+        // Only the account can deposit into its balance, donations are not allowed.
+        require(msg.sender == account); // dev: unauthorized
         requireValidAccount(account);
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
@@ -97,7 +99,7 @@ contract AccountAction is ActionGuards {
         // the specified account. This may be useful for on-demand collateral top ups from a
         // third party.
         int256 primeCashReceived = balanceState.depositUnderlyingToken(
-            msg.sender,
+            account,
             SafeInt256.toInt(amountExternalPrecision),
             false // there should never be excess ETH here by definition
         );
@@ -130,6 +132,8 @@ contract AccountAction is ActionGuards {
         uint256 amountExternalPrecision
     ) external nonReentrant returns (uint256) {
         require(msg.sender != address(this)); // dev: no internal call to deposit asset
+        // Only the account can deposit into its balance, donations are not allowed.
+        require(msg.sender == account); // dev: unauthorized
         requireValidAccount(account);
 
         AccountContext memory accountContext = AccountContextHandler.getAccountContext(account);
@@ -141,7 +145,7 @@ contract AccountAction is ActionGuards {
         // on behalf of the given account. This always does an immediate transfer
         // and marks the net prime cash change on the balance state.
         int256 primeCashReceived = balanceState.depositDeprecatedAssetToken(
-            msg.sender,
+            account,
             SafeInt256.toInt(amountExternalPrecision)
         );
 
