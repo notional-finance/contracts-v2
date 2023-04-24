@@ -15,6 +15,7 @@ import {Constants} from "../../global/Constants.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 
+import {Emitter} from "../../internal/Emitter.sol";
 import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
 import {InterestRateCurve} from "../../internal/markets/InterestRateCurve.sol";
 import {Market} from "../../internal/markets/Market.sol";
@@ -41,15 +42,6 @@ library TradingAction {
         uint40 maturity,
         int256 netPrimeCash,
         int256 netfCash
-    );
-
-    event AddRemoveLiquidity(
-        address indexed account,
-        uint16 indexed currencyId,
-        uint40 maturity,
-        int256 netPrimeCash,
-        int256 netfCash,
-        int256 netLiquidityTokens
     );
 
     event nTokenResidualPurchase(
@@ -352,6 +344,18 @@ library TradingAction {
                 fCashAmountToPurchase,
                 parameters
             );
+        
+        // Emit proper events for transferring cash and fCash between nToken and purchaser
+        Emitter.emitTransferPrimeCash(
+            purchaser, nTokenAddress, cashGroup.currencyId, netPrimeCashNToken
+        );
+
+        // If fCashAmountToPurchase > 0 then fCash will be transferred from nToken to purchaser. If fCashAmountToPurchase
+        // is negative, then purchaser will transfer fCash to the nToken. The addresses will be flipped inside emitTransferfCash
+        // in that case.
+        Emitter.emitTransferfCash(
+            nTokenAddress, purchaser, cashGroup.currencyId, maturity, fCashAmountToPurchase
+        );
 
         _updateNTokenPortfolio(
             nTokenAddress,

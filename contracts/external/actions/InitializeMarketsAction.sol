@@ -17,7 +17,6 @@ import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 import {Bitmap} from "../../math/Bitmap.sol";
 
-import {Emitter} from "../../internal/Emitter.sol";
 import {Market} from "../../internal/markets/Market.sol";
 import {DateTime} from "../../internal/markets/DateTime.sol";
 import {CashGroup} from "../../internal/markets/CashGroup.sol";

@@ -11,6 +11,7 @@ import {
 import {Constants} from "../../global/Constants.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 
+import {Emitter} from "../../internal/Emitter.sol";
 import {TransferAssets} from "../../internal/portfolio/TransferAssets.sol";
 import {BalanceHandler} from "../../internal/balances/BalanceHandler.sol";
 import {nTokenHandler} from "../../internal/nToken/nTokenHandler.sol";
@@ -269,6 +270,7 @@ contract AccountAction is ActionGuards {
 
         // Do not check supply caps during nToken redemption, no deposits are taken during 
         // redemption so the supply should not change.
+        Emitter.emitNTokenBurn(redeemer, currencyId, totalPrimeCash, tokensToRedeem);
 
         return (totalPrimeCash, assets.length > 0);
     }

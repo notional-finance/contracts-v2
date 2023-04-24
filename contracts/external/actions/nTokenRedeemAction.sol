@@ -77,7 +77,6 @@ library nTokenRedeemAction {
         (totalPrimeCash, newifCashAssets) = _redeem(
             account, currencyId, tokensToRedeem, sellTokenAssets, acceptResidualAssets
         );
-        Emitter.emitNTokenBurn(account, currencyId, totalPrimeCash, tokensToRedeem);
     }
 
     function _redeem(
