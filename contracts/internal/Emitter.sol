@@ -6,10 +6,13 @@ import {
     PortfolioAsset,
     VaultAccount,
     VaultConfig,
-    VaultAccountStorage
+    VaultAccountStorage,
+    PrimeRate
 } from "../global/Types.sol";
 import {Constants} from "../global/Constants.sol";
 import {LibStorage} from "../global/LibStorage.sol";
+
+import {PrimeRateLib} from "./pCash/PrimeRateLib.sol";
 import {SafeInt256} from "../math/SafeInt256.sol";
 import {SafeUint256} from "../math/SafeUint256.sol";
 
@@ -66,8 +69,32 @@ library Emitter {
     uint256 private constant FCASH_FLAG_OFFSET      = 64;
     uint256 private constant NEGATIVE_FCASH_MASK    = 1 << 64;
 
+    function decodeCurrencyId(uint256 id) internal pure returns (uint16) {
+        return uint16(id >> CURRENCY_OFFSET);
+    }
+
     function isfCash(uint256 id) internal pure returns (bool) {
         return uint8(id) == Constants.FCASH_ASSET_TYPE;
+    }
+
+    function encodeId(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        address vaultAddress,
+        bool isfCashDebt
+    ) internal pure returns (uint256 id) {
+        if (assetType == Constants.FCASH_ASSET_TYPE) {
+            return encodefCashId(currencyId, maturity, isfCashDebt ? int256(-1) : int256(1));
+        } else if (
+            assetType == Constants.VAULT_CASH_ASSET_TYPE ||
+            assetType == Constants.VAULT_SHARE_ASSET_TYPE ||
+            assetType == Constants.VAULT_DEBT_ASSET_TYPE
+        ) {
+            return _encodeVaultId(vaultAddress, currencyId, maturity, assetType);
+        }
+
+        revert();
     }
 
     function decodeId(uint256 id) internal pure returns (
@@ -111,7 +138,7 @@ library Emitter {
         uint256 assetType
     ) private pure returns (uint256 id) {
         return uint256(
-            (bytes32(bytes20(vault)) << VAULT_ADDRESS_OFFSET) |
+            (bytes32(uint256(vault)) << VAULT_ADDRESS_OFFSET) |
             (bytes32(uint256(currencyId)) << CURRENCY_OFFSET) |
             (bytes32(maturity) << MATURITY_OFFSET)            |
             (bytes32(assetType))
@@ -227,6 +254,7 @@ library Emitter {
         emit TransferSingle(msg.sender, Constants.SETTLEMENT_RESERVE, address(0), id, uint256(fCashDebtInReserve.abs()));
         // The settled prime debt doesn't exist in this case since we don't add the debt to the
         // total prime debt so we just "burn" the prime cash that only exists in an off chain accounting context.
+        // TODO: may want to emit a repay event here instead...
         emitMintOrBurnPrimeCash(Constants.SETTLEMENT_RESERVE, currencyId, settledPrimeCash);
         if (excessCash > 0) {
             // Any excess prime cash in reserve is "transferred" to the fee reserve
@@ -255,12 +283,13 @@ library Emitter {
         // reserve. When borrowing, the account will receive the full cash balance and then transfer
         // some amount to the reserve. When lending, the account will transfer the cash to reserve and
         // the remainder will be transferred to the nToken.
-        int256 accountToNToken = cashToAccount < 0 ? cashToAccount : cashToAccount.sub(cashToReserve);
+        int256 accountToNToken = cashToAccount.add(cashToReserve);
         cashProxy.emitfCashTradeTransfers(account, nToken, accountToNToken, cashToReserve.toUint());
 
         // When lending (fCashPurchased > 0), the nToken transfers positive fCash to the
         // account. When the borrowing (fCashPurchased < 0), the account transfers positive fCash to the
         // nToken. emitTransferfCash will flip the from and to accordingly.
+        // TODO: this should emit a batch of cash and fCash transfers
         emitTransferfCash(nToken, account, currencyId, maturity, fCashPurchased);
     }
 
@@ -289,7 +318,9 @@ library Emitter {
         // No scenario where this occurs, but have it here just in case
         if (netNTokenTransfer < 0) (to, from) = (from, to);
         // Legacy nToken contracts do not have an emit method
-        try ITransferEmitter(nToken).emitTransfer(from, to, uint256(netNTokenTransfer.abs())) {} catch {}
+        try ITransferEmitter(nToken).emitTransfer(from, to, uint256(netNTokenTransfer.abs())) {} catch {
+            // TODO: emit some other equivalent event here...
+        }
     }
 
     /// @notice When prime debt is created, an offsetting pair of prime cash and prime debt tokens are
@@ -301,8 +332,8 @@ library Emitter {
     ) internal {
         ITransferEmitter cashProxy = ITransferEmitter(LibStorage.getPCashAddressStorage()[currencyId]);
         ITransferEmitter debtProxy = ITransferEmitter(LibStorage.getPDebtAddressStorage()[currencyId]);
-        cashProxy.emitMintOrBurn(account, netPrimeSupplyChange);
         debtProxy.emitMintOrBurn(account, netPrimeDebtChange);
+        cashProxy.emitMintOrBurn(account, netPrimeSupplyChange);
     }
 
     /// @notice Some amount of prime cash is deposited in order to mint nTokens.
@@ -337,8 +368,10 @@ library Emitter {
     ) internal{
         ITransferEmitter cashProxy = ITransferEmitter(LibStorage.getPCashAddressStorage()[currencyId]);
         address nToken = LibStorage.getNTokenAddressStorage()[currencyId];
-        cashProxy.emitTransfer(vault, address(nToken), nTokenFee.toUint());
+        // These are emitted in the reverse order from the fCash trade transfers so that we can identify it as
+        // vault fee transfers off chain.
         cashProxy.emitTransfer(vault, Constants.FEE_RESERVE, reserveFee.toUint());
+        cashProxy.emitTransfer(vault, address(nToken), nTokenFee.toUint());
     }
 
     /// @notice Detects changes to a vault account and properly emits vault debt, vault shares and vault cash events.
@@ -354,18 +387,7 @@ library Emitter {
         ids[0] = baseId | Constants.VAULT_DEBT_ASSET_TYPE;
         ids[1] = baseId | Constants.VAULT_SHARE_ASSET_TYPE;
 
-        if (prior.primaryCash != 0) {
-            // Cash must always be burned in this method from the prior maturity
-            emit TransferSingle(
-                msg.sender,
-                vaultAccount.account,
-                address(0),
-                baseId | Constants.VAULT_CASH_ASSET_TYPE,
-                prior.primaryCash
-            );
-        }
-
-        if (vaultAccount.maturity == 0 || prior.maturity != vaultAccount.maturity) {
+        if (vaultAccount.maturity == 0 || (prior.maturity != 0 && prior.maturity != vaultAccount.maturity)) {
             // Account has been closed, settled or rolled to a new maturity. Emit burn events for the prior maturity's data.
             values[0] = prior.accountDebt;
             values[1] = prior.vaultShares;
@@ -400,6 +422,18 @@ library Emitter {
             values[1] = vaultAccount.vaultShares;
             emit TransferBatch(msg.sender, address(0), vaultAccount.account, ids, values);
         }
+
+        if (prior.primaryCash != 0) {
+            // Cash must always be burned in this method from the prior maturity
+            emit TransferSingle(
+                msg.sender,
+                vaultAccount.account,
+                address(0),
+                baseId | Constants.VAULT_CASH_ASSET_TYPE,
+                prior.primaryCash
+            );
+        }
+
     }
 
     /// @notice Emits events during a vault deleverage, where a vault account receives cash and loses
@@ -411,7 +445,8 @@ library Emitter {
         uint16 currencyId,
         uint256 maturity,
         int256 depositAmountPrimeCash,
-        uint256 vaultSharesToLiquidator
+        uint256 vaultSharesToLiquidator,
+        PrimeRate memory pr
     ) internal {
         // Liquidator transfer prime cash to vault
         emitTransferPrimeCash(liquidator, vault, currencyId, depositAmountPrimeCash);
@@ -419,7 +454,19 @@ library Emitter {
         
         // Mints vault cash to the account in the same amount as prime cash if it is
         // an fCash maturity
-        if (maturity != Constants.PRIME_CASH_VAULT_MATURITY) {
+        if (maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
+            // Convert this to prime debt basis
+            int256 primeDebtStorage = PrimeRateLib.convertToStorageValue(pr, depositAmountPrimeCash.neg()).neg();
+            if (primeDebtStorage == -1) primeDebtStorage = 0;
+
+            emit TransferSingle(
+                msg.sender,
+                account,
+                address(0),
+                baseId | Constants.VAULT_DEBT_ASSET_TYPE,
+                primeDebtStorage.toUint()
+            );
+        } else {
             emit TransferSingle(
                 msg.sender,
                 address(0),
@@ -429,8 +476,9 @@ library Emitter {
             );
         }
 
+        // Transfer vault shares to the liquidator
         emit TransferSingle(
-            msg.sender, account, liquidator, baseId | Constants.VAULT_CASH_ASSET_TYPE, vaultSharesToLiquidator
+            msg.sender, account, liquidator, baseId | Constants.VAULT_SHARE_ASSET_TYPE, vaultSharesToLiquidator
         );
     }
 

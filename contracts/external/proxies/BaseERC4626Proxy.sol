@@ -138,9 +138,9 @@ abstract contract BaseERC4626Proxy is IERC20, IERC4626, Initializable, ITransfer
         address account, address nToken, int256 accountToNToken, uint256 cashToReserve
     ) external override onlyNotional {
         if (accountToNToken < 0) {
-            emit Transfer(nToken, account, uint256(accountToNToken.abs()));
+            emit Transfer(account, nToken, uint256(accountToNToken.abs()));
         } else {
-            emit Transfer(account, nToken, uint256(accountToNToken));
+            emit Transfer(nToken, account, uint256(accountToNToken));
         }
         emit Transfer(account, Constants.FEE_RESERVE, cashToReserve);
     }
@@ -327,13 +327,17 @@ abstract contract BaseERC4626Proxy is IERC20, IERC4626, Initializable, ITransfer
     }
 
     function transfer(address to, uint256 amount) external override returns (bool ret) {
+        // Emit transfer preemptively for Emitter parsing logic.
+        emit Transfer(msg.sender, to, amount);
         ret = _transfer(to, amount);
-        if (ret) emit Transfer(msg.sender, to, amount);
+        require(ret);
     }
 
     function transferFrom(address from, address to, uint256 amount) external override returns (bool ret) {
+        // Emit transfer preemptively for Emitter parsing logic.
+        emit Transfer(from, to, amount);
         ret = _transferFrom(from, to, amount);
-        if (ret) emit Transfer(from, to, amount);
+        require(ret);
     }
 
     /** Virtual methods **/
