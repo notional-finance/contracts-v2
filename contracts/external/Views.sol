@@ -604,7 +604,17 @@ contract Views is StorageLayoutV2, NotionalViews {
     ) {
         return Emitter.decodeId(id);
     }
-    
+
+    // Encodes an ERC1155 id
+    function encode(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        address vaultAddress,
+        bool isfCashDebt
+    ) external pure override returns (uint256) {
+        return Emitter.encodeId(currencyId, maturity, assetType, vaultAddress, isfCashDebt);
+    }
 
     /// @notice Get a list of deployed library addresses (sorted by library name)
     function getLibInfo() external pure returns (address, address) {

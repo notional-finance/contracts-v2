@@ -372,17 +372,6 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         return Emitter.encodefCashId(currencyId, maturity, 0);
     }
 
-    // TODO: this needs to move into views
-    function encode(
-        uint16 currencyId,
-        uint256 maturity,
-        uint256 assetType,
-        address vaultAddress,
-        bool isfCashDebt
-    ) external pure override returns (uint256) {
-        return Emitter.encodeId(currencyId, maturity, assetType, vaultAddress, isfCashDebt);
-    }
-
     /// @dev Ensures that all maturities specified are valid for the currency id (i.e. they do not
     /// go past the max maturity date)
     function _requireValidMaturity(

@@ -188,4 +188,12 @@ interface NotionalViews {
         address vaultAddress,
         bool isfCashDebt
     );
+
+    function encode(
+        uint16 currencyId,
+        uint256 maturity,
+        uint256 assetType,
+        address vaultAddress,
+        bool isfCashDebt
+    ) external pure returns (uint256);
 }

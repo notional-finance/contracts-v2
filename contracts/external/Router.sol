@@ -150,7 +150,6 @@ contract Router is StorageLayoutV1 {
             sig == nERC1155Interface.safeBatchTransferFrom.selector ||
             sig == nERC1155Interface.decodeToAssets.selector ||
             sig == nERC1155Interface.encodeToId.selector ||
-            sig == nERC1155Interface.encode.selector ||
             sig == nERC1155Interface.setApprovalForAll.selector ||
             sig == nERC1155Interface.isApprovedForAll.selector
         ) {
