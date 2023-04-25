@@ -393,19 +393,19 @@ library VaultConfiguration {
     }
 
     /// @notice Redeems and transfers prime cash to the vault from Notional
-    /// @param vault address that receives the token
+    /// @param receiver address that receives the token
     /// @param currencyId currency id to transfer
     /// @param cashToTransferInternal amount of prime cash to transfer
     /// @return underlyingTokensTransferred amount of underlying tokens transferred
     function transferFromNotional(
-        address vault,
+        address receiver,
         uint16 currencyId,
         int256 cashToTransferInternal,
         PrimeRate memory primeRate,
         bool withdrawWrapped
     ) internal returns (uint256) {
         int256 underlyingExternalTransferred = TokenHandler.withdrawPrimeCash(
-            vault,
+            receiver,
             currencyId,
             cashToTransferInternal.neg(), // represents a withdraw
             primeRate,

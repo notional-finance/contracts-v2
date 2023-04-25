@@ -12,6 +12,7 @@ import {Constants} from "../../global/Constants.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 
+import {Emitter} from "../../internal/Emitter.sol";
 import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
 import {VaultConfiguration} from "../../internal/vaults/VaultConfiguration.sol";
 import {VaultAccountLib} from "../../internal/vaults/VaultAccount.sol";
@@ -247,6 +248,18 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
             vaultConfig, vaultState, lendAmount.toInt(), minLendRate, block.timestamp
         );
         vaultState.exitMaturity(vaultAccount, vaultConfig, vaultSharesToRedeem);
+
+        if (vaultAccount.tempCashBalance > 0) {
+            underlyingToReceiver = VaultConfiguration.transferFromNotional(
+                receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance, vaultConfig.primeRate, false
+            );
+
+            Emitter.emitTransferPrimeCash(
+                vaultAccount.account, vault, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance
+            );
+
+            vaultAccount.tempCashBalance = 0;
+        }
 
         // If insufficient strategy tokens are redeemed (or if it is set to zero), then
         // redeem with debt repayment will recover the repayment from the account's wallet
