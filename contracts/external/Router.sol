@@ -120,6 +120,7 @@ contract Router is StorageLayoutV1 {
             sig == IVaultAccountHealth.getBorrowCapacity.selector ||
             sig == IVaultAccountHealth.getSecondaryBorrow.selector ||
             sig == IVaultAccountHealth.getVaultAccountSecondaryDebt.selector ||
+            sig == IVaultAccountHealth.getfCashRequiredToLiquidateCash.selector ||
             sig == IVaultAccountHealth.getVaultState.selector
         ) {
             return VAULT_ACCOUNT_HEALTH;
@@ -185,8 +186,8 @@ contract Router is StorageLayoutV1 {
             return LIQUIDATE_FCASH;
         } else if (
             sig == IVaultLiquidationAction.deleverageAccount.selector ||
-            sig == IVaultLiquidationAction.getfCashRequiredToLiquidateCash.selector ||
-            sig == IVaultLiquidationAction.liquidateVaultCashBalance.selector
+            sig == IVaultLiquidationAction.liquidateVaultCashBalance.selector ||
+            sig == IVaultLiquidationAction.liquidateExcessVaultCash.selector
         ) {
             return VAULT_LIQUIDATION_ACTION;
         } else if (

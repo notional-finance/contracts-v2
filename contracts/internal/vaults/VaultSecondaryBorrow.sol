@@ -180,7 +180,7 @@ library VaultSecondaryBorrow {
     ) private pure returns (int256 totalDebtInPrimary, int256 totalExcessCashInPrimary) {
         if (secondaryUnderlyingOne < 0) {
             totalDebtInPrimary = secondaryUnderlyingOne.mul(er.rateDecimals).div(er.exchangeRateOne);
-        } else {
+        } else if (0 < secondaryUnderlyingOne) {
             totalExcessCashInPrimary = secondaryUnderlyingOne.mul(er.rateDecimals).div(er.exchangeRateOne);
         }
 
@@ -188,7 +188,7 @@ library VaultSecondaryBorrow {
             totalDebtInPrimary = totalDebtInPrimary.add(
                 secondaryUnderlyingTwo.mul(er.rateDecimals).div(er.exchangeRateTwo)
             );
-        } else {
+        } else if (0 < secondaryUnderlyingTwo) {
             totalExcessCashInPrimary = totalExcessCashInPrimary.add(
                 secondaryUnderlyingTwo.mul(er.rateDecimals).div(er.exchangeRateTwo)
             );
