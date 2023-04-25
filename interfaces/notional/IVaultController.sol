@@ -204,12 +204,6 @@ interface IVaultLiquidationAction {
         int256 depositUnderlyingInternal
     ) external payable returns (uint256 vaultSharesFromLiquidation, int256 depositAmountPrimeCash);
 
-    function getfCashRequiredToLiquidateCash(
-        uint16 currencyId,
-        uint256 maturity,
-        int256 vaultAccountCashBalance
-    ) external view returns (int256 fCashRequired);
-
     function liquidateVaultCashBalance(
         address account,
         address vault,
@@ -233,6 +227,12 @@ interface IVaultAccountHealth {
         VaultState memory vaultState,
         int256 depositUnderlyingInternal
     ) external returns (int256 depositInternal, uint256 vaultSharesToLiquidator, PrimeRate memory);
+
+    function getfCashRequiredToLiquidateCash(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 vaultAccountCashBalance
+    ) external view returns (int256 fCashRequired, int256 discountFactor);
 
     function checkVaultAccountCollateralRatio(address vault, address account) external;
 

@@ -99,6 +99,17 @@ contract VaultAccountHealth is IVaultAccountHealth {
         }
     }
 
+    /// @notice Returns the fCash required to liquidate a given vault cash balance.
+    function getfCashRequiredToLiquidateCash(
+        uint16 currencyId,
+        uint256 maturity,
+        int256 vaultAccountCashBalance
+    ) external view override returns (int256 fCashRequired, int256 discountFactor) {
+        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, block.timestamp);
+        discountFactor = VaultValuation.getLiquidateCashDiscountFactor(pr, currencyId, maturity);
+        fCashRequired = pr.convertToUnderlying(vaultAccountCashBalance).divInRatePrecision(discountFactor);
+    }
+
     function getVaultAccount(address account, address vault) external override view returns (VaultAccount memory vaultAccount) {
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
         vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);

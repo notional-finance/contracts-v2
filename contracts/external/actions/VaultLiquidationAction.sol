@@ -111,23 +111,9 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         // Check min borrow in this liquidation method, the deleverage calculation should adhere to the min borrow
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, currencyIndex, depositAmountPrimeCash, true);
 
-        emit VaultDeleverageAccount(vault, account, currencyId, vaultSharesToLiquidator, depositAmountPrimeCash);
-        emit VaultLiquidatorProfit(vault, account, liquidator, vaultSharesToLiquidator, true);
-
         _transferVaultSharesToLiquidator(
             liquidator, vaultConfig, vaultSharesToLiquidator, vaultAccount.maturity
         );
-    }
-
-    /// @notice Returns the fCash required to liquidate a given vault cash balance.
-    function getfCashRequiredToLiquidateCash(
-        uint16 currencyId,
-        uint256 maturity,
-        int256 vaultAccountCashBalance
-    ) external view override returns (int256 fCashRequired) {
-        (PrimeRate memory pr, /* */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, block.timestamp);
-        int256 discountFactor = VaultValuation.getLiquidateCashDiscountFactor(pr, currencyId, maturity);
-        return pr.convertToUnderlying(vaultAccountCashBalance).divInRatePrecision(discountFactor);
     }
 
     /// @notice If an account has a cash balance, a liquidator can purchase the cash and provide
@@ -163,15 +149,17 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
             revert(); // dev: invalid currency index
         }
 
-        int256 discountFactor = VaultValuation.getLiquidateCashDiscountFactor(
-            pr, currencyId, vaultAccount.maturity
-        );
+        {
+            // At this point, the prime rates have already been accrued statefully so using a view method is ok.
+            (int256 fCashRequired, int256 discountFactor) = IVaultAccountHealth(address(this))
+                .getfCashRequiredToLiquidateCash(currencyId, vaultAccount.maturity, cashBalance);
 
-        cashToLiquidator = pr.convertFromUnderlying(fCashDeposit.mulInRatePrecision(discountFactor));
-        if (cashToLiquidator > cashBalance) {
-            // Cap the fCash deposit to the cash balance available at the discount factor
-            fCashDeposit = pr.convertToUnderlying(cashBalance).divInRatePrecision(discountFactor);
-            cashToLiquidator = cashBalance;
+            cashToLiquidator = pr.convertFromUnderlying(fCashDeposit.mulInRatePrecision(discountFactor));
+            if (cashToLiquidator > cashBalance) {
+                // Cap the fCash deposit to the cash balance available at the discount factor
+                fCashDeposit = fCashRequired;
+                cashToLiquidator = cashBalance;
+            }
         }
 
         // Cap the fCash deposit to the fcash balance held by the account
