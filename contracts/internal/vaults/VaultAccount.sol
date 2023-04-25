@@ -100,6 +100,25 @@ library VaultAccountLib {
         _setVaultAccount(vaultAccount, vaultConfig, s, checkMinBorrow, false);
     }
 
+    function setVaultAccountInSettlement(VaultAccount memory vaultAccount, VaultConfig memory vaultConfig) internal {
+        int256 tempCashBalance = vaultAccount.tempCashBalance;
+        vaultAccount.tempCashBalance = 0;
+        
+        setVaultAccount(vaultAccount, vaultConfig, true, true);
+
+        // Allow vault accounts that settle to retain excess cash balances. This occurs after set vault account
+        // so that event emission remains correct (since it relies on the prior stored value).
+        if (0 < tempCashBalance) {
+            mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
+                .getVaultAccount();
+            VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
+            s.primaryCash = vaultAccount.tempCashBalance.toUint().toUint80();
+            Emitter.emitVaultMintOrBurnCash(
+                vaultAccount.account, vaultConfig.vault, vaultConfig.borrowCurrencyId, vaultAccount.maturity, tempCashBalance
+            );
+        }
+    }
+
     /// @notice Sets a single account's vault position in storage
     function setVaultAccount(
         VaultAccount memory vaultAccount,
@@ -405,14 +424,13 @@ library VaultAccountLib {
     /// @param vaultAccount the account's position in the vault
     /// @param vaultConfig configuration for the given vault
     /// @return didSettle true if the account did settle, false if it did not
-    /// @return didTransfer true if the account did a transfer, false if it did not
     function settleVaultAccount(
         VaultAccount memory vaultAccount,
         VaultConfig memory vaultConfig
-    ) internal returns (bool didSettle, bool didTransfer) {
+    ) internal returns (bool didSettle) {
         // PRIME_CASH_VAULT_MATURITY will always be greater than block time and will not settle,
         // fCash settles exactly on block time. This exit will prevent any invalid maturities.
-        if (vaultAccount.maturity == 0 || block.timestamp < vaultAccount.maturity) return (false, false);
+        if (vaultAccount.maturity == 0 || block.timestamp < vaultAccount.maturity) return false;
         VaultState memory vaultState = VaultStateLib.getVaultState(vaultConfig, vaultAccount.maturity);
 
         VaultStateStorage storage primeVaultState = LibStorage.getVaultState()
@@ -441,9 +459,8 @@ library VaultAccountLib {
         vaultState.settleVaultSharesToPrimeVault(vaultAccount, vaultConfig, primeVaultState);
 
         // Settle any secondary borrows if they exist into prime cash borrows.
-        bool didTransferSecondary = false;
         if (vaultConfig.hasSecondaryBorrows()) {
-            didTransferSecondary = IVaultAction(address(this)).settleSecondaryBorrowForAccount(
+           IVaultAction(address(this)).settleSecondaryBorrowForAccount(
                 vaultConfig.vault, vaultAccount.account
             );
         }
@@ -457,18 +474,14 @@ library VaultAccountLib {
 
         // Calculates the net settled cash if there is any temp cash balance that is net off
         // against the settled prime debt.
-        bool didTransferPrimary;
-        (accountPrimeStorageValue, didTransferPrimary) = repayAccountPrimeDebtAtSettlement(
+        (accountPrimeStorageValue, vaultAccount.tempCashBalance) = repayAccountPrimeDebtAtSettlement(
             vaultConfig.primeRate,
             primeVaultState,
             vaultConfig.borrowCurrencyId,
             vaultConfig.vault,
-            vaultAccount.account,
             vaultAccount.tempCashBalance,
             accountPrimeStorageValue
         );
-        // Clear any temp cash balance, it has been applied to the debt
-        vaultAccount.tempCashBalance = 0;
 
         // Assess prime cash vault fees into the temp cash balance. The account has accrued prime cash
         // fees on the time since the fCash matured to the current block time. Setting lastUpdateBlockTime
@@ -483,7 +496,7 @@ library VaultAccountLib {
             block.timestamp
         );
 
-        return (true, didTransferPrimary || didTransferSecondary);
+        return true;
     }
 
     /// @notice Called at the beginning of all vault actions (enterVault, exitVault, rollVaultPosition,
@@ -495,7 +508,7 @@ library VaultAccountLib {
         // If the vault has matured, it will exit this settlement call in the prime cash maturity with
         // fees assessed up to the current time. Transfers may occur but they are not relevant in this
         // context since a collateral check will always be done on non-settlement methods.
-        (didSettle, /* */) = settleVaultAccount(vaultAccount, vaultConfig);
+        didSettle = settleVaultAccount(vaultAccount, vaultConfig);
 
         // If the account did not settle but is in the prime cash maturity, assess a fee.
         if (!didSettle && vaultAccount.maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
@@ -534,17 +547,16 @@ library VaultAccountLib {
         // of left in the tempCashBalance.
         vaultPrimeState = VaultStateLib.getVaultState(vaultConfig, Constants.PRIME_CASH_VAULT_MATURITY);
 
-        // Fees and prime cash claims will be held in temp cash balance. There cannot be a positive cash balance
-        // during this method, any excess positive cash should be sent back to the account during
-        // settleAccountfCashBalance
-        require(vaultAccount.tempCashBalance <= 0);
-        
-        updateAccountDebt(
-            vaultAccount,
-            vaultPrimeState,
-            vaultConfig.primeRate.convertToUnderlying(vaultAccount.tempCashBalance),
-            vaultAccount.tempCashBalance.neg()
-        );
+        // Fees and prime cash claims will be held in temp cash balance. If there is a positive cash balance then
+        // it will not accrue to debt but remain in the cash balance.
+        if (vaultAccount.tempCashBalance < 0) {
+            updateAccountDebt(
+                vaultAccount,
+                vaultPrimeState,
+                vaultConfig.primeRate.convertToUnderlying(vaultAccount.tempCashBalance),
+                vaultAccount.tempCashBalance.neg()
+            );
+        }
 
         vaultPrimeState.setVaultState(vaultConfig);
     }
@@ -554,11 +566,9 @@ library VaultAccountLib {
         VaultStateStorage storage primeVaultState,
         uint16 currencyId,
         address vault,
-        address account,
         int256 accountPrimeCash,
         int256 accountPrimeStorageValue
-    ) internal returns (int256 finalPrimeDebtStorageValue, bool didTransfer) {
-        didTransfer = false;
+    ) internal returns (int256 finalPrimeDebtStorageValue, int256 finalPrimeCash) {
         finalPrimeDebtStorageValue = accountPrimeStorageValue;
         
         if (accountPrimeCash > 0) {
@@ -575,17 +585,14 @@ library VaultAccountLib {
                 netPrimeDebtChange = accountPrimeStorageValue;
                 finalPrimeDebtStorageValue = 0;
 
-                int256 primeCashRefund = pr.convertFromUnderlying(
-                    pr.convertDebtStorageToUnderlying(netPrimeDebtChange.sub(accountPrimeStorageValue))
+                finalPrimeCash = pr.convertFromUnderlying(
+                    pr.convertDebtStorageToUnderlying(accountPrimeStorageValue.sub(netPrimeDebtRepaid))
                 );
-                TokenHandler.withdrawPrimeCash(
-                    account, currencyId, primeCashRefund, pr, false // ETH will be transferred natively
-                );
-                didTransfer = true;
             } else {
                 // In this case, part of the account's debt is repaid.
                 netPrimeDebtChange = netPrimeDebtRepaid;
                 finalPrimeDebtStorageValue = accountPrimeStorageValue.sub(netPrimeDebtRepaid);
+                // finalPrimeCash will be returned as zero here
             }
 
             // Updates the global prime debt figure and events are emitted via the vault.

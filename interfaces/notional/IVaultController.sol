@@ -81,10 +81,7 @@ interface IVaultAction {
         uint32[2] calldata minLendRate
     ) external payable returns (int256[2] memory underlyingDepositExternal);
 
-    function settleSecondaryBorrowForAccount(
-        address vault,
-        address account
-    ) external returns (bool didTransferSecondary);
+    function settleSecondaryBorrowForAccount(address vault, address account) external;
 }
 
 interface IVaultAccountAction {

@@ -382,8 +382,8 @@ library VaultSecondaryBorrow {
 
     /**** Secondary Borrow Settlement ****/
 
-    function settleSecondaryBorrow(VaultConfig memory vaultConfig, address account) internal returns (bool) {
-        if (!vaultConfig.hasSecondaryBorrows()) return false;
+    function settleSecondaryBorrow(VaultConfig memory vaultConfig, address account) internal {
+        if (!vaultConfig.hasSecondaryBorrows()) return;
 
         VaultAccountSecondaryDebtShareStorage storage accountStorage = 
             LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
@@ -406,9 +406,13 @@ library VaultSecondaryBorrow {
             account, vaultConfig.vault
         );
 
-        bool didTransferOne;
         if (vaultConfig.secondaryBorrowCurrencies[0] != 0) {
-            (accountDebtOne, didTransferOne) = _settleTotalSecondaryBalance(
+            // Burn previous refund if exists
+            Emitter.emitVaultMintOrBurnCash(
+                account, vaultConfig.vault, vaultConfig.secondaryBorrowCurrencies[0], storedMaturity, primeCashRefundOne.neg()
+            );
+
+            (accountDebtOne, primeCashRefundOne) = _settleTotalSecondaryBalance(
                 vaultConfig.vault,
                 account,
                 vaultConfig.secondaryBorrowCurrencies[0],
@@ -417,11 +421,20 @@ library VaultSecondaryBorrow {
                 primeCashRefundOne
             );
             accountStorage.accountDebtOne = accountDebtOne.neg().toUint().toUint80();
+
+            // Mint new refund if it exists
+            Emitter.emitVaultMintOrBurnCash(
+                account, vaultConfig.vault, vaultConfig.secondaryBorrowCurrencies[0], Constants.PRIME_CASH_VAULT_MATURITY, primeCashRefundOne
+            );
         }
 
-        bool didTransferTwo;
         if (vaultConfig.secondaryBorrowCurrencies[1] != 0) {
-            (accountDebtTwo, didTransferTwo) = _settleTotalSecondaryBalance(
+            // Burn previous refund if exists
+            Emitter.emitVaultMintOrBurnCash(
+                account, vaultConfig.vault, vaultConfig.secondaryBorrowCurrencies[1], storedMaturity, primeCashRefundTwo.neg()
+            );
+
+            (accountDebtTwo, primeCashRefundTwo) = _settleTotalSecondaryBalance(
                 vaultConfig.vault,
                 account,
                 vaultConfig.secondaryBorrowCurrencies[1],
@@ -430,11 +443,19 @@ library VaultSecondaryBorrow {
                 primeCashRefundTwo
             );
             accountStorage.accountDebtTwo = accountDebtTwo.neg().toUint().toUint80();
+
+            // Mint new refund if it exists
+            Emitter.emitVaultMintOrBurnCash(
+                account, vaultConfig.vault, vaultConfig.secondaryBorrowCurrencies[1], Constants.PRIME_CASH_VAULT_MATURITY, primeCashRefundTwo
+            );
+        }
+
+        if (primeCashRefundOne > 0 || primeCashRefundTwo > 0) {
+            // Sets refunds if they exist
+            VaultAccountLib.setVaultAccountSecondaryCash(account, vaultConfig.vault, primeCashRefundOne, primeCashRefundTwo);
         }
 
         _setAccountMaturity(accountStorage, accountDebtOne, accountDebtTwo, Constants.PRIME_CASH_VAULT_MATURITY);
-
-        return (didTransferOne || didTransferTwo);
     }
 
     /// @notice The first account to settle a secondary balance will trigger an update of the total
@@ -447,7 +468,7 @@ library VaultSecondaryBorrow {
         uint256 maturity,
         int256 accountfCashDebt,
         int256 primeCashRefund
-    ) private returns (int256 accountPrimeDebt, bool didTransfer) {
+    ) private returns (int256 accountPrimeDebt, int256 finalPrimeCashRefund) {
         PrimeRate memory pr = PrimeRateLib.buildPrimeRateStateful(currencyId);
 
         VaultStateStorage storage primeSecondaryState = LibStorage.getVaultSecondaryBorrow()
@@ -477,8 +498,9 @@ library VaultSecondaryBorrow {
             );
         }
 
-        (accountPrimeDebt, didTransfer) = VaultAccountLib.repayAccountPrimeDebtAtSettlement(
-            pr, primeSecondaryState, currencyId, vault, account, primeCashRefund, accountPrimeDebt
+        // Any excess prime cash will be returned to the account in prime cash refund
+        (accountPrimeDebt, finalPrimeCashRefund) = VaultAccountLib.repayAccountPrimeDebtAtSettlement(
+            pr, primeSecondaryState, currencyId, vault, primeCashRefund, accountPrimeDebt
         );
 
         // Burn the fCash debt amount

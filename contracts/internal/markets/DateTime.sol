@@ -77,8 +77,8 @@ library DateTime {
         uint256 maturity,
         uint256 blockTime
     ) internal pure returns (uint256, bool) {
-        require(maxMarketIndex > 0, "CG: no markets listed");
-        require(maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX, "CG: market index bound");
+        require(maxMarketIndex > 0);
+        require(maxMarketIndex <= Constants.MAX_TRADED_MARKET_INDEX);
         uint256 tRef = DateTime.getReferenceTime(blockTime);
 
         for (uint256 i = 1; i <= maxMarketIndex; i++) {
@@ -89,7 +89,7 @@ library DateTime {
             if (marketMaturity > maturity) return (i, true);
         }
 
-        revert("CG: no market found");
+        revert();
     }
 
     /// @notice Given a bit number and the reference time of the first bit, returns the bit number

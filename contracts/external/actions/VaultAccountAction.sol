@@ -47,24 +47,13 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         
         // Require that the account settled, otherwise we may leave the account in an unintended
         // state in this method because we allow it to skip the min borrow check in the next line.
-        (bool didSettle, bool didTransfer) = vaultAccount.settleVaultAccount(vaultConfig);
-        require(didSettle, "No Settle");
+        require(vaultAccount.settleVaultAccount(vaultConfig));
 
         vaultAccount.accruePrimeCashFeesToDebt(vaultConfig);
+        vaultAccount.setVaultAccountInSettlement(vaultConfig);
 
         // Skip Min Borrow Check so that accounts can always be settled
         vaultAccount.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: false, emitEvents: true});
-
-        if (didTransfer) {
-            // If the vault did a transfer (i.e. withdrew cash) we have to check their collateral ratio. There
-            // is an edge condition where a vault with secondary borrows has an emergency exit. During that process
-            // an account will be left some cash balance in both currencies. It may have excess cash in one and
-            // insufficient cash in the other. A withdraw of the excess in one side will cause the vault account to
-            // be insolvent if we do not run this check. If this scenario indeed does occur, the vault itself must
-            // be upgraded in order to facilitate orderly exits for all of the accounts since they will be prevented
-            // from settling.
-            IVaultAccountHealth(address(this)).checkVaultAccountCollateralRatio(vault, account);
-        }
     }
 
     /// @notice Borrows a specified amount of fCash in the vault's borrow currency and deposits it

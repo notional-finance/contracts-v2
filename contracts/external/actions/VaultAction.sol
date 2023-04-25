@@ -258,11 +258,11 @@ contract VaultAction is ActionGuards, IVaultAction {
     function settleSecondaryBorrowForAccount(
         address vault,
         address account
-    ) external override returns (bool didTransferSecondary) {
+    ) external override {
         // Only allow this to be called during settle vault account. Cannot be called directly.
         require(msg.sender == address(this)); // dev: unauthorized
         VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigStateful(vault);
-        return VaultSecondaryBorrow.settleSecondaryBorrow(vaultConfig, account);
+        VaultSecondaryBorrow.settleSecondaryBorrow(vaultConfig, account);
     }
 
     function _transferSecondary(
