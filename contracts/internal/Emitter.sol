@@ -549,35 +549,26 @@ library Emitter {
         cashProxy.emitMintTransferBurn(minter, burner, mintAmount, transferAndBurnAmount);
     }
 
-    /// @notice Emits an event where the vault burns its secondary cash balances.
-    function emitVaultBurnSecondaryCash(
+    function emitVaultMintOrBurnCash(
         address account,
-        VaultConfig memory vaultConfig,
+        address vault,
+        uint16 currencyId,
         uint256 maturity,
-        int256 primeCashRefundOne,
-        int256 primeCashRefundTwo
+        int256 netVaultCash
     ) internal {
-        if (primeCashRefundOne == 0 && primeCashRefundTwo == 0) return;
-
-        address vault = vaultConfig.vault;
-        if (primeCashRefundOne > 0 && primeCashRefundTwo > 0) {
-            uint256[] memory ids = new uint256[](2);
-            uint256[] memory values = new uint256[](2);
-            ids[0] = _encodeVaultId(vault, vaultConfig.secondaryBorrowCurrencies[0], maturity, Constants.VAULT_CASH_ASSET_TYPE);
-            ids[1] = _encodeVaultId(vault, vaultConfig.secondaryBorrowCurrencies[1], maturity, Constants.VAULT_CASH_ASSET_TYPE);
-            values[0] = primeCashRefundOne.toUint();
-            values[1] = primeCashRefundTwo.toUint();
-            // Burn both cash balances if they are non zero
-            emit TransferBatch(msg.sender, account, address(0), ids, values);
+        if (netVaultCash == 0) return;
+        uint256 id = _encodeVaultId(vault, currencyId, maturity, Constants.VAULT_CASH_ASSET_TYPE);
+        address from; address to;
+        if (netVaultCash < 0) {
+            // Burn
+            from = account; to = address(0);
         } else {
-            uint256 id = primeCashRefundOne > 0 ? 
-                _encodeVaultId(vault, vaultConfig.secondaryBorrowCurrencies[0], maturity, Constants.VAULT_CASH_ASSET_TYPE) :
-                _encodeVaultId(vault, vaultConfig.secondaryBorrowCurrencies[1], maturity, Constants.VAULT_CASH_ASSET_TYPE);
-            uint256 value = primeCashRefundOne > 0 ?  primeCashRefundOne.toUint() : primeCashRefundTwo.toUint();
-
-            // Just burn the non zero balance
-            emit TransferSingle(msg.sender, account, address(0), id, value);
+            // Mint
+            from = address(0); to = account;
         }
+
+        uint256 value = uint256(netVaultCash.abs());
+        emit TransferSingle(msg.sender, from, to, id, value);
     }
 
     /// @notice Emits an event where the vault borrows or repays secondary debt
