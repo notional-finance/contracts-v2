@@ -538,7 +538,10 @@ struct VaultConfigStorage {
     uint16 maxRequiredAccountCollateralRatioBPS;
     // Specified in whole tokens in 1e8 precision, allows a 4.2 billion min borrow size
     uint32[2] minAccountSecondaryBorrow;
-    // 16 bytes left
+    // Specified as a percent discount off the exchange rate of the excess cash that will be paid to
+    // the liquidator during liquidateExcessVaultCash
+    uint8 excessCashLiquidationBonus;
+    // 8 bytes left
 }
 
 struct VaultBorrowCapacityStorage {
@@ -575,6 +578,7 @@ struct VaultConfig {
     PrimeRate primeRate;
     int256 maxRequiredAccountCollateralRatio;
     int256[2] minAccountSecondaryBorrow;
+    int256 excessCashLiquidationBonus;
 }
 
 /// @notice Represents a Vault's current borrow and collateral state
@@ -666,8 +670,9 @@ struct VaultAccountHealthFactors {
     // Total value of vault shares in underlying denomination
     int256 vaultShareValueUnderlying;
     // Debt outstanding in local currency denomination after present value and
-    // account cash held netting applied
-    int256[3] debtOutstanding;
+    // account cash held netting applied. Can be positive if the account holds cash
+    // in excess of debt.
+    int256[3] netDebtOutstanding;
 }
 
 // PrimeCashInterestRateParameters take up 16 bytes, this takes up 32 bytes so we

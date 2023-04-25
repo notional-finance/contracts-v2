@@ -89,6 +89,7 @@ library VaultConfiguration {
         vaultConfig.secondaryBorrowCurrencies = s.secondaryBorrowCurrencies;
         vaultConfig.minAccountSecondaryBorrow[0] = int256(uint256(s.minAccountSecondaryBorrow[0])).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.minAccountSecondaryBorrow[1] = int256(uint256(s.minAccountSecondaryBorrow[1])).mul(Constants.INTERNAL_TOKEN_PRECISION);
+        vaultConfig.excessCashLiquidationBonus = int256(uint256(s.excessCashLiquidationBonus));
     }
 
     function getVaultConfigNoPrimeRate(
@@ -189,6 +190,11 @@ library VaultConfiguration {
         if (vaultConfig.secondaryBorrowCurrencies[0] != 0 && vaultConfig.secondaryBorrowCurrencies[1] != 0) {
             // Check that these values are not duplicated if set
             require(vaultConfig.secondaryBorrowCurrencies[0] != vaultConfig.secondaryBorrowCurrencies[1]);
+        }
+
+        if (vaultConfig.secondaryBorrowCurrencies[0] != 0 || vaultConfig.secondaryBorrowCurrencies[1] != 0) {
+            // Require that this is above 100% if secondary borrows are activated
+            require(vaultConfig.excessCashLiquidationBonus >= Constants.PERCENTAGE_DECIMALS);
         }
 
         // Tokens with transfer fees create lots of issues with vault mechanics, we prevent them

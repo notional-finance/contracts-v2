@@ -50,6 +50,15 @@ library VaultSecondaryBorrow {
         int256 exchangeRateTwo;
     }
 
+    struct ExcessVaultCashFactors {
+        uint16 excessCashCurrencyId;
+        uint16 debtCurrencyId;
+        PrimeRate excessCashPR;
+        PrimeRate debtPR;
+        int256 exchangeRate;
+        int256 rateDecimals;
+    }
+
     /**** Secondary Borrow Getters ****/
 
     /// @notice Returns prime rates for secondary borrows
@@ -93,6 +102,34 @@ library VaultSecondaryBorrow {
         }
     }
 
+    function getLiquidateExcessCashFactors(
+        VaultConfig memory vaultConfig,
+        PrimeRate[2] memory primeRates,
+        uint256 excessCashIndex,
+        uint256 debtIndex
+    ) internal view returns (ExcessVaultCashFactors memory f) {
+        if (excessCashIndex == 0) {
+            f.excessCashCurrencyId = vaultConfig.borrowCurrencyId;
+            f.excessCashPR = vaultConfig.primeRate;
+        } else {
+            f.excessCashCurrencyId = vaultConfig.secondaryBorrowCurrencies[excessCashIndex - 1];
+            f.excessCashPR = primeRates[excessCashIndex - 1];
+        }
+
+        if (debtIndex == 0) {
+            f.debtCurrencyId = vaultConfig.borrowCurrencyId;
+            f.debtPR = vaultConfig.primeRate;
+        } else {
+            f.debtCurrencyId = vaultConfig.secondaryBorrowCurrencies[debtIndex - 1];
+            f.debtPR = primeRates[debtIndex - 1];
+        }
+
+        ETHRate memory baseER = ExchangeRate.buildExchangeRate(f.excessCashCurrencyId);
+        ETHRate memory quoteER = ExchangeRate.buildExchangeRate(f.debtCurrencyId);
+        f.exchangeRate = ExchangeRate.exchangeRate(baseER, quoteER);
+        f.rateDecimals = baseER.rateDecimals;
+    }
+
     /**** Secondary Borrow Debt ****/
 
     function getSecondaryBorrowCollateralFactors(
@@ -102,12 +139,13 @@ library VaultSecondaryBorrow {
         address account
     ) internal view returns (
         int256 secondaryDebtInPrimary,
+        int256 excessCashInPrimary,
         VaultSecondaryBorrow.SecondaryExchangeRates memory er,
         int256 debtOutstandingOne,
         int256 debtOutstandingTwo
     ) {
         er = getExchangeRates(vaultConfig);
-        (debtOutstandingOne, debtOutstandingTwo, secondaryDebtInPrimary) = _getSecondaryAccountDebtsInPrimary(
+        (debtOutstandingOne, debtOutstandingTwo, secondaryDebtInPrimary, excessCashInPrimary) = _getSecondaryAccountDebtsInPrimary(
             vaultConfig, primeRates, er, account, vaultState.maturity
         );
     }
@@ -139,13 +177,19 @@ library VaultSecondaryBorrow {
         SecondaryExchangeRates memory er,
         int256 secondaryUnderlyingOne,
         int256 secondaryUnderlyingTwo
-    ) private pure returns (int256 primaryValue) {
-        if (secondaryUnderlyingOne != 0) {
-            primaryValue = secondaryUnderlyingOne.mul(er.rateDecimals).div(er.exchangeRateOne);
+    ) private pure returns (int256 totalDebtInPrimary, int256 totalExcessCashInPrimary) {
+        if (secondaryUnderlyingOne < 0) {
+            totalDebtInPrimary = secondaryUnderlyingOne.mul(er.rateDecimals).div(er.exchangeRateOne);
+        } else {
+            totalExcessCashInPrimary = secondaryUnderlyingOne.mul(er.rateDecimals).div(er.exchangeRateOne);
         }
 
-        if (secondaryUnderlyingTwo != 0) {
-            primaryValue = primaryValue.add(
+        if (secondaryUnderlyingTwo < 0) {
+            totalDebtInPrimary = totalDebtInPrimary.add(
+                secondaryUnderlyingTwo.mul(er.rateDecimals).div(er.exchangeRateTwo)
+            );
+        } else {
+            totalExcessCashInPrimary = totalExcessCashInPrimary.add(
                 secondaryUnderlyingTwo.mul(er.rateDecimals).div(er.exchangeRateTwo)
             );
         }
@@ -160,7 +204,8 @@ library VaultSecondaryBorrow {
     ) private view returns (
         int256 debtOutstandingOne,
         int256 debtOutstandingTwo,
-        int256 totalDebtOutstandingInPrimary
+        int256 totalDebtOutstandingInPrimary,
+        int256 totalExcessCashInPrimary
     ) {
         (int256 secondaryCashOne, int256 secondaryCashTwo) = getSecondaryCashHeld(
             account, vaultConfig.vault
@@ -191,7 +236,7 @@ library VaultSecondaryBorrow {
         }
 
         // Debt outstanding is reported in underlying denomination
-        totalDebtOutstandingInPrimary = _convertSecondaryUnderlyingToPrimary(
+        (totalDebtOutstandingInPrimary, totalExcessCashInPrimary) = _convertSecondaryUnderlyingToPrimary(
             er, debtOutstandingOne, debtOutstandingTwo
         );
     }
@@ -248,7 +293,13 @@ library VaultSecondaryBorrow {
             account, vaultConfig.vault
         );
 
-        Emitter.emitVaultBurnSecondaryCash(account, vaultConfig, maturity, primeCashRefundOne, primeCashRefundTwo);
+        // Burn previous refund if exists
+        Emitter.emitVaultMintOrBurnCash(
+            account, vaultConfig.vault, vaultConfig.secondaryBorrowCurrencies[0], maturity, primeCashRefundOne.neg()
+        );
+        Emitter.emitVaultMintOrBurnCash(
+            account, vaultConfig.vault, vaultConfig.secondaryBorrowCurrencies[1], maturity, primeCashRefundTwo.neg()
+        );
         netPrimeCashOne = netPrimeCashOne.add(primeCashRefundOne);
         netPrimeCashTwo = netPrimeCashTwo.add(primeCashRefundTwo);
     }

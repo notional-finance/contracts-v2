@@ -211,6 +211,15 @@ interface IVaultLiquidationAction {
         uint256 currencyIndex,
         int256 fCashDeposit
     ) external returns (int256 cashToLiquidator);
+
+    function liquidateExcessVaultCash(
+        address account,
+        address vault,
+        address liquidator,
+        uint256 excessCashIndex,
+        uint256 debtIndex,
+        uint256 _depositUnderlyingInternal
+    ) external payable returns (int256 cashToLiquidator);
 }
 
 interface IVaultAccountHealth {

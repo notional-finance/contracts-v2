@@ -81,6 +81,7 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         ) = IVaultAccountHealth(address(this)).calculateDepositAmountInDeleverage(
             currencyIndex, vaultAccount, vaultConfig, vaultState, depositUnderlyingInternal
         );
+        require(depositUnderlyingInternal > 0); // dev: cannot liquidate zero balance
 
         uint16 currencyId = vaultConfig.borrowCurrencyId;
         if (currencyIndex == 1) currencyId = vaultConfig.secondaryBorrowCurrencies[0];
@@ -171,6 +172,73 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
 
         _reduceAccountDebt(vaultConfig, vaultState, vaultAccount, pr, currencyIndex, fCashDeposit, false);
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, currencyIndex, cashToLiquidator.neg(), false);
+    }
+
+    function liquidateExcessVaultCash(
+        address account,
+        address vault,
+        address liquidator,
+        uint256 excessCashIndex,
+        uint256 debtIndex,
+        uint256 _depositUnderlyingInternal
+    ) external payable nonReentrant override returns (int256 cashToLiquidator) {
+        (
+            VaultConfig memory vaultConfig,
+            VaultAccount memory vaultAccount,
+            /* VaultState memory vaultState */
+        ) = _authenticateDeleverage(account, vault, liquidator);
+
+        // This liquidation is only valid when there are secondary borrows
+        require(vaultConfig.hasSecondaryBorrows());
+        PrimeRate[2] memory primeRates = VaultSecondaryBorrow.getSecondaryPrimeRateStateful(vaultConfig);
+        // All prime rates have accrued statefully at this point, so it is ok to get account health factors which uses
+        // a view method to accrue prime cash -- it will read the values that have already accrued to this block.
+        (VaultAccountHealthFactors memory h, /* */, /* */) =  IVaultAccountHealth(address(this)).getVaultAccountHealthFactors(
+            account, vault
+        );
+        // Validate that there is debt and cash. This ensures that excessCashIndex != debtIndex and
+        // excessCashIndex < 3 and debtIndex < 3. It also validates that the currency indexes are valid
+        // because netDebtOutstanding == 0 for an unused secondary borrow currency.
+        require(0 < h.netDebtOutstanding[excessCashIndex]);
+        require(h.netDebtOutstanding[debtIndex] < 0);
+
+        VaultSecondaryBorrow.ExcessVaultCashFactors memory f = VaultSecondaryBorrow.getLiquidateExcessCashFactors(
+            vaultConfig, primeRates, excessCashIndex, debtIndex
+        );
+
+        int256 depositUnderlyingInternal = _depositUnderlyingInternal.toInt();
+        cashToLiquidator = f.excessCashPR.convertFromUnderlying(
+            depositUnderlyingInternal
+                .mul(f.exchangeRate)
+                .mul(vaultConfig.excessCashLiquidationBonus)
+                .div(Constants.PERCENTAGE_DECIMALS)
+                .div(f.rateDecimals)
+        );
+
+        if (h.netDebtOutstanding[excessCashIndex] < cashToLiquidator) {
+            // Limit the deposit to what is held by the account
+            cashToLiquidator = h.netDebtOutstanding[excessCashIndex];
+            depositUnderlyingInternal = f.excessCashPR.convertToUnderlying(cashToLiquidator)
+                .mul(Constants.PERCENTAGE_DECIMALS)
+                .mul(f.rateDecimals)
+                .div(f.exchangeRate)
+                .div(vaultConfig.excessCashLiquidationBonus);
+        }
+
+        int256 depositAmountPrimeCash = f.debtPR.convertFromUnderlying(depositUnderlyingInternal);
+        vaultAccount.setVaultAccountForLiquidation(vaultConfig, excessCashIndex, cashToLiquidator.neg(), false);
+        vaultAccount.setVaultAccountForLiquidation(vaultConfig, debtIndex, depositAmountPrimeCash, false);
+
+        TokenHandler.withdrawPrimeCash(
+            liquidator, f.excessCashCurrencyId, cashToLiquidator, f.excessCashPR, false
+        );
+        Emitter.emitVaultMintOrBurnCash(account, vault, f.excessCashCurrencyId, vaultAccount.maturity, cashToLiquidator.neg());
+
+        // Deposit the debtIndex from the liquidator
+        TokenHandler.depositExactToMintPrimeCash(
+            liquidator, f.debtCurrencyId, depositAmountPrimeCash, f.debtPR, false
+        );
+        Emitter.emitVaultMintOrBurnCash(account, vault, f.debtCurrencyId, vaultAccount.maturity, depositAmountPrimeCash);
     }
 
     function _transferCashToVault(

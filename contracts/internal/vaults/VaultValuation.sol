@@ -129,8 +129,9 @@ library VaultValuation {
 
         if (vaultConfig.hasSecondaryBorrows()) {
             PrimeRate[2] memory primeRates = VaultSecondaryBorrow.getSecondaryPrimeRateStateful(vaultConfig);
-            (int256 secondaryDebtInPrimary, /* */, /* */, /* */) =
+            (int256 secondaryDebtInPrimary, int256 excessCashInPrimary, /* */, /* */, /* */) =
                 VaultSecondaryBorrow.getSecondaryBorrowCollateralFactors(vaultConfig, primeRates, vaultState, account);
+            require(excessCashInPrimary == 0); // dev: no excess cash
             debtOutstanding = debtOutstanding.add(secondaryDebtInPrimary);
         }
 
@@ -178,12 +179,11 @@ library VaultValuation {
         VaultAccountHealthFactors memory h,
         VaultSecondaryBorrow.SecondaryExchangeRates memory er
     ) {
-
         h.vaultShareValueUnderlying = getPrimaryUnderlyingValueOfShare(
             vaultState, vaultConfig, vaultAccount.account, vaultAccount.vaultShares
         );
 
-        h.debtOutstanding[0] = getPresentValue(
+        h.netDebtOutstanding[0] = getPresentValue(
             vaultConfig.primeRate,
             vaultConfig.borrowCurrencyId,
             vaultState.maturity,
@@ -192,16 +192,24 @@ library VaultValuation {
         // During liquidation, it is possible that the vault account has a temp cash balance due to
         // a previous liquidation.
         ).add(vaultConfig.primeRate.convertToUnderlying(vaultAccount.tempCashBalance));
-        h.totalDebtOutstandingInPrimary = h.debtOutstanding[0];
+        
+        if (h.netDebtOutstanding[0] < 0) {
+            h.totalDebtOutstandingInPrimary = h.netDebtOutstanding[0];
+        } else {
+            // If the net debt outstanding is positive, add it to the vault share value
+            h.vaultShareValueUnderlying = h.vaultShareValueUnderlying.add(h.netDebtOutstanding[0]);
+        }
 
         if (vaultConfig.hasSecondaryBorrows()) {
             int256 secondaryDebtInPrimary;
-            (secondaryDebtInPrimary, er, h.debtOutstanding[1], h.debtOutstanding[2]) = 
+            int256 excessCashInPrimary;
+            (secondaryDebtInPrimary, excessCashInPrimary, er, h.netDebtOutstanding[1], h.netDebtOutstanding[2]) = 
                 VaultSecondaryBorrow.getSecondaryBorrowCollateralFactors(
                     vaultConfig, primeRates, vaultState, vaultAccount.account
                 );
 
             h.totalDebtOutstandingInPrimary = h.totalDebtOutstandingInPrimary.add(secondaryDebtInPrimary);
+            h.vaultShareValueUnderlying = h.vaultShareValueUnderlying.add(excessCashInPrimary);
         }
 
         h.collateralRatio = calculateCollateralRatio(h.vaultShareValueUnderlying, h.totalDebtOutstandingInPrimary);
@@ -242,7 +250,7 @@ library VaultValuation {
             vaultConfig,
             h.vaultShareValueUnderlying,
             h.totalDebtOutstandingInPrimary.neg(),
-            h.debtOutstanding[currencyIndex].neg(),
+            h.netDebtOutstanding[currencyIndex].neg(),
             minBorrowSize,
             exchangeRate,
             er.rateDecimals
@@ -261,7 +269,7 @@ library VaultValuation {
             // account within 20% of the minBorrowSize in a vault that has fCash discounting enabled
             // may experience a full liquidation as a result.
             require(
-                h.debtOutstanding[currencyIndex].sub(depositUnderlyingInternal) < minBorrowSize,
+                h.netDebtOutstanding[currencyIndex].sub(depositUnderlyingInternal) < minBorrowSize,
                 "Must Liquidate All Debt"
             );
         } else {
@@ -302,6 +310,10 @@ library VaultValuation {
         int256 exchangeRate,
         int256 rateDecimals
     ) private pure returns (int256 maxLiquidatorDepositLocal) {
+        // Local debt oustanding may be negative if there is excess cash above the debt balance. In that case
+        // this currency cannot be liquidated further.
+        if (localDebtOutstanding <= 0) return 0;
+
         // In the base case, the liquidator can deleverage an account up to maxDeleverageCollateralRatio, this
         // assures that a liquidator cannot over-purchase assets on an account.
         int256 maxCollateralRatioPlusOne = vaultConfig.maxDeleverageCollateralRatio.add(Constants.RATE_PRECISION);
