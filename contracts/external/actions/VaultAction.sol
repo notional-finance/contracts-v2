@@ -17,6 +17,7 @@ import {LibStorage} from "../../global/LibStorage.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 
+import {Emitter} from "../../internal/Emitter.sol";
 import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
 import {PrimeCashExchangeRate} from "../../internal/pCash/PrimeCashExchangeRate.sol";
 import {TokenHandler} from "../../internal/balances/TokenHandler.sol";
@@ -180,10 +181,10 @@ contract VaultAction is ActionGuards, IVaultAction {
         require(netPrimeCashTwo >= 0, "Insufficient Secondary Borrow");
 
         underlyingTokensTransferred[0] = _transferSecondary(
-            msg.sender, vaultConfig.secondaryBorrowCurrencies[0], netPrimeCashOne, pr[0]
+            msg.sender, account, vaultConfig.secondaryBorrowCurrencies[0], netPrimeCashOne, pr[0], false
         );
         underlyingTokensTransferred[1] = _transferSecondary(
-            msg.sender, vaultConfig.secondaryBorrowCurrencies[1], netPrimeCashTwo, pr[1]
+            msg.sender, account, vaultConfig.secondaryBorrowCurrencies[1], netPrimeCashTwo, pr[1], false
         );
     }
 
@@ -248,10 +249,10 @@ contract VaultAction is ActionGuards, IVaultAction {
         );
 
         underlyingDepositExternal[0] = _transferSecondary(
-            msg.sender, vaultConfig.secondaryBorrowCurrencies[0], netPrimeCashOne, pr[0]
+            msg.sender, account, vaultConfig.secondaryBorrowCurrencies[0], netPrimeCashOne, pr[0], true
         );
         underlyingDepositExternal[1] = _transferSecondary(
-            msg.sender, vaultConfig.secondaryBorrowCurrencies[1], netPrimeCashTwo, pr[1]
+            msg.sender, account, vaultConfig.secondaryBorrowCurrencies[1], netPrimeCashTwo, pr[1], true
         );
     }
 
@@ -267,16 +268,25 @@ contract VaultAction is ActionGuards, IVaultAction {
 
     function _transferSecondary(
         address vault,
+        address account,
         uint16 currencyId,
         int256 netPrimeCash,
-        PrimeRate memory pr
+        PrimeRate memory pr,
+        bool isRepayment
     ) private returns (int256 underlyingTokensTransferred) {
-        // TODO: need to emit a mint / transfer / burn on the secondary if any excess is returned
-        // to the vault account
-        // TODO: consider switching all vault secondary borrow interactions to WETH
 
         // ETH transfers to the vault are always in native ETH, not wrapped
-        if (netPrimeCash > 0) {
+        if (netPrimeCash > 0 && isRepayment) {
+            // If there is a refund to the account during repayment, then send the
+            // excess tokens back to the account directly. In that case we need to:
+
+            // Burn Vault Cash on the account (has occurred already)
+            // Transfer prime cash to the account
+            // Burn Prime Cash on the account (will occur in transfer from notional)
+            // NOTE: this does not go to receiver...
+            Emitter.emitTransferPrimeCash(vault, account, currencyId, netPrimeCash);
+            VaultConfiguration.transferFromNotional(account, currencyId, netPrimeCash, pr, false);
+        } else if (netPrimeCash > 0) {
             underlyingTokensTransferred = VaultConfiguration.transferFromNotional(
                 vault, currencyId, netPrimeCash, pr, false
             ).toInt().neg();
