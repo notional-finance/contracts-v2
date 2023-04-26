@@ -34,32 +34,11 @@ library PrimeCashExchangeRate {
     event PrimeProxyDeployed(uint16 indexed currencyId, address proxy, bool isCashProxy);
 
     /// @notice Emits every time interest is accrued
-    event PrimeCashInterestAccrued(uint16 indexed currencyId);
-
-    /// @notice Emits when the totalPrimeDebt changes due to borrowing
-    event PrimeDebtChanged(
-        uint16 indexed currencyId,
-        uint256 totalPrimeSupply,
-        uint256 totalPrimeDebt
-    );
-
-    /// @notice Emits when the totalPrimeSupply changes due to token deposits or withdraws
-    event PrimeSupplyChanged(
-        uint16 indexed currencyId,
-        uint256 totalPrimeSupply,
-        uint256 lastTotalUnderlyingValue
-    );
+    event PrimeCashInterestAccrued(uint16 indexed currencyId, PrimeCashFactors factors);
 
     event PrimeCashCurveChanged(uint16 indexed currencyId);
 
     event PrimeCashHoldingsOracleUpdated(uint16 indexed currencyId, address oracle);
-
-    event TotalfCashDebtOutstandingChanged(
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 totalfCashDebt,
-        int256 netDebtChange
-    );
 
     /// @dev Reads prime cash factors from storage
     function getPrimeCashFactors(
@@ -197,9 +176,6 @@ library PrimeCashExchangeRate {
         s.totalPrimeDebt = 0;
         s.oracleSupplyRate = 0;
 
-        emit PrimeDebtChanged(currencyId, totalPrimeSupply, 0);
-        emit PrimeSupplyChanged(currencyId, totalPrimeSupply, currentTotalUnderlying);
-
         InterestRateCurve.setPrimeCashInterestRateParameters(currencyId, debtCurve);
         emit PrimeCashCurveChanged(currencyId);
     }
@@ -264,7 +240,7 @@ library PrimeCashExchangeRate {
             Emitter.emitMintOrBurnPrimeCash(Constants.FEE_RESERVE, currencyId, primeSupply);
         }
 
-        emit PrimeCashInterestAccrued(currencyId);
+        emit PrimeCashInterestAccrued(currencyId, p);
     }
 
     /// @notice Updates prime debt when borrowing occurs. Whenever borrowing occurs, prime
@@ -313,13 +289,6 @@ library PrimeCashExchangeRate {
         s.totalPrimeDebt = newTotalPrimeDebt.toUint().toUint88();
         s.totalPrimeSupply = newTotalPrimeSupply.toUint().toUint88();
 
-        // overflow checked above
-        emit PrimeDebtChanged(
-            currencyId,
-            uint256(newTotalPrimeSupply),
-            uint256(newTotalPrimeDebt)
-        );
-
         Emitter.emitBorrowOrRepayPrimeDebt(account, currencyId, netPrimeSupplyChange, netPrimeDebtChange);
     }
 
@@ -346,13 +315,6 @@ library PrimeCashExchangeRate {
         // itself is floored at zero). If total underlying tokens held is zero, then either
         // there is no supply or the prime cash market is at 100% utilization.
         s.totalPrimeSupply = newTotalPrimeSupply.toUint().toUint88();
-
-        // NOTE: overflow checked above
-        emit PrimeSupplyChanged(
-            currencyId,
-            uint256(newTotalPrimeSupply),
-            uint256(newLastTotalUnderlyingValue)
-        );
     }
 
     function getTotalfCashDebtOutstanding(
@@ -418,14 +380,6 @@ library PrimeCashExchangeRate {
         // transfers fCash via ERC1155 to a negative balance (effectively an OTC market
         // making operation).
         Emitter.emitChangefCashLiquidity(account, currencyId, maturity, netDebtChange);
-
-        emit TotalfCashDebtOutstandingChanged(
-            currencyId,
-            maturity,
-            newTotalDebt,
-            // Flip the sign here so it makes sense relative to the last totalfCashDebt
-            netDebtChange.neg()
-        );
     }
 
     function getPrimeInterestRates(
