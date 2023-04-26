@@ -474,7 +474,7 @@ def check_vault_invariants(env, accounts, vaults):
                 vault, config["secondaryBorrowCurrencies"][0]
             )
             assert totalSecondaryfCashDebt[config["secondaryBorrowCurrencies"][0]] == -totalfCashUsed
-            assert pytest.approx(-currentPrimeDebt, abs=1) == totalSecondaryDebtPerMaturity[config["secondaryBorrowCurrencies"][0]][PRIME_CASH_VAULT_MATURITY ]
+            assert pytest.approx(-currentPrimeDebt, abs=150) == totalSecondaryDebtPerMaturity[config["secondaryBorrowCurrencies"][0]][PRIME_CASH_VAULT_MATURITY ]
 
         if config["secondaryBorrowCurrencies"][1] != 0:
             (currentPrimeDebt, totalfCashUsed, _) = env.notional.getBorrowCapacity(

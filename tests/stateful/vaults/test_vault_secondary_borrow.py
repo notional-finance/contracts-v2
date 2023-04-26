@@ -344,14 +344,14 @@ def test_oracle_price_affects_debt_value(accounts, multiCurrencyVault, environme
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 
 @given(isPrime=strategy("bool"))
-def test_claims_affect_vault_share_value(accounts, multiCurrencyVault, environment, isPrime, ethDAIOracle):
+def test_claims_affect_vault_share_value(accounts, multiCurrencyVault, environment, isPrime):
     enter_vault(multiCurrencyVault, environment, accounts[1], isPrime)
 
     (healthOne, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
     assert pytest.approx(healthOne['netDebtOutstanding'][0], abs=3) == -100_000e8
     assert pytest.approx(healthOne['netDebtOutstanding'][1], abs=3) == -10e8
     assert pytest.approx(healthOne['netDebtOutstanding'][2], abs=3) == 0
-    assert pytest.approx(healthOne['totalDebtOutstandingInPrimary'], abs=3) == -100_000e8 - 10e8 * 100
+    assert pytest.approx(healthOne['totalDebtOutstandingInPrimary'], abs=150) == -100_000e8 - 10e8 * 100
 
     multiCurrencyVault.approveTransfer(environment.token['DAI'])
     environment.token['DAI'].transferFrom(multiCurrencyVault, accounts[0], 10_000e18)

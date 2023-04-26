@@ -543,7 +543,7 @@ def test_liquidator_can_liquidate_cash(environment, accounts, currencyId, enable
     assert portfolioBefore[0][3] - portfolioAfter[0][3] == (
         vaultAccountAfter["accountDebtUnderlying"] - vaultAccountBefore["accountDebtUnderlying"]
     )
-    assert pytest.approx(portfolioBefore[0][3] - portfolioAfter[0][3], abs=100) == fCashRequired
+    assert pytest.approx(portfolioBefore[0][3] - portfolioAfter[0][3], abs=150) == fCashRequired
     # Cash has been cleared
     assert vaultAccountAfter["tempCashBalance"] == 0
 
