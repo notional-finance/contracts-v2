@@ -319,24 +319,23 @@ struct CashGroupSettings {
     uint8 maxMarketIndex;
     // Time window in 5 minute increments that the rate oracle will be averaged over
     uint8 rateOracleTimeWindow5Min;
-    // Absolute maximum discount factor as a percentage discount from 1e9, specified in single basis points
+    // Absolute maximum discount factor as a discount from 1e9, specified in five basis points
     // subtracted from 1e9
-    uint8 maxDiscountFactorBPS;
+    uint8 maxDiscountFactor5BPS;
     // Share of the fees given to the protocol, denominated in percentage
     uint8 reserveFeeShare;
     // Debt buffer specified in 5 BPS increments
-    uint8 debtBuffer5BPS;
+    uint8 debtBuffer25BPS;
     // fCash haircut specified in 5 BPS increments
-    uint8 fCashHaircut5BPS;
-    uint8 _unused;
+    uint8 fCashHaircut25BPS;
+    // Minimum oracle interest rates for fCash per market, specified in 25 bps increments
+    uint8 minOracleRate25BPS;
     // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
-    uint8 liquidationfCashHaircut5BPS;
+    uint8 liquidationfCashHaircut25BPS;
     // If an account has fCash that is being liquidated, this is the discount that the liquidator can purchase it for
-    uint8 liquidationDebtBuffer5BPS;
-    // Minimum oracle interest rates for fCash per market, specified in 5 bps increments
-    uint8[] minOracleRate5BPS;
-    // Max oracle rate specified in 15bps increments as a discount from the max rate in the market.
-    uint8[] maxOracleRate15BPS;
+    uint8 liquidationDebtBuffer25BPS;
+    // Max oracle rate specified in 25bps increments as a discount from the max rate in the market.
+    uint8 maxOracleRate25BPS;
 }
 
 /// @dev Holds account level context information used to determine settlement and
@@ -455,9 +454,9 @@ struct InterestRateCurveSettings {
     // and 150bps increments from 151 to 255.
     uint8 maxRateUnits;
     // Minimum fee charged in basis points
-    uint8 minFeeRateBPS;
+    uint8 minFeeRate5BPS;
     // Maximum fee charged in basis points
-    uint8 maxFeeRateBPS;
+    uint8 maxFeeRate25BPS;
     // Percentage of the interest rate that will be applied as a fee
     uint8 feeRatePercent;
 }

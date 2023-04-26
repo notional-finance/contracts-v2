@@ -90,8 +90,8 @@ library InterestRateCurve {
         i.kinkRate2 = uint256(uint8(data[offset + KINK_RATE_2_BYTE])) * i.maxRate / 256;
 
         // Fee rates are stored in basis points
-        i.minFeeRate = uint256(uint8(data[offset + MIN_FEE_RATE_BYTE])) * uint256(Constants.BASIS_POINT);
-        i.maxFeeRate = uint256(uint8(data[offset + MAX_FEE_RATE_BYTE])) * uint256(Constants.BASIS_POINT);
+        i.minFeeRate = uint256(uint8(data[offset + MIN_FEE_RATE_BYTE])) * uint256(Constants.FIVE_BASIS_POINTS);
+        i.maxFeeRate = uint256(uint8(data[offset + MAX_FEE_RATE_BYTE])) * uint256(Constants.TWENTY_FIVE_BASIS_POINTS);
         i.feeRatePercent = uint256(uint8(data[offset + FEE_RATE_PERCENT_BYTE]));
     }
 
@@ -99,7 +99,7 @@ library InterestRateCurve {
         require(settings.kinkUtilization1 < settings.kinkUtilization2);
         require(settings.kinkUtilization2 <= 100);
         require(settings.kinkRate1 < settings.kinkRate2);
-        require(settings.minFeeRateBPS <= settings.maxFeeRateBPS);
+        require(settings.minFeeRate5BPS * Constants.FIVE_BASIS_POINTS <= settings.maxFeeRate25BPS * Constants.TWENTY_FIVE_BASIS_POINTS);
         require(settings.feeRatePercent < 100);
 
         return (
@@ -108,8 +108,8 @@ library InterestRateCurve {
             bytes32(uint256(settings.maxRateUnits))     << 56 - MAX_RATE_BIT           |
             bytes32(uint256(settings.kinkRate1))        << 56 - KINK_RATE_1_BIT        |
             bytes32(uint256(settings.kinkRate2))        << 56 - KINK_RATE_2_BIT        |
-            bytes32(uint256(settings.minFeeRateBPS))    << 56 - MIN_FEE_RATE_BIT       |
-            bytes32(uint256(settings.maxFeeRateBPS))    << 56 - MAX_FEE_RATE_BIT       |
+            bytes32(uint256(settings.minFeeRate5BPS))   << 56 - MIN_FEE_RATE_BIT       |
+            bytes32(uint256(settings.maxFeeRate25BPS))  << 56 - MAX_FEE_RATE_BIT       |
             bytes32(uint256(settings.feeRatePercent))   << 56 - FEE_RATE_PERCENT_BIT
         );
     }
