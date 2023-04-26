@@ -586,11 +586,14 @@ library VaultAccountLib {
                 finalPrimeDebtStorageValue = 0;
 
                 finalPrimeCash = pr.convertFromUnderlying(
-                    pr.convertDebtStorageToUnderlying(accountPrimeStorageValue.sub(netPrimeDebtRepaid))
+                    // convertDebtStorageToUnderlying requires the input to be negative, therefore we have
+                    // to do the subtraction and negation in this manner.
+                    pr.convertDebtStorageToUnderlying(netPrimeDebtRepaid.sub(accountPrimeStorageValue)).neg()
                 );
             } else {
                 // In this case, part of the account's debt is repaid.
                 netPrimeDebtChange = netPrimeDebtRepaid;
+                // finalPrimeDebtStorageValue is a positive number here
                 finalPrimeDebtStorageValue = accountPrimeStorageValue.sub(netPrimeDebtRepaid);
                 // finalPrimeCash will be returned as zero here
             }
