@@ -424,23 +424,22 @@ library Emitter {
             values[1] = prior.vaultShares;
             emit TransferBatch(msg.sender, vaultAccount.account, address(0), ids, values);
         } else if (vaultAccount.maturity == prior.maturity) {
-            // Vault account is in the same maturity, either an entry or an exit has occurred. In an
-            // entry, the vault debt must stay the same or increase. Vault shares must stay the same or increase.
-            // In an exit, the vault debt must stay the same or decrease. Vault shares must stay the same or decrease.
+            // Majority of the time, vault accounts will either burn or mint vault shares and debt at the same time. However,
+            // when an account sells vault shares to pay down a secondary debt without paying down any primary
+            // debt in the prime maturity, the debt may increase while the vault shares decreases. In this case, two TransferBatch
+            // events will be fired. One will be the burn of the vault shares and the second will be the mint of the vault debt.
             bool isBurn = newDebtStorageValue < prior.accountDebt || vaultAccount.vaultShares < prior.vaultShares;
-            address from; address to;
             if (isBurn) {
-                values[0] = uint256(prior.accountDebt).sub(newDebtStorageValue);
+                values[0] = newDebtStorageValue < uint256(prior.accountDebt) ? prior.accountDebt - newDebtStorageValue : 0;
                 values[1] = uint256(prior.vaultShares).sub(vaultAccount.vaultShares);
-                from = vaultAccount.account;
-                to = address(0);
-            } else {
-                values[0] = newDebtStorageValue.sub(prior.accountDebt);
-                values[1] = vaultAccount.vaultShares.sub(prior.vaultShares);
-                from = address(0);
-                to = vaultAccount.account;
+                emit TransferBatch(msg.sender, vaultAccount.account, address(0), ids, values);
             }
-            emit TransferBatch(msg.sender, from, to, ids, values);
+
+            if (!isBurn || prior.accountDebt < newDebtStorageValue) {
+                values[0] = newDebtStorageValue.sub(prior.accountDebt);
+                values[1] = prior.vaultShares < vaultAccount.vaultShares ? vaultAccount.vaultShares.sub(prior.vaultShares) : 0;
+                emit TransferBatch(msg.sender, address(0), vaultAccount.account, ids, values);
+            }
         }
 
         if (vaultAccount.maturity != 0 && prior.maturity != vaultAccount.maturity) {
