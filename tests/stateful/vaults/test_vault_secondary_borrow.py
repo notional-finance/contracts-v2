@@ -42,7 +42,8 @@ def multiCurrencyVault(environment, accounts, ethDAIOracle, MultiBorrowStrategyV
             secondaryBorrowCurrencies=[1, 0],
             minAccountSecondaryBorrow=[1, 0],
             maxDeleverageCollateralRatioBPS=2500,
-            minAccountBorrowSize=50_000
+            minAccountBorrowSize=50_000,
+            excessCashLiquidationBonus=101
         ),
         100_000_000e8,
     )
@@ -174,6 +175,7 @@ def test_vault_exit_types(accounts, multiCurrencyVault, environment, exitType, i
 
     poolClaims = multiCurrencyVault.getPoolClaims(vaultSharesExit)
 
+    # TODO: event emission can go wrong here if vault shares decrease and prime debt increases
     environment.notional.exitVault(
         accounts[1],
         multiCurrencyVault,
@@ -328,15 +330,15 @@ def test_oracle_price_affects_debt_value(accounts, multiCurrencyVault, environme
     enter_vault(multiCurrencyVault, environment, accounts[1], isPrime)
 
     (health, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
-    assert pytest.approx(health['debtOutstanding'][0], abs=10_000) == -100_000e8
-    assert pytest.approx(health['debtOutstanding'][1], abs=10_000) == -10e8
+    assert pytest.approx(health['netDebtOutstanding'][0], abs=10_000) == -100_000e8
+    assert pytest.approx(health['netDebtOutstanding'][1], abs=10_000) == -10e8
     assert pytest.approx(health['totalDebtOutstandingInPrimary'], abs=10_000) == -100_000e8 - 10e8 * 100
 
     ethDAIOracle.setAnswer(0.02e18, {"from": accounts[0]})
 
     (health, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
-    assert pytest.approx(health['debtOutstanding'][0], abs=10_000) == -100_000e8
-    assert pytest.approx(health['debtOutstanding'][1], abs=10_000) == -10e8
+    assert pytest.approx(health['netDebtOutstanding'][0], abs=10_000) == -100_000e8
+    assert pytest.approx(health['netDebtOutstanding'][1], abs=10_000) == -10e8
     assert pytest.approx(health['totalDebtOutstandingInPrimary'], abs=10_000) == -100_000e8 - 5e8 * 100
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
@@ -346,9 +348,9 @@ def test_claims_affect_vault_share_value(accounts, multiCurrencyVault, environme
     enter_vault(multiCurrencyVault, environment, accounts[1], isPrime)
 
     (healthOne, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
-    assert pytest.approx(healthOne['debtOutstanding'][0], abs=3) == -100_000e8
-    assert pytest.approx(healthOne['debtOutstanding'][1], abs=3) == -10e8
-    assert pytest.approx(healthOne['debtOutstanding'][2], abs=3) == 0
+    assert pytest.approx(healthOne['netDebtOutstanding'][0], abs=3) == -100_000e8
+    assert pytest.approx(healthOne['netDebtOutstanding'][1], abs=3) == -10e8
+    assert pytest.approx(healthOne['netDebtOutstanding'][2], abs=3) == 0
     assert pytest.approx(healthOne['totalDebtOutstandingInPrimary'], abs=3) == -100_000e8 - 10e8 * 100
 
     multiCurrencyVault.approveTransfer(environment.token['DAI'])
@@ -630,9 +632,9 @@ def test_liquidated_can_roll(accounts, multiCurrencyVault, environment, currency
     if currencyIndex == 1:
         # Most of the cash is used to repay the existing debt
         assert pytest.approx(poolBalancesAfter[1] - poolBalancesBefore[1], abs=0.5e18) == 3e18
-        assert accountDebtAfter == (PRIME_CASH_VAULT_MATURITY, (-3e8, 0), (0, 0))
+        assert accountDebtAfter == (PRIME_CASH_VAULT_MATURITY, (-3e8 - 1, 0), (0, 0))
     else:
-        assert accountDebtAfter == (PRIME_CASH_VAULT_MATURITY, (-10e8, 0), (0, 0))
+        assert accountDebtAfter == (PRIME_CASH_VAULT_MATURITY, (-10e8 - 1, 0), (0, 0))
         # Most of the borrow is used to repay the existing debt
         assert pytest.approx(poolBalancesAfter[1] - poolBalancesBefore[1], abs=0.5e18) == 0
 
@@ -693,3 +695,68 @@ def test_borrow_secondary_currency_fails_over_max_capacity(environment, accounts
             eth_abi.encode_abi(["uint256[2]"], [[Wei(6e8), 0]]),
             { "from": accounts[1] },
         )
+
+@given(currencyIndex=strategy("uint8", min_value=0, max_value=1))
+def test_liquidate_cross_currency_cash(
+    environment, accounts, ethDAIOracle, multiCurrencyVault, currencyIndex
+):
+    enter_vault(multiCurrencyVault, environment, accounts[1], False)
+
+    ethDAIOracle.setAnswer(0.001e18, {"from": accounts[0]})
+    multiCurrencyVault.approveTransfer(environment.token['DAI'], {'from': accounts[0]})
+    environment.token['DAI'].transferFrom(multiCurrencyVault, accounts[0], 5_000e18, {"from": accounts[0]}) 
+
+    # Setup some prime borrowing
+    environment.notional.enablePrimeBorrow(True, {"from": accounts[0]})
+    environment.notional.withdraw(1, 10_000e8, True, {"from": accounts[0]})
+    environment.notional.withdraw(2, 5_000_000e8, True, {"from": accounts[0]})
+
+    (_, maxDeposit, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
+
+    environment.notional.deleverageAccount(
+        accounts[1],
+        multiCurrencyVault,
+        accounts[2],
+        currencyIndex,
+        maxDeposit[currencyIndex],
+        {"from": accounts[2], "value": maxDeposit[1] * 1e10 if currencyIndex == 1 else 0}
+    )
+
+    chain.mine(1, timedelta=86400 * 30)
+    accountBefore =environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
+    secondaryDebtBefore = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
+    (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
+    assert healthBefore['netDebtOutstanding'][currencyIndex] > 0
+
+    with brownie.reverts():
+        # Cannot specify incorrect cash and debt indexes
+        environment.notional.liquidateExcessVaultCash(
+            accounts[1], multiCurrencyVault, accounts[0], 1 - currencyIndex, currencyIndex, 1e8, {'from': accounts[0], 'value': 1e18}
+        )
+
+    txn = environment.notional.liquidateExcessVaultCash(
+        accounts[1], multiCurrencyVault, accounts[0], currencyIndex, 1 - currencyIndex, 1e8, {'from': accounts[0], 'value': 1e18 if currencyIndex == 0 else 0}
+    )
+
+    accountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
+    secondaryDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
+    (healthAfter, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
+    assert healthBefore['netDebtOutstanding'][currencyIndex] > healthAfter['netDebtOutstanding'][currencyIndex]
+    assert healthAfter['netDebtOutstanding'][currencyIndex] > 0
+
+    netDAIUnderlying = environment.notional.convertCashBalanceToExternal(2, accountAfter['tempCashBalance'] - accountBefore['tempCashBalance'], True)
+    netETHUnderlying = environment.notional.convertCashBalanceToExternal(1, secondaryDebtAfter[2][0] - secondaryDebtBefore[2][0], True)
+
+    if currencyIndex == 0:
+        # Account is buying ETH at a higher price
+        assert netETHUnderlying > 0
+        assert netDAIUnderlying < 0
+        assert pytest.approx(abs(netDAIUnderlying / netETHUnderlying), abs=0.25) == 1010
+    else:
+        # Account is selling ETH at a lower price
+        assert netETHUnderlying < 0
+        assert netDAIUnderlying > 0
+        assert pytest.approx(abs(netDAIUnderlying / netETHUnderlying), abs=0.25) == 990
+
+    check_system_invariants(environment, accounts, [multiCurrencyVault])
+

@@ -465,7 +465,7 @@ class TestEnvironment:
                 config["minOracleRate"],
                 config["liquidationfCashDiscount"],
                 config["liquidationDebtBuffer"],
-                config["maxOracleRate"],
+                config["maxOracleRate"]
             ),
             self.token[symbol].name() if symbol != "ETH" else "Ether",
             symbol,
