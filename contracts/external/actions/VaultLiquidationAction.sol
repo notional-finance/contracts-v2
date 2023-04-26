@@ -209,35 +209,37 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         int256 depositUnderlyingInternal = _depositUnderlyingInternal.toInt();
         cashToLiquidator = f.excessCashPR.convertFromUnderlying(
             depositUnderlyingInternal
-                .mul(f.exchangeRate)
                 .mul(vaultConfig.excessCashLiquidationBonus)
+                .mul(f.rateDecimals)
+                .div(f.exchangeRate)
                 .div(Constants.PERCENTAGE_DECIMALS)
-                .div(f.rateDecimals)
         );
 
         if (h.netDebtOutstanding[excessCashIndex] < cashToLiquidator) {
             // Limit the deposit to what is held by the account
             cashToLiquidator = h.netDebtOutstanding[excessCashIndex];
             depositUnderlyingInternal = f.excessCashPR.convertToUnderlying(cashToLiquidator)
+                .mul(f.exchangeRate)
                 .mul(Constants.PERCENTAGE_DECIMALS)
-                .mul(f.rateDecimals)
-                .div(f.exchangeRate)
-                .div(vaultConfig.excessCashLiquidationBonus);
+                .div(vaultConfig.excessCashLiquidationBonus)
+                .div(f.rateDecimals);
         }
 
         int256 depositAmountPrimeCash = f.debtPR.convertFromUnderlying(depositUnderlyingInternal);
-        vaultAccount.setVaultAccountForLiquidation(vaultConfig, excessCashIndex, cashToLiquidator.neg(), false);
+        int256 netCashToAccount = cashToLiquidator.neg();
+        vaultAccount.setVaultAccountForLiquidation(vaultConfig, excessCashIndex, netCashToAccount, false);
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, debtIndex, depositAmountPrimeCash, false);
 
         TokenHandler.withdrawPrimeCash(
-            liquidator, f.excessCashCurrencyId, cashToLiquidator, f.excessCashPR, false
+            liquidator, f.excessCashCurrencyId, netCashToAccount, f.excessCashPR, false
         );
-        Emitter.emitVaultMintOrBurnCash(account, vault, f.excessCashCurrencyId, vaultAccount.maturity, cashToLiquidator.neg());
+        Emitter.emitVaultMintOrBurnCash(account, vault, f.excessCashCurrencyId, vaultAccount.maturity, netCashToAccount);
 
         // Deposit the debtIndex from the liquidator
         TokenHandler.depositExactToMintPrimeCash(
             liquidator, f.debtCurrencyId, depositAmountPrimeCash, f.debtPR, false
         );
+        Emitter.emitTransferPrimeCash(liquidator, vault, f.debtCurrencyId, depositAmountPrimeCash);
         Emitter.emitVaultMintOrBurnCash(account, vault, f.debtCurrencyId, vaultAccount.maturity, depositAmountPrimeCash);
     }
 

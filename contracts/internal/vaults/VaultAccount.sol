@@ -103,16 +103,21 @@ library VaultAccountLib {
     function setVaultAccountInSettlement(VaultAccount memory vaultAccount, VaultConfig memory vaultConfig) internal {
         int256 tempCashBalance = vaultAccount.tempCashBalance;
         vaultAccount.tempCashBalance = 0;
+
+        mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
+            .getVaultAccount();
+        VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
         
-        setVaultAccount(vaultAccount, vaultConfig, true, true);
+        _setVaultAccount(vaultAccount, vaultConfig, s, true, true);
 
         // Allow vault accounts that settle to retain excess cash balances. This occurs after set vault account
         // so that event emission remains correct (since it relies on the prior stored value).
-        if (0 < tempCashBalance) {
-            mapping(address => mapping(address => VaultAccountStorage)) storage store = LibStorage
-                .getVaultAccount();
-            VaultAccountStorage storage s = store[vaultAccount.account][vaultConfig.vault];
-            s.primaryCash = vaultAccount.tempCashBalance.toUint().toUint80();
+        if (tempCashBalance == 0) {
+            s.primaryCash = 0;
+        } else if (0 < tempCashBalance) {
+            // No need to add to primary cash here, we just set it to the final value. _setVaultAccount will have minted a
+            // burn of the vault cash in the prior maturity so this will mint vault cash in the prime maturity.
+            s.primaryCash = tempCashBalance.toUint().toUint80();
             Emitter.emitVaultMintOrBurnCash(
                 vaultAccount.account, vaultConfig.vault, vaultConfig.borrowCurrencyId, vaultAccount.maturity, tempCashBalance
             );

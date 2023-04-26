@@ -52,9 +52,6 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
 
         vaultAccount.accruePrimeCashFeesToDebt(vaultConfig);
         vaultAccount.setVaultAccountInSettlement(vaultConfig);
-
-        // Skip Min Borrow Check so that accounts can always be settled
-        vaultAccount.setVaultAccount({vaultConfig: vaultConfig, checkMinBorrow: false, emitEvents: true});
     }
 
     /// @notice Borrows a specified amount of fCash in the vault's borrow currency and deposits it
