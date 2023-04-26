@@ -834,8 +834,6 @@ def main():
 
         cashGroup = list(env.notional.getCashGroup(currencyId))
         cashGroup[0] = maxMarkets
-        cashGroup[9] = CurrencyDefaults["minOracleRate"][0:maxMarkets]
-        cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:maxMarkets]
         env.notional.updateCashGroup(currencyId, cashGroup)
         env.notional.updateDepositParameters(currencyId, *(DEPOSIT_PARAMETERS[maxMarkets]))
         env.notional.updateInitializationParameters(currencyId, *(INIT_PARAMETERS[maxMarkets]))

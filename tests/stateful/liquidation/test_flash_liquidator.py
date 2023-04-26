@@ -95,8 +95,6 @@ def env(accounts):
     cashGroup = list(environment.notional.getCashGroup(2))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[9] = CurrencyDefaults["minOracleRate"][0:3]
-    cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:3]
 
     environment.notional.updateCashGroup(2, cashGroup)
     environment.notional.updateDepositParameters(2, [0.4e8, 0.4e8, 0.2e8], [0.8e9, 0.8e9, 0.8e9])

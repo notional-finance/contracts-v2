@@ -49,8 +49,8 @@ def get_interest_rate_curve(**kwargs):
         kwargs.get("kinkRate1", 64),  # 2: 6.25% kink rate 1
         kwargs.get("kinkRate2", 128),  # 3: 12.5% kink rate 2
         kwargs.get("maxRateUnits", 100),  # 4: 25% max interest rate
-        kwargs.get("minFeeRateBPS", 10),  # 5: 0.1% min fee
-        kwargs.get("maxFeeRateBPS", 50),  # 6: 0.5% max fee
+        kwargs.get("minFeeRateBPS", 2),  # 5: 0.1% min fee
+        kwargs.get("maxFeeRateBPS", 2),  # 6: 0.5% max fee
         kwargs.get("feeRatePercent", 5),  # 7: 5% fee rate
     ]
 
@@ -91,9 +91,6 @@ def get_eth_rate_mapping(rateOracle, decimalPlaces=18, buffer=140, haircut=100, 
 def get_cash_group_with_max_markets(maxMarketIndex):
     cg = list(CASH_GROUP_PARAMETERS)
     cg[0] = maxMarketIndex
-    cg[9] = cg[9][0:maxMarketIndex]
-    cg[10] = cg[10][0:maxMarketIndex]
-
     return cg
 
 
@@ -500,8 +497,6 @@ def setup_residual_environment(
     cashGroup = list(environment.notional.getCashGroup(currencyId))
     # Enable the one year market
     cashGroup[0] = 3
-    cashGroup[9] = CurrencyDefaults["minOracleRate"][0:3]
-    cashGroup[10] = CurrencyDefaults["maxOracleRate"][0:3]
     environment.notional.updateCashGroup(currencyId, cashGroup)
 
     environment.notional.updateDepositParameters(

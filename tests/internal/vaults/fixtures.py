@@ -131,6 +131,7 @@ def get_vault_config(**kwargs):
         kwargs.get("secondaryBorrowCurrencies", [0, 0]),  # 9: none set
         kwargs.get("maxRequiredAccountCollateralRatio", 20000),  # 10: none set
         kwargs.get("minAccountSecondaryBorrow", [0, 0]),  # 10: none set
+        kwargs.get("excessCashLiquidationBonus", 100),  # 10: none set
     ]
 
 

@@ -3,11 +3,8 @@ import random
 
 from brownie import (
     MockAggregator,
-    MockCToken,
     MockSettingsLib,
-    MockValuationLib,
     accounts,
-    cTokenV2Aggregator,
 )
 from brownie.convert.datatypes import HexString, Wei
 from brownie.network.contract import Contract
@@ -17,15 +14,10 @@ from tests.constants import (
     RATE_PRECISION,
     REPO_INCENTIVE,
     SECONDS_IN_YEAR,
-    SETTLEMENT_DATE,
-    START_TIME,
 )
 from tests.helpers import (
-    get_cash_group_with_max_markets,
-    get_eth_rate_mapping,
     get_fcash_token,
     get_liquidity_token,
-    get_market_curve,
     setup_internal_mock,
 )
 
@@ -140,16 +132,16 @@ class ValuationMock:
     def get_adjusted_oracle_rate(self, oracleRate, currency, isPositive, valueType):
         cashGroup = self.mock.getCashGroup(currency)
         if valueType == "haircut" and isPositive:
-            adjustment = cashGroup[5] * 5 * BASIS_POINT
+            adjustment = cashGroup[5] * 25 * BASIS_POINT
             adjustedOracleRate = oracleRate + adjustment
         elif valueType == "haircut" and not isPositive:
-            adjustment = cashGroup[4] * 5 * BASIS_POINT
+            adjustment = cashGroup[4] * 25 * BASIS_POINT
             adjustedOracleRate = max(oracleRate - adjustment, 0)
         elif valueType == "liquidator" and isPositive:
-            adjustment = cashGroup[7] * 5 * BASIS_POINT
+            adjustment = cashGroup[7] * 25 * BASIS_POINT
             adjustedOracleRate = oracleRate + adjustment
         elif valueType == "liquidator" and not isPositive:
-            adjustment = cashGroup[8] * 5 * BASIS_POINT
+            adjustment = cashGroup[8] * 25 * BASIS_POINT
             adjustedOracleRate = max(oracleRate - adjustment, 0)
         else:
             adjustedOracleRate = oracleRate
@@ -163,6 +155,10 @@ class ValuationMock:
         return Wei(math.trunc(pv * math.exp(expValue / RATE_PRECISION)))
 
     def discount_to_pv(self, currency, fCash, maturity, blockTime, valueType="haircut"):
+        if valueType == "haircut":
+            # This is a more accurate version that includes max discount factor
+            return self.mock.getRiskAdjustedPresentfCashValue((currency, maturity, 1, fCash, 0, 0), blockTime)
+
         oracleRate = self.mock.calculateOracleRate(currency, maturity, blockTime)
         adjustedOracleRate = self.get_adjusted_oracle_rate(
             oracleRate, currency, fCash > 0, valueType

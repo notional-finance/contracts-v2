@@ -17,7 +17,6 @@ from tests.constants import (
 from tests.helpers import (
     get_cash_group_with_max_markets,
     get_fcash_token,
-    get_liquidity_token,
     get_market_state,
     get_portfolio_array,
     setup_internal_mock,
@@ -97,12 +96,9 @@ class TestAssetHandler:
 
     def test_oracle_rates_below_minimum(self, assetLibrary):
         settings = get_cash_group_with_max_markets(3)
-        settings[5] = 20 # 0.01
-        settings[7] = 19 # liquidation haircut must be less than
-        # Min Oracle Rate = [0.0125, 0.0250, 0.0375]
-        settings[9] = [25, 50, 75]
-        # Max Oracle Rate = [0.15, 0.1875, 0.225]
-        settings[10] = [100, 125, 150]
+        settings[6] = 5 # 1.25% min oracle rate
+        settings[5] = 2 # 0.01
+        settings[7] = 1 # liquidation haircut must be less than
         assetLibrary.setCashGroup(1, settings)
 
         # All are below the min oracle rate with the haircut added
@@ -116,25 +112,14 @@ class TestAssetHandler:
             (oracleRate, fCashOracleRate, _) = assetLibrary.getOracleRates(1, m, START_TIME_TREF, 0)
             # fcash oracle rates are always higher than the actual oracle rate
             assert oracleRate < fCashOracleRate
+            assert fCashOracleRate == max(0.0125e9, fCashOracleRate)
 
-            if m <= MARKETS[0]:
-                # This is the min oracle rate for sub 3 month markets
-                assert fCashOracleRate == 0.0125e9
-            elif m < (MARKETS[0] + MARKETS[1]) / 2:
-                assert 0.0125e9 < fCashOracleRate and fCashOracleRate < 0.0250e9
-            elif m < (MARKETS[1] + MARKETS[2]) / 2:
-                assert 0.025e9 <= fCashOracleRate and fCashOracleRate < 0.0375e9
-            else:
-                assert fCashOracleRate == 0.0375e9
 
     def test_oracle_rates_above_maximum(self, assetLibrary):
         settings = get_cash_group_with_max_markets(3)
-        settings[4] = 20 # 0.01
-        settings[8] = 19 # liquidation haircut must be less than
-        # Min Oracle Rate = [0.0125, 0.0250, 0.0375]
-        settings[9] = [25, 50, 75]
-        # Max Oracle Rate = [0.15, 0.1875, 0.225]
-        settings[10] = [100, 125, 150]
+        settings[4] = 2 # 0.01
+        settings[8] = 1 # liquidation haircut must be less than
+        settings[9] = 75 # 18.75%
         assetLibrary.setCashGroup(1, settings)
 
         # All are above the max oracle rate with the buffer subtracted
@@ -149,27 +134,12 @@ class TestAssetHandler:
             (oracleRate, _, debtOracleRate) = assetLibrary.getOracleRates(1, m, START_TIME_TREF, 0.16e9)
             # debt oracle rates are always lower than the actual oracle rate
             assert debtOracleRate < oracleRate
-
-            if m <= MARKETS[0]:
-                # This is the min oracle rate for sub 3 month markets
-                assert debtOracleRate == 0.15e9
-            elif m <= MARKETS[1]:
-                assert 0.15e9 <= debtOracleRate and debtOracleRate <= 0.1875e9
-            elif m <= MARKETS[2]:
-                assert 0.1875e9 <= debtOracleRate and debtOracleRate <= 0.225e9
-            else:
-                assert debtOracleRate == 0.225e9
+            assert debtOracleRate == min(0.1875e9, debtOracleRate)
 
     def test_oracle_rates_within_boundaries(self, assetLibrary):
         settings = get_cash_group_with_max_markets(3)
-        settings[4] = 20 # 0.01
-        settings[5] = 20 # 0.01
-        settings[7] = 19 # liquidation haircut must be less than
-        settings[8] = 19 # liquidation haircut must be less than
-        # Min Oracle Rate = [0.0125, 0.0250, 0.0375]
-        settings[9] = [25, 50, 75]
-        # Max Oracle Rate = [0.15, 0.1875, 0.225]
-        settings[10] = [100, 125, 150]
+        settings[6] = 5 # 1.25%
+        settings[9] = 75 # 18.75%
         assetLibrary.setCashGroup(1, settings)
 
         # All are above the max oracle rate with the buffer subtracted
@@ -183,8 +153,8 @@ class TestAssetHandler:
             # Set the block supply rate to 4%
             (oracleRate, fCashOracleRate, debtOracleRate) = assetLibrary.getOracleRates(1, m, START_TIME_TREF, 0.04)
             # Oracle rates do not hit min and max figures
-            assert fCashOracleRate == oracleRate + 0.01e9
-            assert debtOracleRate == oracleRate - 0.01e9
+            assert fCashOracleRate == oracleRate + 0.015e9
+            assert debtOracleRate == oracleRate - 0.015e9
 
     @given(maxDiscountFactor=strategy("uint8", min_value=1))
     def test_max_discount_factor(self, assetLibrary, maxDiscountFactor):
@@ -200,7 +170,7 @@ class TestAssetHandler:
         # Discount factor is 1e9
         assert pv == 1e9
         assert riskPv < pv
-        assert riskPv == 1e9 - maxDiscountFactor * BASIS_POINT
+        assert riskPv == 1e9 - maxDiscountFactor * 5 * BASIS_POINT
 
     def test_floor_discount_rate(self, assetLibrary):
         assetLibrary.setMarket(1, SETTLEMENT_DATE, get_market_state(MARKETS[0], lastImpliedRate=0.001e9, oracleRate=0.001e9))

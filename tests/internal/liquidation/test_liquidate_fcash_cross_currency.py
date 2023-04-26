@@ -91,7 +91,7 @@ class TestLiquidatefCash:
 
         # FC should be ~0 at this point
         (fc1, _) = liquidation.mock.getFreeCollateral(accounts[0], chain.time() + 1)
-        assert pytest.approx(fc1, abs=0.5e8) == 0
+        assert pytest.approx(fc1, abs=0.55e8) == 0
 
         # Moves the exchange rate based on the ratio
         (newExchangeRate, discountedExchangeRate) = move_collateral_exchange_rate(

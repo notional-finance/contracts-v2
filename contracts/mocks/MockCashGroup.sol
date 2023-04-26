@@ -112,20 +112,20 @@ contract MockCashGroup is AbstractSettingsRouter {
         return cashGroup.getMaxDiscountFactor();
     }
 
-    function getMinOracleRate(CashGroupParameters memory cashGroup, uint256 marketIndex)
+    function getMinOracleRate(CashGroupParameters memory cashGroup)
         public
         pure
         returns (uint256)
     {
-        return cashGroup.getMinOracleRate(marketIndex);
+        return cashGroup.getMinOracleRate();
     }
 
-    function getMaxOracleRate(CashGroupParameters memory cashGroup, uint256 marketIndex)
+    function getMaxOracleRate(CashGroupParameters memory cashGroup)
         public
         pure
         returns (uint256)
     {
-        return cashGroup.getMaxOracleRate(marketIndex);
+        return cashGroup.getMaxOracleRate();
     }
 
     function getLiquidationfCashHaircut(CashGroupParameters memory cashGroup)

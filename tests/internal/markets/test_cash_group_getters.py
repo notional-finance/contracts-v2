@@ -81,38 +81,20 @@ class TestCashGroupGetters:
             cashGroupParameters[7] = cashGroupParameters[5] + 1
             cashGroup.setCashGroup(1, cashGroupParameters)
 
-    def test_invalid_liquidity_haircut_settings(self, cashGroup):
-        cashGroupParameters = list(CASH_GROUP_PARAMETERS)
-
-        with brownie.reverts():
-            # invalid length
-            cashGroupParameters[0] = 3
-            cashGroupParameters[10] = []
-            cashGroup.setCashGroup(1, cashGroupParameters)
-
-        with brownie.reverts():
-            # cannot have more than 100
-            cashGroupParameters[0] = 3
-            cashGroupParameters[10] = [102, 50, 50]
-            cashGroup.setCashGroup(1, cashGroupParameters)
-
     def test_build_cash_group(self, cashGroup):
         for i in range(1, 50):
             maxMarketIndex = random.randint(2, 7)
             cashGroupParameters = [
                 maxMarketIndex,
-                random.randint(1, 255),  # 1 rateOracleTimeWindowMin,
+                random.randint(1, 255),  # 1 rateOracleTimeWindowMin
                 random.randint(1, 255),  # 2 max discount factor
-                random.randint(1, 100),  # 3 reserveFeeShare,
-                random.randint(1, 255),  # 4 debtBuffer5BPS,
-                random.randint(1, 255),  # 5 fCashHaircut5BPS,
-                0,  # 6 unused,
+                random.randint(1, 100),  # 3 reserveFeeShare
+                random.randint(1, 255),  # 4 debtBuffer
+                random.randint(1, 255),  # 5 fCashHaircut
+                random.randint(1, 255),  # 6 min oracle rate 
                 random.randint(1, 255),  # 7 liquidation fcash haircut
                 random.randint(1, 255),  # 8 liquidation debt buffer
-                # 9: min oracle rate
-                tuple([i for i in range(0, maxMarketIndex)]),
-                # 10: max oracle rate
-                tuple([100 + i for i in range(0, maxMarketIndex)]),
+                random.randint(1, 255),  # 9 max oracle rate
             ]
 
             # ensure liquidation fcash is less that fcash haircut
@@ -122,27 +104,29 @@ class TestCashGroupGetters:
             if cashGroupParameters[8] >= cashGroupParameters[4]:
                 cashGroupParameters[8] = cashGroupParameters[4] - 1
 
+            if cashGroupParameters[6] >= cashGroupParameters[9]:
+                cashGroupParameters[6] = cashGroupParameters[9] - 1
+
             cashGroup.setCashGroup(5, cashGroupParameters)
             cg = cashGroup.buildCashGroupView(5)
             assert cg[0] == 5  # cash group id
             assert cg[1] == cashGroupParameters[0]  # Max market index
 
             assert cashGroupParameters[1] * 300 == cashGroup.getRateOracleTimeWindow(cg)
-            assert 1e9 - cashGroupParameters[2] * BASIS_POINT == cashGroup.getMaxDiscountFactor(cg)
+            assert 1e9 - cashGroupParameters[2] * 5 * BASIS_POINT == cashGroup.getMaxDiscountFactor(cg)
             assert cashGroupParameters[3] == cashGroup.getReserveFeeShare(cg)
-            assert cashGroupParameters[4] * 5 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
-            assert cashGroupParameters[5] * 5 * BASIS_POINT == cashGroup.getfCashHaircut(cg)
-            # assert cashGroupParameters[6] * 5 * BASIS_POINT == cashGroup.getSettlementPenalty(cg)
-            assert cashGroupParameters[7] * 5 * BASIS_POINT == cashGroup.getLiquidationfCashHaircut(
+            assert cashGroupParameters[4] * 25 * BASIS_POINT == cashGroup.getDebtBuffer(cg)
+            assert cashGroupParameters[5] * 25 * BASIS_POINT == cashGroup.getfCashHaircut(cg)
+            assert cashGroupParameters[6] * 25 * BASIS_POINT == cashGroup.getMinOracleRate(cg)
+            assert cashGroupParameters[7] * 25 * BASIS_POINT == cashGroup.getLiquidationfCashHaircut(
                 cg
             )
-            assert cashGroupParameters[8] * 5 * BASIS_POINT == cashGroup.getLiquidationDebtBuffer(
+            assert cashGroupParameters[8] * 25 * BASIS_POINT == cashGroup.getLiquidationDebtBuffer(
                 cg
             )
-
-            for m in range(0, maxMarketIndex):
-                assert cashGroupParameters[9][m] * 5 * BASIS_POINT == cashGroup.getMinOracleRate(cg, m + 1)
-                assert cashGroupParameters[10][m] * 15 * BASIS_POINT == cashGroup.getMaxOracleRate(cg, m + 1)
+            assert cashGroupParameters[9] * 25 * BASIS_POINT == cashGroup.getMaxOracleRate(
+                cg
+            )
 
             storage = cashGroup.deserializeCashGroupStorage(5)
             assert storage == cashGroupParameters

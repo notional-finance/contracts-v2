@@ -2,7 +2,7 @@ import math
 import brownie
 import pytest
 from brownie.test import given, strategy
-from tests.constants import BASIS_POINT, RATE_PRECISION
+from tests.constants import BASIS_POINT
 from tests.helpers import get_interest_rate_curve
 
 
@@ -54,7 +54,7 @@ class TestInterestRateCurve:
         with brownie.reverts():
             # Reverts due to minFeeRate > maxFeeRate
             mock.setNextInterestRateParameters(
-                1, 1, get_interest_rate_curve(minFeeRateBPS=50, maxFeeRateBPS=10)
+                1, 1, get_interest_rate_curve(minFeeRateBPS=6, maxFeeRateBPS=1)
             )
 
         with brownie.reverts():
@@ -92,8 +92,8 @@ class TestInterestRateCurve:
                     0.03125e9,
                     0.0625e9,
                     0.25e9,
-                    0.001e9,
                     0.005e9,
+                    0.125e9,
                     5,
                 )
 

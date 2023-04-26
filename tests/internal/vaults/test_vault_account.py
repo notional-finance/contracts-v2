@@ -325,6 +325,7 @@ def test_settle_account_updates_state(
     assert stateAfter["totalDebtUnderlying"] == 0
     assert stateBefore["totalVaultShares"] - stateAfter["totalVaultShares"] == vaultShares * 2
 
+@pytest.mark.only
 @given(
     currencyId=strategy("uint", min_value=1, max_value=4),
     vaultShares=strategy("uint", min_value=1000e8, max_value=25_000e8),
@@ -368,13 +369,14 @@ def test_settle_account_vault_has_prime_cash(
     txn = vaultConfigAccount.settleVaultAccount(vault, account)
     accountAfter = txn.return_value
     (pr, _) = vaultConfigAccount.buildPrimeRateView(currencyId, txn.timestamp)
-    assert accountAfter["tempCashBalance"] == 0
     # Cash is used to pay off debts
     cashInUnderlying = vaultConfigAccount.convertToUnderlying(pr, accountCash)
     if cashInUnderlying + accountDebt > 0:
         assert accountAfter['accountDebtUnderlying'] == 0
+        assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == vaultConfigAccount.convertFromUnderlying(pr, cashInUnderlying + accountDebt)
     else:
         assert pytest.approx(accountAfter['accountDebtUnderlying']) == accountDebt + cashInUnderlying
+        assert accountAfter['tempCashBalance'] == 0
 
 # def test_settle_vault_prime_cash_has_to_convert():
 #     with brownie.reverts():

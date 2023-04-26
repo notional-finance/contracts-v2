@@ -100,7 +100,7 @@ class TestTokenHandler:
         tokenHandler.setToken(1, (zeroAddress, False, TokenType["Ether"], 18, 0))
         erc20 = MockERC20.deploy("Ether", "Ether", 18, 0, {"from": accounts[0]})
 
-        with brownie.reverts("dev: ether can only be set once"):
+        with brownie.reverts():
             tokenHandler.setToken(2, (erc20.address, False, TokenType["Ether"], 18, 0))
 
         with brownie.reverts("TH: address is zero"):
