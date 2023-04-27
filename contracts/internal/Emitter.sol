@@ -389,7 +389,7 @@ library Emitter {
                 // Legacy nToken contracts do not have an emit method so use an ERC1155 instead
                 emit TransferSingle(msg.sender, account, address(0), _legacyNTokenId(currencyId), tokensToBurn.abs().toUint());
             } else {
-                ITransferEmitter(nToken).emitMintOrBurn(account, tokensToBurn);
+                ITransferEmitter(nToken).emitMintOrBurn(account, tokensToBurn.neg());
             }
         }
     }

@@ -36,22 +36,6 @@ library TradingAction {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
-    event LendBorrowTrade(
-        address indexed account,
-        uint16 indexed currencyId,
-        uint40 maturity,
-        int256 netPrimeCash,
-        int256 netfCash
-    );
-
-    event nTokenResidualPurchase(
-        uint16 indexed currencyId,
-        uint40 indexed maturity,
-        address indexed purchaser,
-        int256 fCashAmountToPurchase,
-        int256 netPrimeCashNToken
-    );
-
     /// @dev Used internally to manage stack issues
     struct TradeContext {
         int256 cash;
@@ -207,9 +191,6 @@ library TradingAction {
             // This is a little ugly but required to deal with stack issues. We know the market is loaded
             // with the proper maturity inside _executeLendBorrowTrade
             maturity = market.maturity;
-            emit LendBorrowTrade(
-                account, uint16(cashGroup.currencyId), uint40(maturity), cashAmount, fCashAmount
-            );
         } else {
             revert();
         }
@@ -362,14 +343,6 @@ library TradingAction {
             cashGroup.currencyId,
             maturity,
             lastInitializedTime,
-            fCashAmountToPurchase,
-            netPrimeCashNToken
-        );
-
-        emit nTokenResidualPurchase(
-            uint16(cashGroup.currencyId),
-            uint40(maturity),
-            purchaser,
             fCashAmountToPurchase,
             netPrimeCashNToken
         );

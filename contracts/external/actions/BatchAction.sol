@@ -91,8 +91,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     /// @notice Executes a batch of balance transfers and trading actions
     /// @param account the account for the action
     /// @param actions array of balance actions with trades to take, must be sorted by currency id
-    /// @dev emit:CashBalanceChange, emit:nTokenSupplyChange, emit:LendBorrowTrade, emit:AddRemoveLiquidity,
-    /// @dev emit:SettledCashDebt, emit:nTokenResidualPurchase, emit:ReserveFeeAccrued
     /// @dev auth:msg.sender auth:ERC1155
     function batchBalanceAndTradeAction(address account, BalanceActionWithTrades[] calldata actions)
         external
@@ -113,7 +111,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     /// from an ERC20 token. Therefore, this method is marked as nonpayable. It will still work with cETH or aETH.
     /// @param account the account for the action
     /// @param actions array of batch lending actions
-    /// @dev emit:CashBalanceChange, emit:LendBorrowTrade emit:SettledCashDebt
     /// @dev auth:msg.sender auth:ERC1155
     function batchLend(address account, BatchLend[] calldata actions)
         external
@@ -226,8 +223,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
     /// @param account the account that will take all the actions
     /// @param actions array of balance actions with trades to take, must be sorted by currency id
     /// @param callbackData arbitrary bytes to be passed backed to the caller in the callback
-    /// @dev emit:CashBalanceChange, emit:nTokenSupplyChange, emit:LendBorrowTrade, emit:AddRemoveLiquidity,
-    /// @dev emit:SettledCashDebt, emit:nTokenResidualPurchase, emit:ReserveFeeAccrued
     /// @dev auth:authorizedCallbackContract
     function batchBalanceAndTradeActionWithCallback(
         address account,

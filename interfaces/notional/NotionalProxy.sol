@@ -21,47 +21,8 @@ interface NotionalProxy is
     IVaultController
 {
     /** User trading events */
-    event CashBalanceChange(
-        address indexed account,
-        uint16 indexed currencyId,
-        int256 netCashChange
-    );
-    event nTokenSupplyChange(
-        address indexed account,
-        uint16 indexed currencyId,
-        int256 tokenSupplyChange
-    );
     event MarketsInitialized(uint16 currencyId);
     event SweepCashIntoMarkets(uint16 currencyId, int256 cashIntoMarkets);
-    event SettledCashDebt(
-        address indexed settledAccount,
-        uint16 indexed currencyId,
-        address indexed settler,
-        int256 amountToSettleAsset,
-        int256 fCashAmount
-    );
-    event nTokenResidualPurchase(
-        uint16 indexed currencyId,
-        uint40 indexed maturity,
-        address indexed purchaser,
-        int256 fCashAmountToPurchase,
-        int256 netPrimeCashNToken
-    );
-    event LendBorrowTrade(
-        address indexed account,
-        uint16 indexed currencyId,
-        uint40 maturity,
-        int256 netPrimeCash,
-        int256 netfCash
-    );
-    event AddRemoveLiquidity(
-        address indexed account,
-        uint16 indexed currencyId,
-        uint40 maturity,
-        int256 netPrimeCash,
-        int256 netfCash,
-        int256 netLiquidityTokens
-    );
 
     /// @notice Emitted once when incentives are migrated
     event IncentivesMigrated(
@@ -70,15 +31,10 @@ interface NotionalProxy is
         uint256 finalIntegralTotalSupply,
         uint256 migrationTime
     );
-
-    /// @notice Emitted when reserve fees are accrued
-    event ReserveFeeAccrued(uint16 indexed currencyId, int256 fee);
     /// @notice Emitted whenever an account context has updated
     event AccountContextUpdate(address indexed account);
     /// @notice Emitted when an account has assets that are settled
     event AccountSettled(address indexed account);
-    /// @notice Emitted when an asset rate is settled
-    event SetSettlementRate(uint256 indexed currencyId, uint256 indexed maturity, uint128 rate);
 
     /* Liquidation Events */
     event LiquidateLocalCurrency(
@@ -116,33 +72,11 @@ interface NotionalProxy is
     );
 
     /// @notice Emits every time interest is accrued
-    event PrimeCashInterestAccrued(uint16 indexed currencyId);
-
-    /// @notice Emits when the totalPrimeDebt changes due to borrowing
-    event PrimeDebtChanged(
-        uint16 indexed currencyId,
-        uint256 totalPrimeSupply,
-        uint256 totalPrimeDebt
-    );
-
-    /// @notice Emits when the totalPrimeSupply changes due to token deposits or withdraws
-    event PrimeSupplyChanged(
-        uint16 indexed currencyId,
-        uint256 totalPrimeSupply,
-        uint256 lastTotalUnderlyingValue
-    );
+    event PrimeCashInterestAccrued(uint16 indexed currencyId, PrimeCashFactors factors);
 
     event PrimeCashCurveChanged(uint16 indexed currencyId);
 
     event PrimeCashHoldingsOracleUpdated(uint16 indexed currencyId, address oracle);
-
-    event TotalfCashDebtOutstandingChanged(
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 totalfCashDebt,
-        int256 netDebtChange
-    );
-
 
     /** UUPS Upgradeable contract calls */
     function upgradeTo(address newImplementation) external;

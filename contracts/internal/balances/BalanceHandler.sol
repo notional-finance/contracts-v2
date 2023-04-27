@@ -33,12 +33,6 @@ library BalanceHandler {
     using AccountContextHandler for AccountContext;
     using PrimeRateLib for PrimeRate;
 
-    /// @notice Emitted when a cash balance changes
-    event CashBalanceChange(address indexed account, uint16 indexed currencyId, int256 netCashChange);
-    /// @notice Emitted when nToken supply changes (not the same as transfers)
-    event nTokenSupplyChange(address indexed account, uint16 indexed currencyId, int256 tokenSupplyChange);
-    /// @notice Emitted when reserve fees are accrued
-    event ReserveFeeAccrued(uint16 indexed currencyId, int256 fee);
     /// @notice Emitted when reserve balance is updated
     event ReserveBalanceUpdated(uint16 indexed currencyId, int256 newBalance);
     /// @notice Emitted when reserve balance is harvested
@@ -186,12 +180,6 @@ library BalanceHandler {
         if (totalCashChange != 0) {
             balanceState.storedCashBalance = balanceState.storedCashBalance.add(totalCashChange);
             mustUpdate = true;
-
-            emit CashBalanceChange(
-                account,
-                uint16(balanceState.currencyId),
-                totalCashChange
-            );
         }
 
         if (balanceState.netNTokenTransfer != 0 || balanceState.netNTokenSupplyChange != 0) {
@@ -202,20 +190,9 @@ library BalanceHandler {
             // Ensure that nToken balances never become negative
             require(finalNTokenBalance >= 0, "Neg nToken");
 
-
             // overflow checked above
             Incentives.claimIncentives(balanceState, account, uint256(finalNTokenBalance));
-
             balanceState.storedNTokenBalance = finalNTokenBalance;
-
-            if (balanceState.netNTokenSupplyChange != 0) {
-                emit nTokenSupplyChange(
-                    account,
-                    uint16(balanceState.currencyId),
-                    balanceState.netNTokenSupplyChange
-                );
-            }
-
             mustUpdate = true;
         }
 
@@ -273,9 +250,6 @@ library BalanceHandler {
         bool isActive = newCashBalance != 0 || nTokenBalance != 0;
         accountContext.setActiveCurrency(currencyId, isActive, Constants.ACTIVE_IN_BALANCES);
 
-        // Emit the event here, we do not call finalize
-        emit CashBalanceChange(account, currencyId, netPrimeCashChange);
-
         _setBalanceStorage(
             account,
             currencyId,
@@ -324,12 +298,6 @@ library BalanceHandler {
             if (newStoredCashBalance < 0) {
                 accountContext.hasDebt = accountContext.hasDebt | Constants.HAS_CASH_DEBT;
             }
-
-            emit CashBalanceChange(
-                account,
-                uint16(amt.currencyId),
-                amt.positiveSettledCash.add(amt.negativeSettledCash)
-            );
         }
     }
 
@@ -358,7 +326,6 @@ library BalanceHandler {
         int256 totalReserve = getPositiveCashBalance(Constants.FEE_RESERVE, currencyId);
         totalReserve = totalReserve.add(fee);
         _setPositiveCashBalance(Constants.FEE_RESERVE, currencyId, totalReserve);
-        emit ReserveFeeAccrued(uint16(currencyId), fee);
     }
 
     /// @notice harvests excess reserve balance
