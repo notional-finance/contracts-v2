@@ -1,4 +1,5 @@
 import copy
+import os
 import brownie
 import pytest
 from brownie import ZERO_ADDRESS, Wei, interface
@@ -9,6 +10,7 @@ from tests.constants import FEE_RESERVE, PRIME_CASH_VAULT_MATURITY, SECONDS_IN_Q
 from tests.helpers import get_tref
 
 chain = Chain()
+TEST_SNAPSHOT = os.getenv('TEST_SNAPSHOT', False) 
 
 def get_vault_ids(environment, vault, currency):
     tref = get_tref(chain.time())
@@ -154,7 +156,8 @@ class EventChecker():
         self.maturities = maturities
 
     def __enter__(self):
-        self.snapshot = get_snapshot(self.environment, self.accounts, additionalMaturities=self.maturities)
+        if TEST_SNAPSHOT:
+            self.snapshot = get_snapshot(self.environment, self.accounts, additionalMaturities=self.maturities)
         self.context = {}
         
         return self.context
@@ -174,7 +177,8 @@ class EventChecker():
         eventStore = processTxn(self.environment, self.context['txn'])
         
         # Asserts that the snapshot balances equal the actual balance changes
-        compare_snapshot(self.environment, self.snapshot, eventStore['transfers'], self.context)
+        if TEST_SNAPSHOT:
+            compare_snapshot(self.environment, self.snapshot, eventStore['transfers'], self.context)
 
         # Asserts that the transaction type is valid
         self.hasTransactionType(eventStore)

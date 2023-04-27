@@ -5,7 +5,6 @@ import pytest
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
-from scripts.config import CurrencyDefaults
 from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER, SECONDS_IN_YEAR
 from tests.helpers import (
     get_balance_action,
@@ -258,7 +257,7 @@ def test_purchase_ntoken_residual_negative(environment, accounts):
 
     with EventChecker(environment, "Account Action",
         account=accounts[2],
-        netfCashAssets=lambda n: n[ifCashAssetsBefore[2][1]] == ifCashAssetsBefore[2][3],
+        netfCashAssets=lambda n: n[(2, ifCashAssetsBefore[2][1])] == ifCashAssetsBefore[2][3],
         netCash=lambda n: n[2] > 0
     ) as c:
         c['txn'] = environment.notional.batchBalanceAndTradeAction(accounts[2], [action], {"from": accounts[2]})
@@ -335,7 +334,7 @@ def test_purchase_ntoken_residual_positive(environment, accounts):
     )
     with EventChecker(environment, 'Account Action',
         account=accounts[0],
-        netfCashAssets=lambda n: n[ifCashAssetsBefore[2][1]] == ifCashAssetsBefore[2][3],
+        netfCashAssets=lambda n: n[(2, ifCashAssetsBefore[2][1])] == ifCashAssetsBefore[2][3],
         netCash=lambda n: n[2] < 5500e8 # Net cash is less than the deposit
     ) as c:
         txn = environment.notional.batchBalanceAndTradeAction(accounts[0], [action], {"from": accounts[0]})

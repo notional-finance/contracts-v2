@@ -1,8 +1,6 @@
 import brownie
 import pytest
 from brownie.network.state import Chain
-from scripts.EventProcessor import EventChecker
-from scripts.event_parse import decode_events, group_events
 from tests.constants import HAS_ASSET_DEBT, HAS_CASH_DEBT, SECONDS_IN_QUARTER
 from tests.helpers import (
     get_balance_action,
@@ -10,6 +8,7 @@ from tests.helpers import (
     get_tref,
     initialize_environment,
 )
+from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
@@ -45,30 +44,6 @@ def setup_multiple_asset_settlement(environment, account):
         account, [daiAction, usdcAction], {"from": account}
     )
 
-def check_settle_events(environment, txn, account):
-    decoded = decode_events(environment, txn)
-    grouped = group_events(decoded)
-    assert len(grouped['Settle fCash']) == 2
-    assert grouped['Settle fCash'][0]['account'] == account
-    assert grouped['Settle fCash'][0]['currencyId'] == 2
-    assert grouped['Settle fCash'][0]['fCash'] == -150e8
-    assert grouped['Settle fCash'][1]['account'] == account
-    assert grouped['Settle fCash'][1]['currencyId'] == 3
-    assert grouped['Settle fCash'][1]['fCash'] == 100e8
-
-    assert len(grouped['Settle Cash']) == 2
-    assert grouped['Settle Cash'][0]['account'] == account
-    assert grouped['Settle Cash'][0]['currencyId'] == 2
-    assert grouped['Settle Cash'][0]['pCash'] is None
-    assert grouped['Settle Cash'][0]['pDebt'] > 0
-    assert grouped['Settle Cash'][1]['account'] == account
-    assert grouped['Settle Cash'][1]['currencyId'] == 3
-    assert grouped['Settle Cash'][1]['pCash'] > 0
-    assert grouped['Settle Cash'][1]['pDebt'] is None
-
-
-
-@pytest.mark.only
 def test_settle_on_batch_action(environment, accounts):
     account = accounts[1]
     setup_multiple_asset_settlement(environment, account)
@@ -84,15 +59,12 @@ def test_settle_on_batch_action(environment, accounts):
 
     ethAction = get_balance_action(1, "DepositUnderlying", depositActionAmount=1e18)
 
-    with EventChecker(environment) as e:
+    with EventChecker(environment, "Settle Account") as e:
         txn = environment.notional.batchBalanceAction(
             account, [ethAction], {"from": account, "value": 1e18}
         )
         e['txn'] = txn
 
-    assert txn.events["AccountSettled"]
-
-    check_settle_events(environment, txn, account)
     check_system_invariants(environment, accounts)
 
 
@@ -115,10 +87,9 @@ def test_settle_on_batch_trade_action(environment, accounts):
         [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 10, "maxSlippage": 0}],
     )
 
-    txn = environment.notional.batchBalanceAndTradeAction(account, [ethAction], {"from": account})
-    assert txn.events["AccountSettled"]
+    with EventChecker(environment, "Settle Account") as e:
+        e['txn'] = environment.notional.batchBalanceAndTradeAction(account, [ethAction], {"from": account})
 
-    check_settle_events(environment, txn, account)
     check_system_invariants(environment, accounts)
 
 
@@ -151,9 +122,11 @@ def test_settle_bitmap_to_cash(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [collateral], {"from": accounts[1]}
-    )
+    with EventChecker(environment, "Settle Account") as e:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [collateral], {"from": accounts[1]}
+        )
+        e['txn'] = txn
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     context = environment.notional.getAccountContext(accounts[1])
     balance = environment.notional.getAccountBalance(currencyId, accounts[1])
@@ -161,19 +134,6 @@ def test_settle_bitmap_to_cash(environment, accounts):
     assert context[1] == HAS_CASH_DEBT
     assert context[0] == get_tref(txn.timestamp)
     assert environment.approxInternal("DAI", balance[0], -100e8)
-
-    decoded = decode_events(environment, txn)
-    grouped = group_events(decoded)
-    assert len(grouped['Settle fCash']) == 1
-    assert grouped['Settle fCash'][0]['account'] == accounts[1]
-    assert grouped['Settle fCash'][0]['currencyId'] == 2
-    assert grouped['Settle fCash'][0]['fCash'] == -100e8
-
-    assert len(grouped['Settle Cash']) == 1
-    assert grouped['Settle Cash'][0]['account'] == accounts[1]
-    assert grouped['Settle Cash'][0]['currencyId'] == 2
-    assert grouped['Settle Cash'][0]['pCash'] is None
-    assert grouped['Settle Cash'][0]['pDebt'] > 0
 
     check_system_invariants(environment, accounts)
 
@@ -208,6 +168,7 @@ def test_settle_bitmap_shift_assets(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
+    # No settlement, just asset has shifted
     txn = environment.notional.batchBalanceAndTradeAction(
         accounts[1], [collateral], {"from": accounts[1]}
     )
@@ -250,9 +211,11 @@ def test_settle_array_to_cash(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    txn = environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [collateral], {"from": accounts[1]}
-    )
+    with EventChecker(environment, "Settle Account") as e:
+        txn = environment.notional.batchBalanceAndTradeAction(
+            accounts[1], [collateral], {"from": accounts[1]}
+        )
+        e['txn'] = txn
     portfolio = environment.notional.getAccountPortfolio(accounts[1])
     context = environment.notional.getAccountContext(accounts[1])
     balance = environment.notional.getAccountBalance(currencyId, accounts[1])
@@ -260,19 +223,6 @@ def test_settle_array_to_cash(environment, accounts):
     assert context[1] == HAS_CASH_DEBT
     assert context[0] == 0
     assert environment.approxInternal("DAI", balance[0], -100e8)
-
-    decoded = decode_events(environment, txn)
-    grouped = group_events(decoded)
-    assert len(grouped['Settle fCash']) == 1
-    assert grouped['Settle fCash'][0]['account'] == accounts[1]
-    assert grouped['Settle fCash'][0]['currencyId'] == 2
-    assert grouped['Settle fCash'][0]['fCash'] == -100e8
-
-    assert len(grouped['Settle Cash']) == 1
-    assert grouped['Settle Cash'][0]['account'] == accounts[1]
-    assert grouped['Settle Cash'][0]['currencyId'] == 2
-    assert grouped['Settle Cash'][0]['pCash'] is None
-    assert grouped['Settle Cash'][0]['pDebt'] > 0
 
     check_system_invariants(environment, accounts)
 
@@ -291,10 +241,10 @@ def test_settle_on_withdraw(environment, accounts):
     environment.notional.initializeMarkets(2, False)
     environment.notional.initializeMarkets(3, False)
 
-    txn = environment.notional.withdraw(1, 1e8, True, {"from": account})
-    assert txn.events["AccountSettled"]
+    with EventChecker(environment, "Settle Account") as e:
+        txn = environment.notional.withdraw(1, 1e8, True, {"from": account})
+        e['txn'] = txn
 
-    check_settle_events(environment, txn, account)
     check_system_invariants(environment, accounts)
 
 
@@ -321,34 +271,11 @@ def test_transfer_fcash_requires_settlement(environment, accounts):
     markets = environment.notional.getActiveMarkets(1)
     erc1155id = environment.notional.encodeToId(1, markets[0][1], 1)
 
-    txn = environment.notional.safeTransferFrom(
-        accounts[1], accounts[0], erc1155id, 0.1e8, bytes(), {"from": accounts[1]}
-    )
-
-    assert txn.events["AccountSettled"][0]["account"] == accounts[0]
-    assert txn.events["AccountSettled"][1]["account"] == accounts[1]
-    assert len(environment.notional.getAccountPortfolio(accounts[0])) == 1
-    assert len(environment.notional.getAccountPortfolio(accounts[1])) == 1
-
-    decoded = decode_events(environment, txn)
-    grouped = group_events(decoded)
-    assert len(grouped['Settle fCash']) == 2
-    assert grouped['Settle fCash'][0]['account'] == accounts[0]
-    assert grouped['Settle fCash'][0]['currencyId'] == 1
-    assert grouped['Settle fCash'][0]['fCash'] == 1e8
-    assert grouped['Settle fCash'][1]['account'] == accounts[1]
-    assert grouped['Settle fCash'][1]['currencyId'] == 1
-    assert grouped['Settle fCash'][1]['fCash'] == 1e8
-
-    assert len(grouped['Settle Cash']) == 2
-    assert grouped['Settle Cash'][0]['account'] == accounts[0]
-    assert grouped['Settle Cash'][0]['currencyId'] == 1
-    assert grouped['Settle Cash'][0]['pCash'] > 0
-    assert grouped['Settle Cash'][0]['pDebt'] is None
-    assert grouped['Settle Cash'][1]['account'] == accounts[1]
-    assert grouped['Settle Cash'][1]['currencyId'] == 1
-    assert grouped['Settle Cash'][1]['pCash'] > 0
-    assert grouped['Settle Cash'][1]['pDebt'] is None
+    with EventChecker(environment, "Settle Account") as e:
+        txn = environment.notional.safeTransferFrom(
+            accounts[1], accounts[0], erc1155id, 0.1e8, bytes(), {"from": accounts[1]}
+        )
+        e['txn'] = txn
 
     check_system_invariants(environment, accounts)
 

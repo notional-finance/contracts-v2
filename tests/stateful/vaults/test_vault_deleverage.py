@@ -373,7 +373,6 @@ def check_deleverage_invariants(
 
     check_system_invariants(environment, accounts, [vault])
 
-@pytest.mark.skip
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
     isPrime=strategy("bool"),

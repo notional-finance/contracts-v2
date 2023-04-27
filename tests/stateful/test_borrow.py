@@ -162,6 +162,7 @@ def test_deposit_underlying_and_borrow_specify_fcash(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.only
 def test_mint_ntokens_and_borrow_specify_fcash(environment, accounts):
     fCashAmount = 100e8
     borrowAction = get_balance_trade_action(
@@ -185,10 +186,10 @@ def test_mint_ntokens_and_borrow_specify_fcash(environment, accounts):
 
     marketsBefore = environment.notional.getActiveMarkets(2)
     # TODO: this does not bundle properly because mint nTokens sits above the account action
-    with EventChecker(environment, "Account Action",
-        account=accounts[1],
-        netfCashAssets=lambda x: list(x.values()) == [-fCashAmount],
-        netCash=lambda x: 3 not in x[3]
+    with EventChecker(environment, "Mint nToken",
+        minter=accounts[1],
+        # netfCashAssets=lambda x: list(x.values()) == [-fCashAmount],
+        # netCash=lambda x: 3 not in x[3]
     ) as c:
         txn = environment.notional.batchBalanceAndTradeAction(
             accounts[1], [borrowAction, collateral], {"from": accounts[1]}

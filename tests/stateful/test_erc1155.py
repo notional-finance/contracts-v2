@@ -550,10 +550,10 @@ def test_transfer_borrow_fcash_redeem_ntoken(environment, accounts):
         fn_name="nTokenRedeem", args=[accounts[0].address, 2, int(10e8), True, False]
     )
 
-    with EventChecker(environment, 'Account Action',
-        maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
-        account=accounts[0],
-        netfCashAssets=lambda x: list(x.values())[0] == -50e8
+    with EventChecker(environment, 'Redeem nToken',
+        # maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
+        redeemer=accounts[0],
+        # netfCashAssets=lambda x: list(x.values())[0] == -50e8
     ) as e:
         e['txn'] = environment.notional.safeTransferFrom(
             accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[0]}

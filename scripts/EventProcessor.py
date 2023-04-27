@@ -1,7 +1,10 @@
+import logging
 from brownie import ZERO_ADDRESS
 from scripts.events.bundles import bundleCriteria
 from scripts.events.transactions import typeMatchers
 from tests.constants import FEE_RESERVE, SETTLEMENT_RESERVE
+
+LOGGER = logging.getLogger(__name__)
 
 def findIndex(arr, func):
     for (i, v) in enumerate(arr):
@@ -46,9 +49,13 @@ def processTxn(environment, txn):
                 'logIndex': e.pos[0]
             })
 
-        # If we did bundle or find a marker scan for types
-        if bundleId or isMarker(environment, e):
-            scanTransactionType(eventStore, txn.txid)
+    # Scan transactions after all bundles have been marked
+    i = 0
+    while i < 3: 
+        if scanTransactionType(eventStore, txn.txid) is None:
+            break
+        i += 1
+    LOGGER.info("finished process txn")
 
     return eventStore
 
@@ -88,19 +95,16 @@ def decodeAssetType(environment, e, index=0):
         if e.address == environment.noteERC20:
             assetType = 'NOTE'
             currencyId = None
-            #key = 'amount'
         else:
             assetType = environment.proxies[e.address]['assetType']
             currencyId = environment.proxies[e.address]['currencyId']
-            #key = 'value'
 
         return {
             'asset': e.address,
             'assetType': assetType,
             'assetInterface': 'ERC20',
             'underlying': currencyId,
-            'value': e['value'],
-            # TODO: convert to underlying present value here
+            'value': e['value'] if 'value' in e else e['amount'],
         }
     elif e.name == 'TransferSingle':
         (currencyId, maturity, assetType, vaultAddress, isfCashDebt) = environment.notional.decodeERC1155Id(e['id'])
@@ -251,19 +255,20 @@ def scanTransactionType(eventStore, txid):
         raise Exception("Invalid final index")
 
     for matcher in typeMatchers:
-        (startMatch, marker) = match(matcher, eventStore['bundles'], startIndex, eventStore['markers'])
+        (startMatch, endIndex, marker) = match(matcher, eventStore['bundles'], startIndex, eventStore['markers'])
+        LOGGER.info("attempting to match {} at start index {}".format(matcher['transactionType'], startIndex))
+
         if startMatch is None:
             # Did not match so try the next matcher
             continue
 
         transactionType = matcher['transactionType']
-        endIndex = len(eventStore['bundles']) - 1
         startLogIndex = eventStore['bundles'][startMatch]['startLogIndex']
         endLogIndex = eventStore['bundles'][endIndex]['endLogIndex']
         transactionTypeId = "{}:{}:{}:{}".format(txid, startLogIndex, endLogIndex, transactionType)
 
         transfers = []
-        for i in range(startMatch, len(eventStore['bundles'])):
+        for i in range(startMatch, endIndex + 1):
             eventStore['bundles'][i]['transactionTypeId'] = transactionTypeId
             bundleId = eventStore['bundles'][i]['bundleId']
 
@@ -285,29 +290,34 @@ def scanTransactionType(eventStore, txid):
 def match(matcher, bundles, startIndex, markers):
     pattern = matcher['pattern']
     while startIndex < len(bundles):
-        if match_here(pattern, bundles[startIndex:]):
-            if 'endMarkers' in matcher:
-                endIndex = bundles[-1]['endLogIndex']
-                # Find the first marker past the end index that matches the pattern
-                marker = find(markers, lambda m: endIndex < m['logIndex'] and m['name'] in matcher['endMarkers'])
-                if marker:
-                    return (startIndex, marker)
-            else:
-                return (startIndex, None)
-        startIndex += 1
+        bundlesLeft = match_here(pattern, bundles[startIndex:])
+        if bundlesLeft == -1:
+            startIndex += 1
+            continue
+
+        endIndex = len(bundles) - bundlesLeft - 1
+        if 'endMarkers' in matcher:
+            endLogIndex = bundles[endIndex]['endLogIndex']
+            # Find the first marker past the end index that matches the pattern
+            marker = find(markers, lambda m: endLogIndex < m['logIndex'] and m['name'] in matcher['endMarkers'])
+            if marker:
+                return (startIndex, endIndex, marker)
+        else:
+            return (startIndex, endIndex, None)
     
-    return (None, None)
+    return (None, None, None)
 
 def match_here(pattern, bundles):
+    LOGGER.info("in match here call {}, {}".format(pattern, bundles))
     if len(pattern) == 0:
-        # End of pattern, return true
-        return True
+        # End of pattern, return the end index
+        return len(bundles)
     elif pattern[0]['op'] == '.':
         if len(bundles) > 0 and bundles[0]['bundleName'] in pattern[0]['exp']:
             # Did match, go one level deeper
             return match_here(pattern[1:], bundles[1:])
         else:
-            return False
+            return -1
     elif pattern[0]['op'] == '?':
         if len(bundles) > 0 and bundles[0]['bundleName'] in pattern[0]['exp']:
             # Did match, move to next pattern
@@ -320,13 +330,13 @@ def match_here(pattern, bundles):
             raise Exception("!$ must terminate pattern")
 
         if len(bundles) == 0:
-            return True
+            return -1
         else:
-            return bundles[0]['bundleName'] not in pattern[0]['exp']
+            return 0 if bundles[0]['bundleName'] not in pattern[0]['exp'] else -1
     elif pattern[0]['op'] == '+':
         # Must match on the current bundle or fail
         if len(bundles) == 0 or bundles[0]['bundleName'] not in pattern[0]['exp']:
-            return False
+            return -1
         
         # Otherwise match like if it is a star op
         index = 0

@@ -19,9 +19,10 @@ def extract_mint_ntoken(transfers, _):
     feesPaidToReserve = sum([
        t['value'] for t in transfers if t['toSystemAccount']  == 'Fee Reserve'
     ])
-    depositAmount = transfers[-2]['value']
-    minter = transfers[-1]['to']
-    nTokensMinted = transfers[-1]['value']
+    depositAmount = find(transfers, lambda x: x['bundleName'] == 'Mint nToken' and x['assetType'] == 'pCash')['value']
+    mintNToken = find(transfers, lambda x: x['bundleName'] == 'Mint nToken' and x['assetType'] == 'nToken')
+    minter = mintNToken['to']
+    nTokensMinted = mintNToken['value']
     return {
         "minter": minter,
         "deposit": depositAmount,
@@ -76,7 +77,7 @@ def extract_redeem_ntoken(transfers, _):
     #   - per market [ net fcash liquidity, net cash liquidity ]
     #   - per fcash asset [ residual transfer, net cash from sale ]
     withdrawAmount = transfers[-2]['value']
-    redeemer = transfers[-1]['to']
+    redeemer = transfers[-1]['from']
     nTokensRedeemed = transfers[-1]['value']
     liquidity = sortByMaturity([
         {
@@ -84,7 +85,7 @@ def extract_redeem_ntoken(transfers, _):
             'maturity': t['maturity']
         } 
         for t in transfers
-        if t['bundleName'] in ['nToken Remove Liquidity', 'nToken Add Liquidity'] and t['value'] > 0
+        if t['bundleName'] in ['nToken Remove Liquidity', 'nToken Add Liquidity'] and t['value'] > 0 and t['assetType'] == 'fCash'
     ])
     residuals = sortByMaturity([
         {
@@ -92,18 +93,15 @@ def extract_redeem_ntoken(transfers, _):
             'maturity': t['maturity']
         } 
         for t in transfers
-        if t['bundleName']  == 'nToken Residual Transfer'
+        if t['bundleName']  == 'nToken Residual Transfer' and t['assetType'] == 'fCash'
     ])
-    assetsSold = sortByMaturity([
-        {
-            'primeCash':  -t['value'] if t['bundleName'] == 'Buy fCash' else t['value'],
-            'maturity': t['maturity']
-        } 
+    assetsSold = [
+       -t['value'] if t['bundleName'] == 'Buy fCash' else t['value']
         for t in transfers
         if t['bundleName'] in ['Buy fCash', 'Sell fCash']
             and t['assetType'] == 'pCash'
             and t['toSystemAccount'] != 'Fee Reserve'
-    ])
+    ]
 
     return {
         "redeemer": redeemer,
@@ -265,9 +263,8 @@ typeMatchers = [
     ], 'extractor': extract_mint_ntoken},
     { 'transactionType': 'Redeem nToken', 'pattern': [
         {'op': '+', 'exp': ['nToken Remove Liquidity']},
-        {'op': '*', 'exp': ['Buy fCash', 'Sell fCash', 'nToken Residual Transfer']},
-        {'op': '*', 'exp': ['Borrow fCash']}, # This occurs on negative residuals
-        {'op': '?', 'exp': ['Transfer Incentive']}, # This occurs on nToken redeem, manual
+        {'op': '*', 'exp': ['Buy fCash', 'Sell fCash', 'nToken Residual Transfer', 'Borrow fCash', 'Transfer Incentive',
+                            'Repay Prime Cash', 'Repay fCash']},
         {'op': '.', 'exp': ['Redeem nToken']},
     ], 'extractor': extract_redeem_ntoken},
     { 'transactionType': 'Initialize Markets', 'endMarkers': ['MarketsInitialized'], 'pattern': [
@@ -285,11 +282,11 @@ typeMatchers = [
     { 'transactionType': 'Settle Account', 'endMarkers': ['AccountSettled'], 'pattern': [
         {'op': '+', 'exp': ['Settle fCash', 'Settle Cash']},
     ], 'extractor': extract_settled_account},
-    { 'transactionType': 'Liquidation', 'endMarkers': ['LiquidateLocalCurrency', 'LiquidateCollateralCurrency', 'LiquidatefCashEvent'], 'pattern': [ 
-        {'op': '?', 'exp': ['Deposit and Transfer']},
-        {'op': '+', 'exp': ['Transfer Asset', 'Transfer Incentive', 'Repay Prime Cash', 'Borrow Prime Cash', 'Repay fCash']},
-        {'op': '?', 'exp': ['Withdraw']},
-    ], 'extractor': extract_liquidation},
+    # { 'transactionType': 'Liquidation', 'endMarkers': ['LiquidateLocalCurrency', 'LiquidateCollateralCurrency', 'LiquidatefCashEvent'], 'pattern': [ 
+    #     {'op': '?', 'exp': ['Deposit and Transfer']},
+    #     {'op': '+', 'exp': ['Transfer Asset', 'Transfer Incentive', 'Repay Prime Cash', 'Borrow Prime Cash', 'Repay fCash']},
+    #     {'op': '?', 'exp': ['Withdraw']},
+    # ], 'extractor': extract_liquidation},
     { 'transactionType': 'Vault Entry', 'pattern': [
         {'op': '?', 'exp': ['Deposit and Transfer']},
         # TODO: just make one list which is vault ops
