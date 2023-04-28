@@ -18,9 +18,9 @@ library Deployments {
     }
 
     // NOTE: these are temporary Beacon addresses
-    IUpgradeableBeacon internal constant NTOKEN_BEACON = IUpgradeableBeacon(0xc8277f2c8bf5d9900400002106Af984D7Ee668dd);
-    IUpgradeableBeacon internal constant PCASH_BEACON = IUpgradeableBeacon(0x1eeCdCF8B5A1FF5aE37FF83C261c999fAe5450cB);
-    IUpgradeableBeacon internal constant PDEBT_BEACON = IUpgradeableBeacon(0x9e976173186E623aB228447439C9d30092f921cB);
+    IUpgradeableBeacon internal constant NTOKEN_BEACON = IUpgradeableBeacon(0xC73f1f7d9287129b6707Dad6121016aF4e22A63D);
+    IUpgradeableBeacon internal constant PCASH_BEACON = IUpgradeableBeacon(0x70d6ca4b41A2faddD1B6e49a7b75B3Aa17B5B172);
+    IUpgradeableBeacon internal constant PDEBT_BEACON = IUpgradeableBeacon(0xB166810A73969c6562e8C738B8f24a734086aD1d);
     IUpgradeableBeacon internal constant WRAPPED_FCASH_BEACON = IUpgradeableBeacon(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // TODO: this will be set to the timestamp of the final settlement time in notional v2,

@@ -9,17 +9,17 @@ compiler:
       - "@openzeppelin-4.6=OpenZeppelin/openzeppelin-contracts@4.6.0"
 
 networks:
-  default: development
-  development:
+  default: hardhat-fork
+  hardhat-fork: https://eth-mainnet.alchemyapi.io/v2/JU05SBqaAUg1-2xYuUvvJlE2-zcFKSwz
+
+  # hardhat-fork:
+  #   cmd_settings:
+  #     fork_block: 16862650
+networks:
+  default: hardhat-fork
+  hardhat-fork:
     cmd_settings:
-      port: 8646
-      accounts: 20
-      mnemonic: owner dignity sense
-      default_balance: 100000
-      unlimited_contract_size: true
-  mainnet-fork:
-    cmd_settings:
-      fork_block: 16721445
+      fork_block: 16721445 #16721445 #17038900
 reports:
   exclude_paths:
     - interfaces/**/*.*

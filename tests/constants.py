@@ -1,5 +1,40 @@
 from brownie.convert import to_int
 from brownie.convert.datatypes import HexString
+import time
+
+DECIMALS_INTERNAL = 1e8
+SECONDS_IN_YEAR = 31104000
+CURRENT_TIME = time.time()
+
+CURRENCY_ID_TO_SYMBOL = {
+    1: "ETH",
+    2: "DAI",
+    3: "USDC",
+    4: "WBTC",
+}
+
+CURRENCY_ID_TO_UNDERLYING_DECIMALS = {
+    1: 1e18,
+    2: 1e18,
+    3: 1e6,
+    4: 1e8,
+}
+
+
+CURRENCY_ID_TO_UNDERLYING_ADDRESS = {
+    1: "",
+    2: "0x6b175474e89094c44da98b954eedeac495271d0f",
+    3: "0xa0b86991c6218b36c1d19d4a2e9eb0ce3606eb48",
+    4: "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+}
+
+
+CURRENCY_ID_TO_UNDERLYING_CTOKEN_ADDRESS = {
+    1: "0x4ddc2d193948926d02f9b1fe9e1daa0718270ed5",
+    2: "0x5d3a536E4D6DbD6114cc1Ead35777bAB948E3643",
+    3: "0x39AA39c021dfbaE8faC545936693aC917d5E7563",
+    4: "0xccF4429DB6322D5C611ee964527D42E5d685DD6a",
+}
 
 # Jan 1 2021
 START_TIME = 1609459200
