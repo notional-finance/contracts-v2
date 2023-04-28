@@ -7,7 +7,7 @@ import eth_abi
 from brownie.convert.datatypes import Wei, HexString
 from brownie.network import Chain, Rpc
 from brownie.test import given, strategy
-from tests.constants import RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER, SECONDS_IN_YEAR, ZERO_ADDRESS
+from tests.constants import FEE_RESERVE, RATE_PRECISION, SECONDS_IN_DAY, SECONDS_IN_QUARTER, SECONDS_IN_YEAR, ZERO_ADDRESS
 from tests.helpers import get_interest_rate_curve, get_market_state, get_tref, simulate_init_markets
 
 chain = Chain()
@@ -54,11 +54,6 @@ class TestPrimeCash:
         assert factors["totalPrimeSupply"] == 110e8
         assert factors["totalPrimeDebt"] == 10e8
         assert txn.events["PrimeCashCurveChanged"]
-        assert txn.events["PrimeSupplyChanged"]["totalPrimeSupply"] == 100e8
-        assert txn.events["PrimeDebtChanged"][0]["totalPrimeSupply"] == 100e8
-        assert txn.events["PrimeDebtChanged"][0]["totalPrimeDebt"] == 0
-        assert txn.events["PrimeDebtChanged"][1]["totalPrimeSupply"] == 110e8
-        assert txn.events["PrimeDebtChanged"][1]["totalPrimeDebt"] == 10e8
 
     def test_balance_change_reverts_on_negative(self, mock, oracle):
         mock.initPrimeCashCurve(1, 200_000e8, 100_000e8, get_interest_rate_curve(), oracle, True)
@@ -104,7 +99,7 @@ class TestPrimeCash:
     def test_no_reverts_at_zero_underlying(self, mock, oracle):
         mock.initPrimeCashCurve(1, 100_000e8, 0, get_interest_rate_curve(), oracle, True)
         txn = mock.updateTotalPrimeSupply(1, 0, -100_000e8)
-        txn.events["PrimeSupplyChanged"]["lastTotalUnderlyingValue"] == 0
+        assert mock.getPrimeCashFactors(1)['lastTotalUnderlyingValue'] == 0
         mock.setStoredTokenBalance(ZERO_ADDRESS, 0)
 
         assert mock.getPrimeInterestRates(1) == (0, 0, 0)
@@ -463,18 +458,18 @@ class TestPrimeCash:
             1, 100_000e8, initialDebt, get_interest_rate_curve(feeRatePercent=0), oracle, True
         )
 
-        factors = mock.getPrimeCashFactors(1)
+        factorsBefore = mock.getPrimeCashFactors(1)
         txn1 = mock.buildPrimeRateStateful(1, txn.timestamp + offset)
         pr1 = txn1.return_value
         signedSupplyValue = mock.convertFromStorage(pr1, startBalance) + netChange
 
         txn = mock.convertToStorageNonSettlement(pr1, 1, startBalance, signedSupplyValue, 0)
         newStoredCashBalance = txn.return_value
+        factorsAfter = mock.getPrimeCashFactors(1)
 
         if startBalance >= 0 and signedSupplyValue >= 0:
             # No debt changes when both are positive
             assert pytest.approx(signedSupplyValue, abs=100) == newStoredCashBalance
-            assert "PrimeDebtChanged" not in txn.events
         if startBalance < 0 or signedSupplyValue < 0:
             assert (
                 pytest.approx(mock.convertFromStorage(pr1, newStoredCashBalance), abs=5)
@@ -485,12 +480,16 @@ class TestPrimeCash:
             negChangeSupplyValue = mock.convertFromStorage(pr1, -abs(negChange))
 
             if netChange != 0:
-                assert txn.events["PrimeDebtChanged"]
-                netDebtChange = txn.events["PrimeDebtChanged"]["totalPrimeDebt"] - factors["totalPrimeDebt"]
+                netDebtChange = factorsAfter["totalPrimeDebt"] - factorsBefore["totalPrimeDebt"]
                 assert netDebtChange == negChange
                 
                 # @todo this assertion is wrong
-                netSupplyChange = txn.events["PrimeDebtChanged"]["totalPrimeSupply"] - txn1.events["ReserveFeeAccrued"]["fee"] - factors["totalPrimeSupply"]
+                reserveFee = 0
+                for e in txn1.events['Transfer']:
+                    if e['to'] == FEE_RESERVE:
+                        reserveFee += e['value']
+
+                netSupplyChange = factorsAfter["totalPrimeSupply"] - reserveFee - factorsBefore["totalPrimeSupply"]
                 assert abs(netSupplyChange) == abs(negChangeSupplyValue)
 
                 # Confirm direction of change
@@ -498,7 +497,7 @@ class TestPrimeCash:
                     netDebtChange < 0 and netSupplyChange < 0
                 )
             else:
-                assert "PrimeDebtChanged" not in txn.events
+                assert factorsAfter["totalPrimeDebt"] == factorsBefore["totalPrimeDebt"]
 
     @given(utilization=strategy("int", min_value=0.1e9, max_value=0.9e9))
     def test_settle_negative_fcash_debt_accrues_proper_debt(self, mock, oracle, utilization):
@@ -589,10 +588,6 @@ class TestPrimeCash:
         )
 
         assert pytest.approx(debtBefore - debtAfter, abs=5) == 5_000e8
-        assert txn.events["PrimeDebtChanged"]["totalPrimeDebt"] == factorsAfter["totalPrimeDebt"]
-        assert (
-            txn.events["PrimeDebtChanged"]["totalPrimeSupply"] == factorsAfter["totalPrimeSupply"]
-        )
 
     @given(
         utilization=strategy("int", min_value=0.1e9, max_value=0.9e9),
@@ -621,6 +616,8 @@ class TestPrimeCash:
         txn = mock.convertToStorageInSettlement(
             1, previousCashBalance, positiveSettled, negativeSettled
         )
+
+        factorsAfter = mock.getPrimeCashFactors(1)
         (pr, _) = mock.buildPrimeRateView(1, txn.timestamp)
         assert txn.return_value == mock.convertToStorageValue(
             pr, previousCashBalance + positiveSettled + negativeSettled
@@ -631,12 +628,17 @@ class TestPrimeCash:
         else:
             positiveSettled = positiveSettled + previousCashBalance
 
-        if "PrimeDebtChanged" in txn.events:
+        reserveFee = 0
+        for e in txn.events['Transfer']:
+            if e['to'] == FEE_RESERVE:
+                reserveFee += e['value']
+
+        if max(negativeSettled, -positiveSettled) < 0:
             # This is the net supply change from debt repayment
             # during settlement
             supplyChange = (
-                txn.events["PrimeDebtChanged"]["totalPrimeSupply"]
-                - txn.events["ReserveFeeAccrued"]["fee"]
+                factorsAfter["totalPrimeSupply"]
+                - reserveFee
                 - factorsBefore["totalPrimeSupply"]
             )
             assert supplyChange < 0

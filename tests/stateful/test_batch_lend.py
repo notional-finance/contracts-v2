@@ -196,8 +196,8 @@ def test_lend_insufficient_free_collateral(environment, useUnderlying, useBitmap
     borrowAction = get_balance_trade_action(
         2,
         "DepositUnderlying",
-        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 95e8, "maxSlippage": 0}],
-        depositActionAmount=2e18,
+        [{"tradeActionType": "Borrow", "marketIndex": 1, "notional": 100e8, "maxSlippage": 0}],
+        depositActionAmount=3e18,
     )
     # Borrow and leave cash in system
     environment.notional.batchBalanceAndTradeAction(
@@ -206,7 +206,7 @@ def test_lend_insufficient_free_collateral(environment, useUnderlying, useBitmap
 
     action = get_lend_action(
         2,
-        [{"tradeActionType": "Lend", "marketIndex": 2, "notional": 107e8, "minSlippage": 0}],
+        [{"tradeActionType": "Lend", "marketIndex": 2, "notional": 100e8, "minSlippage": 0}],
         useUnderlying,  # This is somewhat irrelevant
     )
 

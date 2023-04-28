@@ -6,7 +6,7 @@ from brownie.convert.datatypes import HexString, Wei
 from brownie.network import Chain, Rpc
 from brownie.test import given, strategy
 from scripts.deployment import TokenType, deployNoteERC20
-from tests.constants import HAS_CASH_DEBT, SECONDS_IN_QUARTER
+from tests.constants import FEE_RESERVE, HAS_CASH_DEBT, SECONDS_IN_QUARTER
 from tests.helpers import (
     currencies_list_to_active_currency_bytes,
     get_balance_state,
@@ -303,17 +303,10 @@ class TestTokenHandler:
         balanceBefore = beforeFactors["balance"]
         factorsBefore = beforeFactors["factors"]
 
-        # assert (
-        #     txn.events["PrimeSupplyChanged"]["totalPrimeSupply"] == factorsAfter["totalPrimeSupply"]
-        # )
-        # assert (
-        #     txn.events["PrimeSupplyChanged"]["lastTotalUnderlyingValue"]
-        #     == factorsAfter["lastTotalUnderlyingValue"]
-        # )
-
         reserveFee = 0
-        if "ReserveFeeAccrued" in txn.events:
-            reserveFee = txn.events["ReserveFeeAccrued"]["fee"]
+        for e in txn.events['Transfer']:
+            if e['to'] == FEE_RESERVE:
+                reserveFee += e['value']
 
         # netSupply = supplyAfter - supplyBefore
         netSupply = factorsAfter["totalPrimeSupply"] - factorsBefore["totalPrimeSupply"]
@@ -453,6 +446,7 @@ class TestTokenHandler:
         with brownie.reverts():
             tokenHandler.getPositiveCashBalance(accounts[0], 1)
 
+    @pytest.mark.only
     @given(hasNToken=strategy("bool"), allowPrimeBorrow=strategy("bool"))
     def test_fcash_liquidation_neg_cash(self, accounts, tokens, hasNToken, allowPrimeBorrow):
         tokenHandler = tokens["handler"]
@@ -475,7 +469,6 @@ class TestTokenHandler:
         # Can repay the account's debt
         txn = tokenHandler.setBalanceStorageForfCashLiquidation(accounts[0], 1, 10e8)
         ctx = txn.return_value
-        assert "PrimeDebtChanged" in txn.events
         assert ctx["hasDebt"] == HAS_CASH_DEBT
         assert ctx["activeCurrencies"] == HexString(active_currencies, "bytes18")
 
@@ -487,8 +480,7 @@ class TestTokenHandler:
             91e8,
         )
         ctx = txn.return_value
-        assert "PrimeDebtChanged" in txn.events
-        assert txn.events["PrimeDebtChanged"]["totalPrimeDebt"] == 0
+        assert tokenHandler.getPrimeCashFactors(1)['totalPrimeDebt'] == 0
         assert ctx["hasDebt"] == HAS_CASH_DEBT
         # Very hard to get this to exactly zero because negative prime cash is
         # constantly rebasing
@@ -498,7 +490,6 @@ class TestTokenHandler:
         # Can add cash to positive
         txn = tokenHandler.setBalanceStorageForfCashLiquidation(accounts[0], 1, 110e8)
         ctx = txn.return_value
-        assert "PrimeDebtChanged" in txn.events
         assert ctx["hasDebt"] == HAS_CASH_DEBT
         assert ctx["activeCurrencies"] == HexString(active_currencies, "bytes18")
 
@@ -525,14 +516,12 @@ class TestTokenHandler:
         # Can take positive cash
         txn = tokenHandler.setBalanceStorageForfCashLiquidation(accounts[0], 1, -10e8)
         ctx = txn.return_value
-        assert "PrimeDebtChanged" not in txn.events
         assert ctx["hasDebt"] == "0x00"
         assert ctx["activeCurrencies"] == HexString(active_currencies, "bytes18")
 
         # Can take cash down to zero
         txn = tokenHandler.setBalanceStorageForfCashLiquidation(accounts[0], 1, -90e8)
         ctx = txn.return_value
-        assert "PrimeDebtChanged" not in txn.events
         assert ctx["hasDebt"] == "0x00"
         if hasNToken:
             assert ctx["activeCurrencies"] == HexString(active_currencies, "bytes18")
@@ -886,10 +875,8 @@ class TestTokenHandler:
 
             if finalCash < 0:
                 assert ctx["hasDebt"] == HAS_CASH_DEBT
-                assert "PrimeDebtChanged" in txn.events
             else:
                 assert ctx["hasDebt"] == "0x00"
-                assert "PrimeDebtChanged" not in txn.events
 
             chain.mine(1, timedelta=offset)
 

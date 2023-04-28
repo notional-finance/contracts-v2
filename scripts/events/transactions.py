@@ -282,11 +282,11 @@ typeMatchers = [
     { 'transactionType': 'Settle Account', 'endMarkers': ['AccountSettled'], 'pattern': [
         {'op': '+', 'exp': ['Settle fCash', 'Settle Cash']},
     ], 'extractor': extract_settled_account},
-    # { 'transactionType': 'Liquidation', 'endMarkers': ['LiquidateLocalCurrency', 'LiquidateCollateralCurrency', 'LiquidatefCashEvent'], 'pattern': [ 
-    #     {'op': '?', 'exp': ['Deposit and Transfer']},
-    #     {'op': '+', 'exp': ['Transfer Asset', 'Transfer Incentive', 'Repay Prime Cash', 'Borrow Prime Cash', 'Repay fCash']},
-    #     {'op': '?', 'exp': ['Withdraw']},
-    # ], 'extractor': extract_liquidation},
+    { 'transactionType': 'Liquidation', 'endMarkers': ['LiquidateLocalCurrency', 'LiquidateCollateralCurrency', 'LiquidatefCashEvent'], 'pattern': [ 
+        {'op': '?', 'exp': ['Deposit and Transfer']},
+        {'op': '+', 'exp': ['Transfer Asset', 'Transfer Incentive', 'Repay Prime Cash', 'Borrow Prime Cash', 'Repay fCash']},
+        {'op': '?', 'exp': ['Withdraw']},
+    ], 'extractor': extract_liquidation},
     { 'transactionType': 'Vault Entry', 'pattern': [
         {'op': '?', 'exp': ['Deposit and Transfer']},
         # TODO: just make one list which is vault ops

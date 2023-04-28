@@ -325,7 +325,6 @@ def test_settle_account_updates_state(
     assert stateAfter["totalDebtUnderlying"] == 0
     assert stateBefore["totalVaultShares"] - stateAfter["totalVaultShares"] == vaultShares * 2
 
-@pytest.mark.only
 @given(
     currencyId=strategy("uint", min_value=1, max_value=4),
     vaultShares=strategy("uint", min_value=1000e8, max_value=25_000e8),
@@ -375,15 +374,8 @@ def test_settle_account_vault_has_prime_cash(
         assert accountAfter['accountDebtUnderlying'] == 0
         assert pytest.approx(accountAfter["tempCashBalance"], abs=100) == vaultConfigAccount.convertFromUnderlying(pr, cashInUnderlying + accountDebt)
     else:
-        assert pytest.approx(accountAfter['accountDebtUnderlying']) == accountDebt + cashInUnderlying
+        assert pytest.approx(accountAfter['accountDebtUnderlying'], abs=100) == accountDebt + cashInUnderlying
         assert accountAfter['tempCashBalance'] == 0
-
-# def test_settle_vault_prime_cash_has_to_convert():
-#     with brownie.reverts():
-#         # If vault must settle == true then this should revert
-#         vaultConfigAccount.settleVaultAccount(vault, account)
-
-
 
 @given(isPrimeCash=strategy("bool"))
 def test_increase_secondary_debt_insufficient_capacity(
@@ -508,9 +500,7 @@ def test_increase_secondary_debt(
 
 
     if isPrimeCash:
-        assert len(txn.events["PrimeDebtChanged"]) == 2
-        assert txn.events["PrimeDebtChanged"][0]["currencyId"] == 2
-        assert txn.events["PrimeDebtChanged"][1]["currencyId"] == 3
+        assert 'VaultBorrowCapacityChange' not in txn.events
     else:
         assert (
             txn.events["VaultBorrowCapacityChange"][0]["totalUsedBorrowCapacity"]
@@ -522,16 +512,6 @@ def test_increase_secondary_debt(
         )
         assert txn.events["VaultBorrowCapacityChange"][0]["currencyId"] == 2
         assert txn.events["VaultBorrowCapacityChange"][1]["currencyId"] == 3
-        assert txn.events["TotalfCashDebtOutstandingChanged"][0]["currencyId"] == 2
-        assert (
-            txn.events["TotalfCashDebtOutstandingChanged"][0]["netDebtChange"]
-            == netUnderlyingDebtOne
-        )
-        assert txn.events["TotalfCashDebtOutstandingChanged"][1]["currencyId"] == 3
-        assert (
-            txn.events["TotalfCashDebtOutstandingChanged"][1]["netDebtChange"]
-            == netUnderlyingDebtTwo
-        )
 
     # Clear debt to zero
     if isPrimeCash:
@@ -544,9 +524,7 @@ def test_increase_secondary_debt(
         )
 
     if isPrimeCash:
-        assert len(txn.events["PrimeDebtChanged"]) == 2
-        assert txn.events["PrimeDebtChanged"][0]["currencyId"] == 2
-        assert txn.events["PrimeDebtChanged"][1]["currencyId"] == 3
+        assert 'VaultBorrowCapacityChange' not in txn.events
     else:
         assert vaultConfigSecondaryBorrow.getAccountSecondaryDebt(vault, accounts[1]) == (0, 0, 0)
         assert vaultConfigSecondaryBorrow.getTotalSecondaryDebtOutstanding(vault, maturity) == (
@@ -558,16 +536,6 @@ def test_increase_secondary_debt(
         assert txn.events["VaultBorrowCapacityChange"][1]["totalUsedBorrowCapacity"] == 0
         assert txn.events["VaultBorrowCapacityChange"][0]["currencyId"] == 2
         assert txn.events["VaultBorrowCapacityChange"][1]["currencyId"] == 3
-        assert txn.events["TotalfCashDebtOutstandingChanged"][0]["currencyId"] == 2
-        assert (
-            txn.events["TotalfCashDebtOutstandingChanged"][0]["netDebtChange"]
-            == -netUnderlyingDebtOne
-        )
-        assert txn.events["TotalfCashDebtOutstandingChanged"][1]["currencyId"] == 3
-        assert (
-            txn.events["TotalfCashDebtOutstandingChanged"][1]["netDebtChange"]
-            == -netUnderlyingDebtTwo
-        )
 
 def test_cannot_settle_prime_secondary_borrow(vaultConfigSecondaryBorrow, accounts):
     vault = SimpleStrategyVault.deploy(

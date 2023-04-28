@@ -133,10 +133,10 @@ class ValuationMock:
         cashGroup = self.mock.getCashGroup(currency)
         if valueType == "haircut" and isPositive:
             adjustment = cashGroup[5] * 25 * BASIS_POINT
-            adjustedOracleRate = oracleRate + adjustment
+            adjustedOracleRate = max(oracleRate + adjustment, cashGroup["minOracleRate25BPS"] * 25 * BASIS_POINT)
         elif valueType == "haircut" and not isPositive:
             adjustment = cashGroup[4] * 25 * BASIS_POINT
-            adjustedOracleRate = max(oracleRate - adjustment, 0)
+            adjustedOracleRate = min(max(oracleRate - adjustment, 0), cashGroup["maxOracleRate25BPS"] * 25 * BASIS_POINT)
         elif valueType == "liquidator" and isPositive:
             adjustment = cashGroup[7] * 25 * BASIS_POINT
             adjustedOracleRate = oracleRate + adjustment
@@ -152,7 +152,14 @@ class ValuationMock:
         oracleRate = self.mock.calculateOracleRate(currency, maturity, blockTime)
         adjustedOracleRate = self.get_adjusted_oracle_rate(oracleRate, currency, pv > 0, valueType)
         expValue = math.trunc((adjustedOracleRate * (maturity - blockTime)) / SECONDS_IN_YEAR)
-        return Wei(math.trunc(pv * math.exp(expValue / RATE_PRECISION)))
+
+        fvFactor = math.floor(math.exp(expValue / RATE_PRECISION) * RATE_PRECISION)
+        cashGroup = self.mock.getCashGroup(currency)
+        maxDiscountFactor = RATE_PRECISION - cashGroup["maxDiscountFactor5BPS"] * 5 * BASIS_POINT
+        minFVFactor = math.floor((RATE_PRECISION * RATE_PRECISION) / maxDiscountFactor)
+        fvFactor = max(fvFactor, minFVFactor)
+
+        return Wei(math.trunc((pv * fvFactor) / RATE_PRECISION))
 
     def discount_to_pv(self, currency, fCash, maturity, blockTime, valueType="haircut"):
         if valueType == "haircut":

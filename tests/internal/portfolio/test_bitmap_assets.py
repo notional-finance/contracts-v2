@@ -80,14 +80,9 @@ class TestBitmapAssets:
         newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
         if notional < 0:
-            assert len(txn.events["TotalfCashDebtOutstandingChanged"]) == 1
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["currencyId"] == 1
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["maturity"] == maturity
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["totalfCashDebt"] == notional
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["netDebtChange"] == notional
             assert bitmapAssets.getTotalfCashDebtOutstanding(1, maturity) == notional
         else:
-            assert "TotalfCashDebtOutstandingChanged" not in txn.events
+            assert bitmapAssets.getTotalfCashDebtOutstanding(1, maturity) == 0
         assert setNotionalValue == finalNotional
         assert setNotionalValue == notional
         assert newBitlist[bitNum - 1] == "1"
@@ -99,14 +94,9 @@ class TestBitmapAssets:
         newBitlist = list(get_bitstring_from_bitmap(newBitmap))
 
         if notional < 0:
-            assert len(txn.events["TotalfCashDebtOutstandingChanged"]) == 1
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["currencyId"] == 1
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["maturity"] == maturity
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["totalfCashDebt"] == 0
-            assert txn.events["TotalfCashDebtOutstandingChanged"][0]["netDebtChange"] == -notional
             assert bitmapAssets.getTotalfCashDebtOutstanding(1, maturity) == 0
         else:
-            assert "TotalfCashDebtOutstandingChanged" not in txn.events
+            assert bitmapAssets.getTotalfCashDebtOutstanding(1, maturity) == 0
         assert setNotionalValue == finalNotional
         assert setNotionalValue == 0
         assert newBitlist[bitNum - 1] == "0"

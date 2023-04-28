@@ -380,11 +380,19 @@ class TestPortfolioHandler:
             else:
                 matchingfCash[key] = (0, a[3])
 
-        debtEvents = (
-            txn.events["TotalfCashDebtOutstandingChanged"]
-            if "TotalfCashDebtOutstandingChanged" in txn.events
-            else []
-        )
+        debtEvents = []
+        if 'TransferBatch' in txn.events:
+            for t in txn.events['TransferBatch']:
+                (currencyId, maturity, isfCashDebt) = portfolioHandler.decodefCashId(t['ids'][1])
+                if not isfCashDebt:
+                    continue
+
+                debtEvents.append({
+                    'netDebtChange': -t['values'][1] if t['from'] == brownie.ZERO_ADDRESS else t['values'][1],
+                    'currencyId': currencyId,
+                    'maturity': maturity
+                })
+
         for ((currencyId, maturity), (before, after)) in matchingfCash.items():
             event = list(
                 filter(

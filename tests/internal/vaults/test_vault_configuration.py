@@ -299,7 +299,7 @@ def test_redeem_sufficient_to_repay_debt(vaultConfigTokenTransfer, currencyId, a
         currencyId, vaultConfigTokenTransfer, accounts
     )
 
-    (pr, factors) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, chain.time())
+    (pr, factorsBefore) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, chain.time())
     
     # NOTE: because underlying to repay is converted to pCash here, the adjustment applied
     # may or no may not round to exactly to underlying to repay outside of a single txn context
@@ -318,7 +318,7 @@ def test_redeem_sufficient_to_repay_debt(vaultConfigTokenTransfer, currencyId, a
         vaultAccount, vault.address, accounts[1], 5e8, "", {"from": accounts[1]}
     )
 
-    (pr, _) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, txn.timestamp)
+    (pr, factorsAfter) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, txn.timestamp)
     if decimals < 8:
         adjustment = 100
     elif decimals == 8:
@@ -329,12 +329,12 @@ def test_redeem_sufficient_to_repay_debt(vaultConfigTokenTransfer, currencyId, a
     underlyingToRepayAdj = underlyingToRepay - adjustment
     pCashToRepayAdj = vaultConfigTokenTransfer.convertFromUnderlying(pr, underlyingToRepayAdj)
     assert (
-        pytest.approx(txn.events["PrimeSupplyChanged"][-1]["totalPrimeSupply"], abs=5000)
-        == factors["totalPrimeSupply"] + -pCashToRepayAdj
+        pytest.approx(factorsAfter["totalPrimeSupply"], abs=5000)
+        == factorsBefore["totalPrimeSupply"] + -pCashToRepayAdj
     )
     assert (
-        pytest.approx(txn.events["PrimeSupplyChanged"][-1]["lastTotalUnderlyingValue"], adjustment)
-        == factors["lastTotalUnderlyingValue"] + -underlyingToRepay
+        pytest.approx(factorsAfter["lastTotalUnderlyingValue"], adjustment)
+        == factorsBefore["lastTotalUnderlyingValue"] + -underlyingToRepay
     )
 
     if currencyId == 1:
@@ -367,7 +367,7 @@ def test_redeem_insufficient_to_repay_debt(vaultConfigTokenTransfer, accounts, c
     (vault, token, decimals, balanceBefore) = get_redeem_vault(
         currencyId, vaultConfigTokenTransfer, accounts
     )
-    (pr, factors) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, chain.time())
+    (pr, factorsBefore) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, chain.time())
     underlyingToRepay = -15e8
     pCashToRepay = vaultConfigTokenTransfer.convertFromUnderlying(pr, underlyingToRepay)
 
@@ -398,7 +398,7 @@ def test_redeem_insufficient_to_repay_debt(vaultConfigTokenTransfer, accounts, c
         vaultAccount, vault.address, accounts[1], 5e8, "", {"from": accounts[1], "value": 5.1e18}
     )
 
-    (pr, _) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, txn.timestamp)
+    (pr, factorsAfter) = vaultConfigTokenTransfer.buildPrimeRateView(currencyId, txn.timestamp)
     if decimals < 8:
         adjustment = 100
     elif decimals == 8:
@@ -409,12 +409,12 @@ def test_redeem_insufficient_to_repay_debt(vaultConfigTokenTransfer, accounts, c
     underlyingToRepayAdj = underlyingToRepay - adjustment
     pCashToRepayAdj = vaultConfigTokenTransfer.convertFromUnderlying(pr, underlyingToRepayAdj)
     assert (
-        pytest.approx(txn.events["PrimeSupplyChanged"][-1]["totalPrimeSupply"], abs=5000)
-        == factors["totalPrimeSupply"] + -pCashToRepayAdj
+        pytest.approx(factorsAfter["totalPrimeSupply"], abs=5000)
+        == factorsBefore["totalPrimeSupply"] + -pCashToRepayAdj
     )
     assert (
-        pytest.approx(txn.events["PrimeSupplyChanged"][-1]["lastTotalUnderlyingValue"], adjustment)
-        == factors["lastTotalUnderlyingValue"] + -underlyingToRepay
+        pytest.approx(factorsAfter["lastTotalUnderlyingValue"], adjustment)
+        == factorsBefore["lastTotalUnderlyingValue"] + -underlyingToRepay
     )
 
     if currencyId == 1:

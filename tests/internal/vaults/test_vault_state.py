@@ -46,23 +46,14 @@ def test_get_and_set_fcash_vault_state(
     )
     txn = vaultConfigState.setVaultState(vault.address, state)
 
-    assert "PrimeDebtChanged" not in txn.events
     assert state == vaultConfigState.getVaultState(vault.address, state[0])
     if totalDebtUnderlying < 0:
-        assert txn.events["TotalfCashDebtOutstandingChanged"]["maturity"] == state[0]
-        assert txn.events["TotalfCashDebtOutstandingChanged"]["currencyId"] == currencyId
-        assert (
-            txn.events["TotalfCashDebtOutstandingChanged"]["netDebtChange"] == totalDebtUnderlying
-        )
-
         assert txn.events["VaultBorrowCapacityChange"]["vault"] == vault.address
         assert txn.events["VaultBorrowCapacityChange"]["currencyId"] == currencyId
         assert (
             txn.events["VaultBorrowCapacityChange"]["totalUsedBorrowCapacity"]
             == -totalDebtUnderlying
         )
-    else:
-        assert "TotalfCashDebtOutstandingChanged" not in txn.events
 
     chain.mine(1, timedelta=SECONDS_IN_MONTH)
     # assert that values do not change over time
@@ -92,25 +83,23 @@ def test_get_and_set_prime_vault_state(
         totalDebtUnderlying=totalDebtUnderlying,
         totalVaultShares=totalVaultShares,
     )
-    (_, factors) = vaultConfigState.buildPrimeRateView(currencyId, chain.time() + 1)
+    (_, factorsBefore) = vaultConfigState.buildPrimeRateView(currencyId, chain.time() + 1)
     txn = vaultConfigState.setVaultState(vault.address, state)
+    (_, factorsAfter) = vaultConfigState.buildPrimeRateView(currencyId, chain.time() + 1)
 
-    assert "TotalfCashDebtOutstandingChanged" not in txn.events
     newState1 = vaultConfigState.getVaultState(vault.address, state[0])
 
     if totalDebtUnderlying < 0:
         assert pytest.approx(state[1], abs=5) == newState1[1]
         assert state[2:] == newState1[2:]
         (pr, _) = vaultConfigState.buildPrimeRateView(currencyId, txn.timestamp)
-        assert txn.events["PrimeDebtChanged"]["currencyId"] == currencyId
         assert (
             pytest.approx(
                 vaultConfigState.convertToUnderlying(
                     pr,
                     vaultConfigState.convertFromStorage(
                         pr,
-                        factors["totalPrimeDebt"]
-                        - txn.events["PrimeDebtChanged"]["totalPrimeDebt"],
+                        factorsBefore["totalPrimeDebt"] - factorsAfter["totalPrimeDebt"],
                     ),
                 ),
                 abs=10,
@@ -124,7 +113,7 @@ def test_get_and_set_prime_vault_state(
         )
     else:
         assert state == newState1
-        assert "PrimeDebtChanged" not in txn.events
+        assert factorsBefore["totalPrimeDebt"] == factorsAfter["totalPrimeDebt"]
         assert "VaultBorrowCapacityChange" not in txn.events
 
     chain.mine(1, timedelta=SECONDS_IN_MONTH)
@@ -142,10 +131,11 @@ def test_get_and_set_prime_vault_state(
         totalDebtUnderlying=newState2[1] - 1000e8,
         totalVaultShares=totalVaultShares,
     )
-    factors2 = vaultConfigState.getPrimeFactors(currencyId)
+    factorsBefore = vaultConfigState.getPrimeFactors(currencyId)
     # (_, factors2) = vaultConfigState.buildPrimeRateView(currencyId, chain.time() + 1)
     txn2 = vaultConfigState.setVaultState(vault.address, state)
     vaultConfigState.setVaultState(vault.address, state)
+    factorsAfter = vaultConfigState.getPrimeFactors(currencyId)
     assert pytest.approx(vaultConfigState.getCurrentPrimeDebt(vault.address), abs=100) == (
         newState2[1] - 1000e8
     )
@@ -157,7 +147,7 @@ def test_get_and_set_prime_vault_state(
     assert (
         pytest.approx(
             math.floor(
-                (factors2["totalPrimeDebt"] - txn2.events["PrimeDebtChanged"]["totalPrimeDebt"])
+                (factorsBefore["totalPrimeDebt"] - factorsAfter["totalPrimeDebt"])
                 * pr["debtFactor"]
                 / 1e36
             ),

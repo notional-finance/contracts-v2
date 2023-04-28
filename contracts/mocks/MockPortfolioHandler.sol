@@ -2,6 +2,7 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
+import "../internal/Emitter.sol";
 import "../internal/AccountContextHandler.sol";
 import "../internal/portfolio/PortfolioHandler.sol";
 import "../global/StorageLayoutV1.sol";
@@ -10,11 +11,12 @@ contract MockPortfolioHandler is StorageLayoutV1 {
     using PortfolioHandler for PortfolioState;
     using AccountContextHandler for AccountContext;
 
-    event TotalfCashDebtOutstandingChanged(
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 totalfCashDebt,
-        int256 netDebtChange
+    event TransferBatch(
+        address indexed operator,
+        address indexed from,
+        address indexed to,
+        uint256[] ids,
+        uint256[] values
     );
 
     function getAssetArray(address account) external view returns (PortfolioAsset[] memory) {
@@ -76,5 +78,9 @@ contract MockPortfolioHandler is StorageLayoutV1 {
 
     function negChange(int256 start, int256 end) external pure returns (int256) {
         return SafeInt256.negChange(start, end);
+    }
+
+    function decodefCashId(uint256 id) external pure returns (uint16 currencyId, uint256 maturity, bool isfCashDebt) {
+        return Emitter.decodefCashId(id);
     }
 }
