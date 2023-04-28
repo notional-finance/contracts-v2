@@ -247,12 +247,12 @@ contract VaultAccountAction is ActionGuards, IVaultAccountAction {
         vaultState.exitMaturity(vaultAccount, vaultConfig, vaultSharesToRedeem);
 
         if (vaultAccount.tempCashBalance > 0) {
-            underlyingToReceiver = VaultConfiguration.transferFromNotional(
-                receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance, vaultConfig.primeRate, false
+            Emitter.emitTransferPrimeCash(
+                vault, receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance
             );
 
-            Emitter.emitTransferPrimeCash(
-                vaultAccount.account, vault, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance
+            underlyingToReceiver = VaultConfiguration.transferFromNotional(
+                receiver, vaultConfig.borrowCurrencyId, vaultAccount.tempCashBalance, vaultConfig.primeRate, false
             );
 
             vaultAccount.tempCashBalance = 0;

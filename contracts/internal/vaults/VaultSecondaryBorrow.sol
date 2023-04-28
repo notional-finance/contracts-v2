@@ -271,20 +271,12 @@ library VaultSecondaryBorrow {
             netPrimeCashOne = _executeSecondaryCurrencyTrade(
                 vaultConfig, pr[0], currencyId, maturity, netUnderlyingDebtOne, slippageLimits[0] 
             );
-
-            emit VaultSecondaryTransaction(
-                vaultConfig.vault, account, currencyId, maturity, netUnderlyingDebtOne, netPrimeCashOne
-            );
         }
 
         if (netUnderlyingDebtTwo != 0) {
             uint16 currencyId = vaultConfig.secondaryBorrowCurrencies[1];
             netPrimeCashTwo = _executeSecondaryCurrencyTrade(
                 vaultConfig, pr[1], currencyId, maturity, netUnderlyingDebtTwo, slippageLimits[1]
-            );
-
-            emit VaultSecondaryTransaction(
-                vaultConfig.vault, account, currencyId, maturity, netUnderlyingDebtTwo, netPrimeCashTwo
             );
         }
 
