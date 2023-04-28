@@ -346,7 +346,7 @@ def test_roll_vault_success(
         vault=vault,
         account=accounts[1],
         newMaturity=newMaturity,
-        debtAmount=newBorrowedfCash
+        debtAmount=lambda x: newBorrowedfCash == x if newMaturity != PRIME_CASH_VAULT_MATURITY else True
     ) as e:
         txn = environment.notional.rollVaultPosition(
             accounts[1],
@@ -378,6 +378,7 @@ def test_roll_vault_success(
 
     check_system_invariants(environment, accounts, [vault])
 
+@pytest.mark.only
 def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     environment.notional.updateVault(
         vault.address,

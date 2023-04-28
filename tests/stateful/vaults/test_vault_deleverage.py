@@ -441,7 +441,6 @@ def deleveraged_account(environment, accounts, currencyId, enablefCashDiscount):
 
     return (e["vault"], accounts[1], e)
 
-
 @given(currencyId=strategy("uint", min_value=1, max_value=3), enablefCashDiscount=strategy("bool"))
 def test_liquidator_can_exit_vault_shares(environment, accounts, currencyId, enablefCashDiscount):
     (vault, account, e) = deleveraged_account(
@@ -573,7 +572,7 @@ def test_liquidated_can_enter(environment, accounts, currencyId, enablefCashDisc
         currencyId, 125 * e["multiple"] * 1e8, vaultAccountBefore["maturity"], 0, chain.time()
     )
 
-    with EventChecker(environment, 'Vault Entry', vaults=[vault]) as e:
+    with EventChecker(environment, 'Vault Entry', vaults=[vault]) as c:
         txn = environment.notional.enterVault(
             accounts[1],
             vault,
@@ -587,7 +586,7 @@ def test_liquidated_can_enter(environment, accounts, currencyId, enablefCashDisc
                 "value": 75 * e["multiple"] * e["decimals"] if currencyId == 1 else 0,
             },
         )
-        e['txn'] = txn
+        c['txn'] = txn
 
     # vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     # healthAfter = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)["h"]
@@ -623,9 +622,9 @@ def test_liquidated_can_settle(environment, accounts, currencyId, enablefCashDis
 
     chain.mine(1, timestamp=vaultAccountBefore["maturity"])
     environment.notional.initializeMarkets(currencyId, False)
-    with EventChecker(environment, 'Vault Settle', vaults=[vault]) as e:
+    with EventChecker(environment, 'Vault Settle', vaults=[vault]) as c:
         txn = environment.notional.settleVaultAccount(accounts[1], vault)
-        e['txn'] = txn
+        c['txn'] = txn
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     cashInUnderlying = (
@@ -641,12 +640,6 @@ def test_liquidated_can_settle(environment, accounts, currencyId, enablefCashDis
     assert vaultAccountAfter["tempCashBalance"] == 0
 
     check_system_invariants(environment, accounts, [vault])
-
-@pytest.mark.todo
-def test_liquidated_can_settle_with_cash_transfer(environment, accounts, currencyId, enablefCashDiscount):
-    # TODO: fill out this test
-    pass
-
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3), enablefCashDiscount=strategy("bool"))
 def test_liquidated_can_exit(environment, accounts, currencyId, enablefCashDiscount):
@@ -677,7 +670,7 @@ def test_liquidated_can_exit(environment, accounts, currencyId, enablefCashDisco
     else:
         balanceBefore = e["token"].balanceOf(accounts[1])
 
-    with EventChecker(environment, 'Vault Exit', vaults=[vault]) as e:
+    with EventChecker(environment, 'Vault Exit', vaults=[vault]) as c:
         txn = environment.notional.exitVault(
             accounts[1],
             vault,
@@ -688,7 +681,7 @@ def test_liquidated_can_exit(environment, accounts, currencyId, enablefCashDisco
             "",
             {"from": accounts[1]},
         )
-        e['txn'] = txn
+        c['txn'] = txn
 
     if currencyId == 1:
         balanceAfter = accounts[1].balance()
@@ -712,7 +705,7 @@ def test_liquidated_can_roll(environment, accounts, currencyId, enablefCashDisco
     # Does not require additional deposit to roll, cash will cover the interest payment. Roll
     # the debt outstanding from the vault health calculation. This will ensure that cash balances
     # pay off the existing debt before rolling into the new maturity at a lower debt level
-    with EventChecker(environment, 'Vault Roll', vaults=[vault]) as e:
+    with EventChecker(environment, 'Vault Roll', vaults=[vault]) as c:
         txn = environment.notional.rollVaultPosition(
             accounts[1],
             vault,
@@ -724,7 +717,7 @@ def test_liquidated_can_roll(environment, accounts, currencyId, enablefCashDisco
             "",
             {"from": accounts[1]},
         )
-        e['txn'] = txn
+        c['txn'] = txn
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     assert vaultAccountAfter["tempCashBalance"] == 0
@@ -745,7 +738,7 @@ def test_liquidated_can_liquidate_second_time(
         accounts[1], vault
     )
     depositAmount = maxDeposit[0] * e["decimals"] / 1e8
-    with EventChecker(environment, 'Vault Deleverage', vaults=[vault]) as e:
+    with EventChecker(environment, 'Vault Deleverage [fCash]', vaults=[vault]) as c:
         txn = environment.notional.deleverageAccount(
             accounts[1],
             vault.address,
@@ -754,7 +747,7 @@ def test_liquidated_can_liquidate_second_time(
             maxDeposit[0],
             {"from": accounts[2], "value": depositAmount + 1e10 if currencyId == 1 else 0},
         )
-        e['txn'] = txn
+        c['txn'] = txn
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
     symbol = environment.symbol[currencyId]
@@ -797,6 +790,7 @@ def setup_deleverage_account_over_debt_balance(
 
     return e
 
+@pytest.mark.only
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_excess_cash_can_exit(environment, accounts, currencyId):
     e = setup_deleverage_account_over_debt_balance(environment, accounts, currencyId)
@@ -825,16 +819,18 @@ def test_excess_cash_can_exit(environment, accounts, currencyId):
     # NOTE: the excess cash is included in vault share value underlying returned here
     expectedUnderlyingWithdraw = cashInUnderlying - costToLendUnderlying + ((health['vaultShareValueUnderlying'] - health['netDebtOutstanding'][0]) * e["decimals"] / 1e8)
 
-    txn = environment.notional.exitVault(
-        accounts[1],
-        e['vault'],
-        accounts[1],
-        vaultAccount['vaultShares'],
-        -vaultAccount['accountDebtUnderlying'],
-        0,
-        "",
-        {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Vault Exit', vaults=[e['vault']]) as c:
+        txn = environment.notional.exitVault(
+            accounts[1],
+            e['vault'],
+            accounts[1],
+            vaultAccount['vaultShares'],
+            -vaultAccount['accountDebtUnderlying'],
+            0,
+            "",
+            {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     if currencyId == 1:
         balanceAfter = accounts[1].balance()
@@ -844,6 +840,7 @@ def test_excess_cash_can_exit(environment, accounts, currencyId):
     assert pytest.approx(expectedUnderlyingWithdraw, rel=1e-5) == balanceAfter - balanceBefore
     check_system_invariants(environment, accounts, [e['vault']])
 
+@pytest.mark.only
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_excess_cash_can_settle(environment, accounts, currencyId):
     e = setup_deleverage_account_over_debt_balance(environment, accounts, currencyId)
@@ -863,11 +860,13 @@ def test_excess_cash_can_settle(environment, accounts, currencyId):
         _
     ) = environment.notional.getVaultAccountHealthFactors(accounts[1], e['vault'])
 
-    txn = environment.notional.settleVaultAccount(
-        accounts[1],
-        e['vault'],
-        {"from": accounts[1]}
-    )
+    with EventChecker(environment, 'Vault Settle', vaults=[e['vault']]) as c:
+        txn = environment.notional.settleVaultAccount(
+            accounts[1],
+            e['vault'],
+            {"from": accounts[1]}
+        )
+        c['txn'] = txn
 
     if currencyId == 1:
         balanceAfter = accounts[1].balance()

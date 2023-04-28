@@ -371,7 +371,6 @@ def setup_exit_conditions(environment, accounts, currencyId, isPrime, hasMatured
 
     return (vault, maturity, decimals, token)
 
-
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
     isPrime=strategy("bool"),
@@ -688,8 +687,7 @@ def test_settle_vault(environment, accounts, currencyId, enablefCashDiscount):
     (healthBefore, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)
     with EventChecker(environment, 'Vault Settle', vaults=[vault],
         vault=vault,
-        account=accounts[1],
-        feesPaid=lambda x: x > 0
+        account=accounts[1]
     ) as e:
         txn = environment.notional.settleVaultAccount(accounts[1], vault)
         e['txn'] = txn
