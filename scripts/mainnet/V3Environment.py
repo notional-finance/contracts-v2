@@ -876,7 +876,6 @@ def main():
 
     # Upgrade to V3
     env.upgradeToV3()
-    print(env.notional.getPrimeFactors(1, env.chain.time())["factors"])
 
     allAccountsPositionBeforeSettlement = env.getAllAccountsPositions(env.getBlockAtTimestamp(env.chain.time()))
     netFCashPositions = allAccountsPositionBeforeSettlement[0]
