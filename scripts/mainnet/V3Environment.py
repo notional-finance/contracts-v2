@@ -956,6 +956,8 @@ def main():
     env.initialize_market(4, env.hotWallet)
     print("MARKETS INITIALIZED")
 
+    # Settle all accounts
+    env.settleAllAccounts(env.getBlockAtTimestamp(env.chain.time()))
 
     allAccountsPositionPostSettlement = env.getAllAccountsPositions(env.getBlockAtTimestamp(env.chain.time()))
     netFCashPositions = allAccountsPositionPostSettlement[0]
