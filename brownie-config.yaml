@@ -20,6 +20,9 @@ networks:
   mainnet-fork:
     cmd_settings:
       fork_block: 16721445
+  arbitrum-fork:
+    cmd_settings:
+      fork_block: 85509698
 reports:
   exclude_paths:
     - interfaces/**/*.*
