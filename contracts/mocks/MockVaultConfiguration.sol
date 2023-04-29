@@ -368,7 +368,8 @@ contract MockVaultSecondaryBorrow is MockVaultConfiguration {
             netUnderlyingDebtOne == type(int256).min ? -accountDebtOne : netUnderlyingDebtOne,
             netUnderlyingDebtTwo == type(int256).min ? -accountDebtTwo : netUnderlyingDebtTwo,
             primeRates,
-            checkMinBorrow
+            checkMinBorrow,
+            true
         );
     }
 
@@ -519,7 +520,8 @@ contract MockVaultValuation is MockVaultConfiguration {
             netUnderlyingDebtOne,
             netUnderlyingDebtTwo,
             VaultSecondaryBorrow.getSecondaryPrimeRateStateful(vaultConfig),
-            checkMinBorrow
+            checkMinBorrow,
+            true
         );
     }
 

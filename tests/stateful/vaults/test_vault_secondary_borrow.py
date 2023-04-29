@@ -358,8 +358,6 @@ def test_roll_position(accounts, multiCurrencyVault, environment, isPrime, rollT
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 
-
-@pytest.mark.only
 def test_settle(accounts, multiCurrencyVault, environment):
     enter_vault(multiCurrencyVault, environment, accounts[1], False)
     maturity = environment.notional.getActiveMarkets(1)[0][1]
@@ -468,7 +466,7 @@ def deleveraged_account(accounts, multiCurrencyVault, environment, isPrime, curr
     (healthBefore, maxDeposit, vaultShares) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
 
-    with EventChecker(environment, 'Vault Deleverage', vaults=[multiCurrencyVault]) as e:
+    with EventChecker(environment, 'Vault Deleverage [Prime]' if isPrime else 'Vault Deleverage [fCash]', vaults=[multiCurrencyVault]) as e:
         e['txn'] = environment.notional.deleverageAccount(
             accounts[1],
             multiCurrencyVault,
@@ -617,7 +615,7 @@ def test_liquidator_can_liquidate_second_time(accounts, multiCurrencyVault, envi
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtBefore = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
 
-    with EventChecker(environment, 'Vault Deleverage', vaults=[multiCurrencyVault]) as e:
+    with EventChecker(environment, 'Vault Deleverage [fCash]', vaults=[multiCurrencyVault]) as e:
         txn = environment.notional.deleverageAccount(
             accounts[1],
             multiCurrencyVault,
@@ -833,9 +831,10 @@ def test_liquidate_cross_currency_cash(
             accounts[1], multiCurrencyVault, accounts[0], 1 - currencyIndex, currencyIndex, 1e8, {'from': accounts[0], 'value': 1e18}
         )
 
-    txn = environment.notional.liquidateExcessVaultCash(
-        accounts[1], multiCurrencyVault, accounts[0], currencyIndex, 1 - currencyIndex, 1e8, {'from': accounts[0], 'value': 1e18 if currencyIndex == 0 else 0}
-    )
+    with EventChecker(environment, 'Vault Liquidate Excess Cash', vaults=[multiCurrencyVault]) as e:
+        e['txn'] = environment.notional.liquidateExcessVaultCash(
+            accounts[1], multiCurrencyVault, accounts[0], currencyIndex, 1 - currencyIndex, 1e8, {'from': accounts[0], 'value': 1e18 if currencyIndex == 0 else 0}
+        )
 
     accountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     secondaryDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
