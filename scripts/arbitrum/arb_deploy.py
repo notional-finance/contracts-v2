@@ -59,7 +59,10 @@ def _deploy_chainlink_oracle(symbol, deployer):
         return ChainlinkAdapter.deploy(
             token['baseOracle'],
             token['quoteOracle'],
+            token['invertBase'],
+            token['invertQuote'],
             "Notional {} Chainlink Adapter".format(symbol),
+            token['sequencerUptimeOracle'],
             {"from": deployer}
         )
 

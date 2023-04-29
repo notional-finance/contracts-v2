@@ -11,6 +11,8 @@ ChainlinkOracles = {
 }
 
 CurrencyDefaults = {
+    "sequencerUptimeOracle": "0xfdb631f5ee196f0ed6faa767959853a9f217697d",
+
     # Cash Group
     "maxMarketIndex": 2,
     "rateOracleTimeWindow": 72,
@@ -84,8 +86,10 @@ ListedTokens = {
         "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
         "name": "Dai Stablecoin",
         "decimals": 18,
-        "baseOracle": ChainlinkOracles["ETH/USD"],
-        "quoteOracle": ChainlinkOracles["DAI/USD"],
+        "baseOracle": ChainlinkOracles["DAI/USD"],
+        "quoteOracle": ChainlinkOracles["ETH/USD"],
+        "invertBase": False,
+        "invertQuote": False,
 
         "buffer": 109,
         "haircut": 92,
@@ -136,8 +140,10 @@ ListedTokens = {
         "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
         "name": "USD Coin",
         "decimals": 6,
-        "baseOracle": ChainlinkOracles["ETH/USD"],
-        "quoteOracle": ChainlinkOracles["USDC/USD"],
+        "baseOracle": ChainlinkOracles["USDC/USD"],
+        "quoteOracle": ChainlinkOracles["ETH/USD"],
+        "invertBase": False,
+        "invertQuote": False,
 
         "buffer": 109,
         "haircut": 92,
@@ -188,8 +194,10 @@ ListedTokens = {
         "address": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
         "name": "Wrapped BTC",
         "decimals": 8,
-        "baseOracle": ChainlinkOracles["ETH/USD"],
-        "quoteOracle": ChainlinkOracles["WBTC/USD"],
+        "baseOracle": ChainlinkOracles["WBTC/USD"],
+        "quoteOracle": ChainlinkOracles["ETH/USD"],
+        "invertBase": False,
+        "invertQuote": False,
 
         "buffer": 124,
         "haircut": 81,
@@ -238,8 +246,10 @@ ListedTokens = {
         "name": "Wrapped Liquid Staked Ether",
         "decimals": 18,
 
-        "baseOracle": ChainlinkOracles["stETH/ETH"],
-        "quoteOracle": ChainlinkOracles["wstETH/stETH"],
+        "baseOracle": ChainlinkOracles["wstETH/stETH"],
+        "quoteOracle": ChainlinkOracles["stETH/ETH"],
+        "invertBase": False,
+        "invertQuote": True,
 
         "buffer": 129,
         "haircut": 79,
