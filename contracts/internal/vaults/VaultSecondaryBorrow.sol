@@ -263,7 +263,7 @@ library VaultSecondaryBorrow {
     ) internal returns (int256 netPrimeCashOne, int256 netPrimeCashTwo) {
         // Updates debt accounting, checks capacity and min borrow
         updateAccountSecondaryDebt(
-            vaultConfig, account, maturity, netUnderlyingDebtOne, netUnderlyingDebtTwo, pr, true
+            vaultConfig, account, maturity, netUnderlyingDebtOne, netUnderlyingDebtTwo, pr, true, true
         );
 
         if (netUnderlyingDebtOne != 0) {
@@ -303,7 +303,8 @@ library VaultSecondaryBorrow {
         int256 netUnderlyingDebtOne,
         int256 netUnderlyingDebtTwo,
         PrimeRate[2] memory pr,
-        bool checkMinBorrow
+        bool checkMinBorrow,
+        bool emitEvents
     ) internal {
         VaultAccountSecondaryDebtShareStorage storage accountStorage = 
             LibStorage.getVaultAccountSecondaryDebtShare()[account][vaultConfig.vault];
@@ -317,7 +318,7 @@ library VaultSecondaryBorrow {
             accountDebtOne = accountDebtOne.add(netUnderlyingDebtOne);
 
             _updateTotalSecondaryDebt(
-                vaultConfig, account, vaultConfig.secondaryBorrowCurrencies[0], maturity, netUnderlyingDebtOne, pr[0]
+                vaultConfig, account, vaultConfig.secondaryBorrowCurrencies[0], maturity, netUnderlyingDebtOne, pr[0], emitEvents
             );
 
             accountStorage.accountDebtOne = VaultStateLib.calculateDebtStorage(pr[0], maturity, accountDebtOne)
@@ -328,7 +329,7 @@ library VaultSecondaryBorrow {
             accountDebtTwo = accountDebtTwo.add(netUnderlyingDebtTwo);
 
             _updateTotalSecondaryDebt(
-                vaultConfig, account, vaultConfig.secondaryBorrowCurrencies[1], maturity, netUnderlyingDebtTwo, pr[1]
+                vaultConfig, account, vaultConfig.secondaryBorrowCurrencies[1], maturity, netUnderlyingDebtTwo, pr[1], emitEvents
             );
 
             accountStorage.accountDebtTwo = VaultStateLib.calculateDebtStorage(pr[1], maturity, accountDebtTwo)
@@ -350,7 +351,8 @@ library VaultSecondaryBorrow {
         uint16 currencyId,
         uint256 maturity,
         int256 netUnderlyingDebt,
-        PrimeRate memory pr
+        PrimeRate memory pr,
+        bool emitEvents
     ) private {
         VaultStateStorage storage balance = LibStorage.getVaultSecondaryBorrow()
             [vaultConfig.vault][maturity][currencyId];
@@ -371,9 +373,11 @@ library VaultSecondaryBorrow {
             vaultDebtAmount = VaultStateLib.calculateDebtStorage(pr, maturity, netUnderlyingDebt);
         }
 
-        Emitter.emitVaultSecondaryDebt(
-            account, vaultConfig.vault, currencyId, maturity, vaultDebtAmount
-        );
+        if (emitEvents) {
+            Emitter.emitVaultSecondaryDebt(
+                account, vaultConfig.vault, currencyId, maturity, vaultDebtAmount
+            );
+        }
     }
 
     /// @notice Executes a secondary currency lend or borrow

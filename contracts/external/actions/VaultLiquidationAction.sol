@@ -170,6 +170,7 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
             vaultAccount, liquidator, vault, currencyId, fCashDeposit, cashToLiquidator
         );
 
+        // Do not emit the secondary debt event, will be emitted inside _transferCashToVault
         _reduceAccountDebt(vaultConfig, vaultState, vaultAccount, pr, currencyIndex, fCashDeposit, false);
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, currencyIndex, cashToLiquidator.neg(), false);
     }
@@ -230,6 +231,7 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, excessCashIndex, netCashToAccount, false);
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, debtIndex, depositAmountPrimeCash, false);
 
+        Emitter.emitTransferPrimeCash(vault, liquidator, f.excessCashCurrencyId, cashToLiquidator);
         TokenHandler.withdrawPrimeCash(
             liquidator, f.excessCashCurrencyId, netCashToAccount, f.excessCashPR, false
         );
@@ -331,7 +333,8 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
                 currencyIndex == 1 ? depositUnderlyingInternal : 0,
                 currencyIndex == 2 ? depositUnderlyingInternal : 0,
                 pr,
-                checkMinBorrow
+                checkMinBorrow,
+                false // do not emit events during liquidation, they are emitted prior
             );
         }
     }

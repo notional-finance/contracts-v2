@@ -578,6 +578,7 @@ library Emitter {
         uint256 maturity,
         int256 vaultDebtAmount
     ) internal {
+        if (vaultDebtAmount == 0) return;
         address from;
         address to;
         uint256 id = _encodeVaultId(vault, currencyId, maturity, Constants.VAULT_DEBT_ASSET_TYPE);
