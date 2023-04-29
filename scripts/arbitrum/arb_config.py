@@ -14,6 +14,7 @@ CurrencyDefaults = {
     # Cash Group
     "maxMarketIndex": 2,
     "rateOracleTimeWindow": 72,
+    "primeRateOracleTimeWindow5Min": 72,
     "maxDiscountFactor": 40,
     "reserveFeeShare": 80,
     "debtBuffer": 5,
@@ -27,7 +28,7 @@ CurrencyDefaults = {
     "residualPurchaseIncentive": 20,
     "residualPurchaseTimeBufferHours": 24,
     "pvHaircutPercentage": 90,
-    'cashWithholdingBuffer10BPS': 1,
+    'cashWithholdingBuffer10BPS': 20,
     "liquidationHaircutPercentage": 98,
 }
 
@@ -48,7 +49,7 @@ ListedTokens = {
             "kinkUtilization2": 65,
             "kinkRate1": 2,
             "kinkRate2": 8,
-            "maxRate25BPS": 256,
+            "maxRate25BPS": 255,
             "feeRatePercent": 20,
             "minFeeRate5BPS": 10,
             "maxFeeRate25BPS": 160
@@ -77,7 +78,7 @@ ListedTokens = {
 
         "proportion": [0.5e9, 0.5e9],
         "leverageThreshold": [0.7e9, 0.7e9],
-        "depositShare": [0.55e8, 0.45e9],
+        "depositShare": [0.55e8, 0.45e8],
     },
     "DAI": CurrencyDefaults | {
         "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1",
@@ -129,7 +130,7 @@ ListedTokens = {
 
         "proportion": [0.5e9, 0.5e9],
         "leverageThreshold": [0.8e9, 0.8e9],
-        "depositShare": [0.55e8, 0.45e9],
+        "depositShare": [0.55e8, 0.45e8],
     },
     "USDC": CurrencyDefaults | {
         "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
@@ -181,7 +182,7 @@ ListedTokens = {
 
         "proportion": [0.5e9, 0.5e9],
         "leverageThreshold": [0.8e9, 0.8e9],
-        "depositShare": [0.55e8, 0.45e9],
+        "depositShare": [0.55e8, 0.45e8],
     },
     "WBTC": CurrencyDefaults | {
         "address": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f",
@@ -230,7 +231,7 @@ ListedTokens = {
 
         "proportion": [0.5e9, 0.5e9],
         "leverageThreshold": [0.7e9, 0.7e9],
-        "depositShare": [0.50e8, 0.50e9],
+        "depositShare": [0.50e8, 0.50e8],
     },
     "wstETH": CurrencyDefaults | {
         "address": "0x5979D7b546E38E414F7E9822514be443A4800529",
@@ -280,7 +281,7 @@ ListedTokens = {
 
         "proportion": [0.5e9, 0.5e9],
         "leverageThreshold": [0.65e9, 0.65e9],
-        "depositShare": [0.50e8, 0.50e9],
+        "depositShare": [0.50e8, 0.50e8],
     }
 }
 

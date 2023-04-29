@@ -1,48 +1,62 @@
-from brownie import ZERO_ADDRESS, accounts, UnderlyingHoldingsOracle, ChainlinkAdapter, EmptyProxy, nProxy, UpgradeableBeacon
+from brownie import ZERO_ADDRESS, Contract, accounts, UnderlyingHoldingsOracle, ChainlinkAdapter, EmptyProxy, nProxy, UpgradeableBeacon, nTokenERC20Proxy, PrimeCashProxy, PrimeDebtProxy, interface
 from scripts.arbitrum.arb_config import ListedOrder, ListedTokens
 from scripts.common import TokenType
+from scripts.deployment import deployNotionalContracts
+from tests.helpers import get_balance_action
 
-def deploy_note_proxy(deployer, owner):
-    assert deployer.address == "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
-    impl = EmptyProxy.deploy(owner, {"from": deployer})
-    # Must be nonce = 1
+OWNER = "0xbf778Fc19d0B55575711B6339A3680d07352B221"
+DEPLOYER = "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
+BEACON_DEPLOYER = "0x0D251Bd6c14e02d34f68BFCB02c54cBa3D108122"
+
+def deploy_note_proxy(deployer, emptyProxy):
+    assert deployer.address == DEPLOYER
+    assert deployer.nonce == 1
+    # Must be nonce == 1
     # https://etherscan.io/tx/0xcd23bcecfef5de7afcc76d32350055de906d3394fcf1d35f3490a7c62926cb64
-    return nProxy.deploy(impl, bytes(), {"from": deployer})
+    return nProxy.deploy(emptyProxy, bytes(), {"from": deployer})
 
-def deploy_notional_proxy(deployer, owner):
-    assert deployer.address == "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
-
-    impl = EmptyProxy.deploy(owner, {"from": deployer})
+def deploy_notional_proxy(deployer, emptyProxy):
+    assert deployer.address == DEPLOYER
+    assert deployer.nonce == 28
     # Must be nonce = 28
     # https://etherscan.io/tx/0xd1334bf8efcbc152b3e8de40887f534171a9993082e8b4d6187bd6271e7ac0b9
-    return nProxy.deploy(impl.address, bytes(), {"from": deployer})
+    notional = nProxy.deploy(emptyProxy, bytes(), {"from": deployer})
+    assert notional.address == "0x1344A36A1B56144C3Bc62E7757377D288fDE0369"
+    return notional
 
-def deploy_beacons(deployer, owner):
-    assert deployer.address == "0x0000000000000000000000000000000000000000"
+def deploy_beacons(deployer, emptyProxy):
+    assert deployer.address == BEACON_DEPLOYER
+    assert deployer.nonce == 0
 
-    impl = EmptyProxy.deploy(owner, {"from": deployer})
-    nTokenBeacon = UpgradeableBeacon.deploy(impl, {"from": deployer})
-    pCashBeacon = UpgradeableBeacon.deploy(impl, {"from": deployer})
-    pDebtBeacon = UpgradeableBeacon.deploy(impl, {"from": deployer})
-    wfCashBeacon = UpgradeableBeacon.deploy(impl, {"from": deployer})
+    nTokenBeacon = UpgradeableBeacon.deploy(emptyProxy, {"from": deployer})
+    assert nTokenBeacon.address == "0xc4FD259b816d081C8bdd22D6bbd3495DB1573DB7"
+    pCashBeacon = UpgradeableBeacon.deploy(emptyProxy, {"from": deployer})
+    assert pCashBeacon.address == "0x1F681977aF5392d9Ca5572FB394BC4D12939A6A9"
+    pDebtBeacon = UpgradeableBeacon.deploy(emptyProxy, {"from": deployer})
+    assert pDebtBeacon.address == "0xDF08039c0af34E34660aC7c2705C0Da953247640"
 
-    return ( nTokenBeacon, pCashBeacon, pDebtBeacon, wfCashBeacon )
+    # Nonce 103 and 104
+    # https://etherscan.io/tx/0x947d60c781254637c5b9e774d8910a1187a31de606b3d3a515b6981662536fd2I
+    # https://etherscan.io/tx/0x54c63544f562fd997d81fec94bc2189977b996e2ada8e3839e635aea513a6291
+    # wfCashBeacon = UpgradeableBeacon.deploy(impl, {"from": deployer})
 
-def list_currency(symbol, notional, deployer):
+    return ( nTokenBeacon, pCashBeacon, pDebtBeacon )
+
+def list_currency(symbol, notional, deployer, fundingAccount):
     pCashOracle = _deploy_pcash_oracle(symbol, notional, deployer)
     ethOracle = _deploy_chainlink_oracle(symbol, deployer)
-    _list_currency(symbol, notional, deployer, pCashOracle, ethOracle)
+    _list_currency(symbol, notional, deployer, pCashOracle, ethOracle, fundingAccount)
 
 def _deploy_pcash_oracle(symbol, notional, deployer):
     token = ListedTokens[symbol]
-    return UnderlyingHoldingsOracle(notional.address, token['address'], {"from": deployer})
+    return UnderlyingHoldingsOracle.deploy(notional.address, token['address'], {"from": deployer})
 
 def _deploy_chainlink_oracle(symbol, deployer):
     token = ListedTokens[symbol]
     if symbol == "ETH":
         return ZERO_ADDRESS
     else:
-        return ChainlinkAdapter(
+        return ChainlinkAdapter.deploy(
             token['baseOracle'],
             token['quoteOracle'],
             "Notional {} Chainlink Adapter".format(symbol),
@@ -61,8 +75,14 @@ def _to_interest_rate_curve(params):
         params["feeRatePercent"],
     )
 
-def _list_currency(symbol, notional, deployer, pCashOracle, ethOracle):
+def _list_currency(symbol, notional, deployer, pCashOracle, ethOracle, fundingAccount):
     token = ListedTokens[symbol]
+    if symbol == 'ETH':
+        fundingAccount.transfer(notional, 0.01e18)
+    else:
+        erc20 = Contract.from_abi("token", token['address'], interface.IERC20.abi)
+        # Donate the initial balance
+        erc20.transfer(notional, erc20.balanceOf(fundingAccount) / 10, {"from": fundingAccount})
 
     txn = notional.listCurrency(
         (
@@ -112,7 +132,7 @@ def _list_currency(symbol, notional, deployer, pCashOracle, ethOracle):
     notional.updateInterestRateCurve(
         currencyId,
         [1, 2],
-        [_to_interest_rate_curve(token['fCashCurves'][0], token['fCashCurves'][1])],
+        [_to_interest_rate_curve(c) for c in token['fCashCurves']],
         {"from": deployer}
     )
 
@@ -132,19 +152,81 @@ def _list_currency(symbol, notional, deployer, pCashOracle, ethOracle):
 
     notional.setMaxUnderlyingSupply(currencyId, token['maxUnderlyingSupply'], {"from": deployer})
 
+def initialize_markets(notional, fundingAccount):
+    actions = []
+    for (i, symbol) in enumerate(ListedOrder):
+        token = ListedTokens[symbol]
+        if symbol == 'ETH':
+            actions.append(
+                get_balance_action(i + 1, "DepositUnderlyingAndMintNToken", depositActionAmount=0.5e18)
+            )
+        else:
+            erc20 = Contract.from_abi("token", token['address'], interface.IERC20.abi)
+            # Donate the initial balance
+            balance = erc20.balanceOf(fundingAccount)
+            erc20.approve(notional.address, 2 ** 256 - 1, {"from": fundingAccount})
+            actions.append(
+                get_balance_action(i + 1, "DepositUnderlyingAndMintNToken", depositActionAmount=balance)
+            )
+    notional.batchBalanceAction(fundingAccount, actions, {"from": fundingAccount, "value": 0.5e18})
+    notional.initializeMarkets(1, True, {"from": fundingAccount})
+    notional.initializeMarkets(2, True, {"from": fundingAccount})
+    notional.initializeMarkets(3, True, {"from": fundingAccount})
+    notional.initializeMarkets(4, True, {"from": fundingAccount})
+    notional.initializeMarkets(5, True, {"from": fundingAccount})
+
+
+BeaconType = {
+    "NTOKEN": 0,
+    "PCASH": 1,
+    "PDEBT": 2,
+    "WFCASH": 3,
+}
+
 def main():
-    deployer = accounts.load("MAINNET_DEPLOYER")
-    beaconDeployer = accounts.load("BEACON_DEPLOYER")
+    deployer = accounts.at(DEPLOYER, force=True)
+    beaconDeployer = accounts.at(BEACON_DEPLOYER, force=True)
     fundingAccount = accounts.at("0x7d7935EDd4b6cDB5f34B0E1cCEAF85a3C4A11254", force=True)
+    owner = accounts.at(OWNER, force=True)
 
-    owner = '0x00'
-    deploy_note_proxy(deployer, owner)
-    notional = deploy_notional_proxy(deployer, owner)
-    beacons = deploy_beacons(beaconDeployer, owner)
+    impl = EmptyProxy.deploy(deployer, {"from": deployer})
+    deploy_note_proxy(deployer, impl)
+    (nTokenBeacon, pCashBeacon, pDebtBeacon) = deploy_beacons(beaconDeployer, impl)
 
-    # router = deploy_notional_router(deployer, notional)
-    # notional.upgradeTo(router, {"from": deployer})
-    # TODO: transfer tokens into the notional proxy
+    (router, pauseRouter, contracts) = deployNotionalContracts(deployer, Comptroller=ZERO_ADDRESS)
+    deployer.transfer(deployer, 0)
+    deployer.transfer(deployer, 0)
+    deployer.transfer(deployer, 0)
+    notional = deploy_notional_proxy(deployer, impl)
+
+    calldata = router.initialize.encode_input(deployer, pauseRouter, owner)
+    proxy = Contract.from_abi("notional", notional.address, EmptyProxy.abi, deployer)
+    proxy.upgradeToAndCall(router, calldata, {"from": deployer})
+    assert notional.getImplementation() == router.address
+
+    try:
+        proxy.upgradeToAndCall.call(router, calldata, {"from": deployer})
+        assert False
+    except:
+        # Cannot Re-Initialize
+        assert True
+
+    nTokenBeacon.transferOwnership(notional.address, {"from": beaconDeployer})
+    pCashBeacon.transferOwnership(notional.address, {"from": beaconDeployer})
+    pDebtBeacon.transferOwnership(notional.address, {"from": beaconDeployer})
+
+    nTokenImpl = nTokenERC20Proxy.deploy(notional.address, {"from": beaconDeployer})
+    pCashImpl = PrimeCashProxy.deploy(notional.address, {"from": beaconDeployer})
+    pDebtImpl = PrimeDebtProxy.deploy(notional.address, {"from": beaconDeployer})
+
+    notional = Contract.from_abi("notional", notional.address, interface.NotionalProxy.abi)
+
+    # Deployer is currently the owner here.
+    notional.upgradeBeacon(BeaconType["NTOKEN"], nTokenImpl, {"from": deployer})
+    notional.upgradeBeacon(BeaconType["PCASH"], pCashImpl, {"from": deployer})
+    notional.upgradeBeacon(BeaconType["PDEBT"], pDebtImpl, {"from": deployer})
 
     for c in ListedOrder:
-        list_currency(c, notional, deployer)
+        list_currency(c, notional, deployer, fundingAccount)
+
+    initialize_markets(notional, fundingAccount)

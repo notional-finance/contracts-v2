@@ -9,8 +9,10 @@ import {IUpgradeableBeacon} from "../proxy/beacon/IBeacon.sol";
 /// is deployed to.
 library Deployments {
     address internal constant NOTE_TOKEN_ADDRESS = 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
-    // arbitrum is: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
-    WETH9 internal constant WETH = WETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
+    // MAINNET: 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2
+    // ARBITRUM: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
+    // OPTIMISM: 0x4200000000000000000000000000000000000006
+    WETH9 internal constant WETH = WETH9(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
 
     enum BeaconType {
         NTOKEN,
@@ -20,9 +22,9 @@ library Deployments {
     }
 
     // NOTE: these are temporary Beacon addresses
-    IUpgradeableBeacon internal constant NTOKEN_BEACON = IUpgradeableBeacon(0xc8277f2c8bf5d9900400002106Af984D7Ee668dd);
-    IUpgradeableBeacon internal constant PCASH_BEACON = IUpgradeableBeacon(0x1eeCdCF8B5A1FF5aE37FF83C261c999fAe5450cB);
-    IUpgradeableBeacon internal constant PDEBT_BEACON = IUpgradeableBeacon(0x9e976173186E623aB228447439C9d30092f921cB);
+    IUpgradeableBeacon internal constant NTOKEN_BEACON = IUpgradeableBeacon(0xc4FD259b816d081C8bdd22D6bbd3495DB1573DB7);
+    IUpgradeableBeacon internal constant PCASH_BEACON = IUpgradeableBeacon(0x1F681977aF5392d9Ca5572FB394BC4D12939A6A9);
+    IUpgradeableBeacon internal constant PDEBT_BEACON = IUpgradeableBeacon(0xDF08039c0af34E34660aC7c2705C0Da953247640);
     IUpgradeableBeacon internal constant WRAPPED_FCASH_BEACON = IUpgradeableBeacon(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     // TODO: this will be set to the timestamp of the final settlement time in notional v2,
