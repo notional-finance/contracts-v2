@@ -9,6 +9,7 @@ import {IUpgradeableBeacon} from "../proxy/beacon/IBeacon.sol";
 /// is deployed to.
 library Deployments {
     address internal constant NOTE_TOKEN_ADDRESS = 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5;
+    // arbitrum is: 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1
     WETH9 internal constant WETH = WETH9(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2);
 
     enum BeaconType {

@@ -256,7 +256,6 @@ def scanTransactionType(eventStore, txid):
 
     for matcher in typeMatchers:
         (startMatch, endIndex, marker) = match(matcher, eventStore['bundles'], startIndex, eventStore['markers'])
-        LOGGER.info("attempting to match {} at start index {}".format(matcher['transactionType'], startIndex))
 
         if startMatch is None:
             # Did not match so try the next matcher
@@ -289,7 +288,22 @@ def scanTransactionType(eventStore, txid):
 
 def match(matcher, bundles, startIndex, markers):
     pattern = matcher['pattern']
+
+    # marker = None
+    # if 'endMarkers' in matcher:
+    #     startLogIndex = bundles[startIndex]['startLogIndex']
+    #     marker = find(markers, lambda m: startLogIndex < m['logIndex'] and m['name'] in matcher['endMarkers'])
+    #     if not marker:
+    #         return (None, None, None)
+
+    #     endLogIndex = marker['logIndex']
+    #     bundles = list(filter(lambda b: b['endLogIndex'] <= endLogIndex, bundles))
+
     while startIndex < len(bundles):
+        # if marker and marker['logIndex'] < bundles[startIndex]['startLogIndex']:
+        #     # If the bundle start index has passed the marker's index then terminate the
+        #     # search since the marker is required for termination
+        #     return (None, None, None)
         bundlesLeft = match_here(pattern, bundles[startIndex:])
         if bundlesLeft == -1:
             startIndex += 1
