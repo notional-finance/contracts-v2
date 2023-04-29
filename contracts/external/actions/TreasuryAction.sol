@@ -40,7 +40,6 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
     IERC20 public immutable COMP;
     Comptroller public immutable COMPTROLLER;
-    IRebalancingStrategy public immutable REBALANCING_STRATEGY;
 
     /// @dev Harvest methods are only callable by the authorized treasury manager contract
     modifier onlyManagerContract() {
@@ -48,10 +47,9 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         _;
     }
 
-    constructor(Comptroller _comptroller, IRebalancingStrategy _rebalancingStrategy) {
+    constructor(Comptroller _comptroller) {
         COMPTROLLER = _comptroller;
-        COMP = IERC20(_comptroller.getCompAddress());
-        REBALANCING_STRATEGY = _rebalancingStrategy;
+        COMP = address(_comptroller) == address(0) ? IERC20(address(0)) : IERC20(_comptroller.getCompAddress());
     }
 
     /// @notice Sets the new treasury manager contract
@@ -286,8 +284,9 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
     function _executeRebalance(uint16 currencyId) private {
         IPrimeCashHoldingsOracle oracle = PrimeCashExchangeRate.getPrimeCashHoldingsOracle(currencyId);
-        uint8[] memory rebalancingTargets = _getRebalancingTargets(currencyId, oracle.holdings());
-        (RebalancingData memory data) = REBALANCING_STRATEGY.calculateRebalance(oracle, rebalancingTargets);
+        address[] memory holdings = oracle.holdings();
+        uint8[] memory rebalancingTargets = _getRebalancingTargets(currencyId, holdings);
+        RebalancingData memory data = _calculateRebalance(oracle, holdings, rebalancingTargets);
 
         (/* */, uint256 totalUnderlyingValueBefore) = oracle.getTotalUnderlyingValueStateful();
 
@@ -344,5 +343,41 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             // we are trading underlying cash for asset cash
             TokenHandler.updateStoredTokenBalance(underlyingToken.tokenAddress, oldUnderlyingBalance, newUnderlyingBalance);
         }
+    }
+
+    function _calculateRebalance(
+        IPrimeCashHoldingsOracle oracle,
+        address[] memory holdings,
+        uint8[] memory rebalancingTargets
+    ) private view returns (RebalancingData memory rebalancingData) {
+        uint256[] memory values = oracle.holdingValuesInUnderlying();
+
+        (
+            uint256 totalValue,
+            /* uint256 internalPrecision */
+        ) = oracle.getTotalUnderlyingValueView();
+
+        address[] memory redeemHoldings = new address[](holdings.length);
+        uint256[] memory redeemAmounts = new uint256[](holdings.length);
+        address[] memory depositHoldings = new address[](holdings.length);
+        uint256[] memory depositAmounts = new uint256[](holdings.length);
+
+        for (uint256 i; i < holdings.length; i++) {
+            address holding = holdings[i];
+            uint256 targetAmount = totalValue * rebalancingTargets[i] / uint256(Constants.PERCENTAGE_DECIMALS);
+            uint256 currentAmount = values[i];
+
+            redeemHoldings[i] = holding;
+            depositHoldings[i] = holding;
+
+            if (targetAmount < currentAmount) {
+                redeemAmounts[i] = currentAmount - targetAmount;
+            } else if (currentAmount < targetAmount) {
+                    depositAmounts[i] = targetAmount - currentAmount;
+            }
+        }
+
+        rebalancingData.redeemData = oracle.getRedemptionCalldataForRebalancing(redeemHoldings, redeemAmounts);
+        rebalancingData.depositData = oracle.getDepositCalldataForRebalancing(depositHoldings, depositAmounts);
     }
 }
