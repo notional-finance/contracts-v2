@@ -291,25 +291,25 @@ typeMatchers = [
         {'op': '?', 'exp': ['Deposit and Transfer']},
         # TODO: just make one list which is vault ops
         {'op': '+', 'exp': ['Sell fCash [Vault]', 'Vault Fees', 'Vault Entry Transfer', 'Borrow fCash [Vault]',
-                            'Settle Cash', 'Settle fCash', 'Borrow Prime Cash [Vault]', 'Vault Secondary Borrow']},
+                            'Settle Cash', 'Settle fCash', 'Borrow Prime Cash [Vault]', 'Vault Secondary Borrow', 'Vault Burn Cash']},
         {'op': '.', 'exp': ['Vault Entry']}
     ], 'extractor': extract_vault_entry},
     { 'transactionType': 'Vault Exit', 'pattern': [
         {'op': '+', 'exp': ['Buy fCash [Vault]', 'Vault Redeem', 'Repay fCash [Vault]', 'Vault Secondary Repay', 'Vault Fees',
                             'Settle Cash', 'Settle fCash', 'Borrow Prime Cash [Vault]', 'Repay Prime Cash [Vault]', 'Deposit and Transfer',
-                            'Vault Lend at Zero']},
+                            'Withdraw', 'Vault Lend at Zero', 'Vault Burn Cash', 'Vault Withdraw Cash']},
         {'op': '.', 'exp': ['Vault Exit']}
     ], 'extractor': extract_vault_exit},
     { 'transactionType': 'Vault Roll', 'pattern': [
         {'op': '+', 'exp': ['Buy fCash [Vault]', 'Deposit and Transfer', 'Sell fCash [Vault]', 'Vault Fees', 'Vault Entry Transfer',
                             'Borrow fCash [Vault]', 'Repay fCash [Vault]', 'Vault Secondary Borrow', 'Vault Secondary Repay',
-                            'Vault Lend at Zero', 'Repay Prime Cash [Vault]', 'Borrow Prime Cash [Vault]']},
+                            'Vault Lend at Zero', 'Repay Prime Cash [Vault]', 'Borrow Prime Cash [Vault]', 'Vault Burn Cash']},
         # TODO: this fails because vault exit gets re-written to vault roll in the bundle
         {'op': '.', 'exp': ['Vault Roll']},
     ], 'extractor': extract_vault_roll},
     { 'transactionType': 'Vault Settle', 'pattern': [
         {'op': '*', 'exp': [ 'Vault Secondary Settle', 'Borrow Prime Cash [Vault]', 'Vault Fees',
-                            'Settle Cash', 'Settle fCash', 'Repay Prime Cash [Vault]', 'Deposit and Transfer']},
+                            'Settle Cash', 'Settle fCash', 'Repay Prime Cash [Vault]', 'Deposit and Transfer', 'Vault Settle Cash']},
         {'op': '.', 'exp': ['Vault Settle']}
     ], 'extractor': extract_vault_settle},
     { 'transactionType': 'Vault Deleverage [Prime]', 'pattern': [
@@ -317,7 +317,7 @@ typeMatchers = [
         {'op': '?', 'exp': ['Vault Fees']},
         {'op': '.', 'exp': ['Deposit and Transfer']},
         {'op': '.', 'exp': ['Vault Deleverage Prime Debt']},
-        {'op': '.', 'exp': ['Repay Prime Cash']}
+        {'op': '.', 'exp': ['Repay Prime Cash [Vault]']}
     ], 'extractor': extract_vault_deleverage},
     { 'transactionType': 'Vault Deleverage [fCash]', 'pattern': [
         {'op': '.', 'exp': ['Deposit and Transfer']},
@@ -325,6 +325,12 @@ typeMatchers = [
     ], 'extractor': extract_vault_deleverage},
     { 'transactionType': 'Vault Liquidate Cash', 'pattern': [
         {'op': '.', 'exp': ['Vault Liquidate Cash']},
+    ], 'extractor': extract_vault_liquidate_cash},
+    { 'transactionType': 'Vault Liquidate Excess Cash', 'pattern': [
+        {'op': '.', 'exp': ['Vault Withdraw Cash']},
+        {'op': '.', 'exp': ['Vault Burn Cash']},
+        {'op': '.', 'exp': ['Deposit and Transfer']},
+        {'op': '.', 'exp': ['Vault Mint Cash']},
     ], 'extractor': extract_vault_liquidate_cash},
     { 'transactionType': 'Account Action', 'endMarkers': ['AccountContextUpdate'], 'pattern': [
         # TODO: note this does not actually work for minting / redeeming nTokens b/c they get

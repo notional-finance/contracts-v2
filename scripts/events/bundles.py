@@ -422,6 +422,17 @@ def vault_entry_transfer(window):
         and window[1]['fromSystemAccount'] == 'Vault'
     )
 
+def vault_entry_transfer_2(window):
+    # This looks like a withdraw, but it is done by the vault
+    return not (
+        # A withdraw is not preceded by a burn of pDebt
+        window[0]['transferType'] == 'Mint' and window[0]['assetType'] == 'pDebt'
+    ) and (
+        window[1]['transferType'] == 'Burn'
+        and window[1]['assetType'] == 'pCash'
+        and window[1]['fromSystemAccount'] == 'Vault'
+    )
+
 def vault_fees(window):
     return (
         window[0]['assetType'] == 'pCash' and
@@ -494,10 +505,10 @@ def vault_exit(window):
     ) and (
         window[1]['transferType'] == 'Burn' and
         window[1]['assetType'] == 'Vault Share'
-    ) and not (
-        # This pattern is a vault settlement
-        window[0]['maturity'] <= window[0]['timestamp'] and
-        window[1]['maturity'] <= window[1]['timestamp']
+    # ) and not (
+    #     # This pattern is a vault settlement
+    #     window[0]['maturity'] <= window[0]['timestamp'] and
+    #     window[1]['maturity'] <= window[1]['timestamp']
     )
 
 def vault_roll(window):
@@ -505,16 +516,20 @@ def vault_roll(window):
         vault_settle(window)
     ) and (
         window[0]['transferType'] == 'Burn' and
-        window[0]['assetType'] == 'Vault Debt'
+        window[0]['assetType'] == 'Vault Debt' and
+        window[0]['value'] != 0
     ) and (
         window[1]['transferType'] == 'Burn' and
-        window[1]['assetType'] == 'Vault Share'
+        window[1]['assetType'] == 'Vault Share' and
+        window[1]['value'] != 0
     ) and (
         window[2]['transferType'] == 'Mint' and
-        window[2]['assetType'] == 'Vault Debt'
+        window[2]['assetType'] == 'Vault Debt' and
+        window[2]['value'] != 0
     ) and (
         window[3]['transferType'] == 'Mint' and
-        window[3]['assetType'] == 'Vault Share'
+        window[3]['assetType'] == 'Vault Share' and
+        window[3]['value'] != 0
     )
 
 def vault_settle(window):
@@ -543,6 +558,46 @@ def vault_deleverage_fcash(window):
     ) and (
         window[1]['transferType'] == 'Transfer' and
         window[1]['assetType'] == 'Vault Share'
+    )
+
+def vault_withdraw_cash(window):
+    return (
+        window[0]['transferType'] == 'Transfer' and
+        window[0]['fromSystemAccount'] == 'Vault' and
+        window[0]['assetType'] == 'pCash' and
+        window[0]['toSystemAccount'] is None
+    ) and (
+        window[1]['transferType'] == 'Burn' and
+        window[1]['fromSystemAccount'] is None and
+        window[1]['assetType'] == 'pCash'
+    )
+
+def vault_burn_cash(window):
+    return (
+        window[0]['transferType'] == 'Burn' and
+        window[0]['assetType'] == 'Vault Cash'
+    )
+
+def vault_mint_cash(window):
+    return (
+        window[0]['transferType'] == 'Mint' and
+        window[0]['assetType'] == 'pCash'
+    ) and (
+        window[1]['transferType'] == 'Transfer' and
+        window[1]['assetType'] == 'pCash'
+    ) and (
+        window[2]['transferType'] == 'Mint' and
+        window[2]['assetType'] == 'Vault Cash'
+    )
+
+def vault_settle_cash(window):
+    return (
+        window[0]['transferType'] == 'Burn' and
+        window[0]['assetType'] == 'Vault Cash'
+    ) and (
+        window[1]['transferType'] == 'Mint' and
+        window[1]['assetType'] == 'Vault Cash' and
+        window[1]['maturity'] == PRIME_CASH_VAULT_MATURITY
     )
 
 def vault_deleverage_prime_debt(window):
@@ -602,6 +657,10 @@ def vault_secondary_borrow(window):
         window[2]['underlying'] == window[0]['underlying'] and
         window[2]['underlying'] == window[1]['underlying']
     ) and (
+    #     window[3]['assetType'] == 'pcash' and
+    #     window[3]['fromSystemAccount'] == 'Vault' and
+    #     window[3]['transferType'] == 'Burn'
+    # ) and (
         # Secondary borrows are not followed by minting vault shares
         window[3]['assetType'] != 'Vault Share'
     )
@@ -626,6 +685,13 @@ def vault_secondary_repay(window):
     ) and (
         # Secondary borrows are not followed by burning vault shares
         window[3]['assetType'] != 'Vault Share'
+    )
+
+def vault_secondary_deposit(window):
+    return (
+        window[0]['transferType'] == 'Mint' and
+        window[0]['assetType'] == 'pCash' and
+        window[0]['toSystemAccount'] == 'Vault'
     )
 
 def vault_secondary_settle(window):
@@ -653,6 +719,9 @@ bundleCriteria = [
     {'bundleName': 'Transfer Asset', 'windowSize': 1, 'func': transfer_asset},
     {'bundleName': 'Transfer Incentive', 'windowSize': 1, 'func': transfer_incentive},
     {'bundleName': 'Vault Entry Transfer', 'windowSize': 1, 'lookBehind': 1, 'func': vault_entry_transfer},
+    # This is a secondary vault entry transfer
+    {'bundleName': 'Vault Entry Transfer', 'windowSize': 2, 'lookBehind': 1, 'bundleSize': 1, 'func': vault_entry_transfer_2},
+    {'bundleName': 'Vault Secondary Deposit', 'windowSize': 2, 'bundleSize': 1, 'func': vault_secondary_deposit},
     {'bundleName': 'nToken Purchase Negative Residual', 'windowSize': 4, 'lookBehind': 1, 'func': ntoken_purchase_negative_residual},
     {'bundleName': 'nToken Purchase Positive Residual', 'windowSize': 2, 'lookBehind': 1, 'func': ntoken_purchase_positive_residual},
     {'bundleName': 'nToken Residual Transfer', 'windowSize': 1, 'lookBehind': 1, 'func': ntoken_residual_transfer},
@@ -693,12 +762,16 @@ bundleCriteria = [
     {'bundleName': 'Vault Roll', 'lookBehind': 2, 'windowSize': 2, 'rewrite': True, 'func': vault_roll},
     {'bundleName': 'Vault Entry', 'windowSize': 2, 'lookBehind': 2, 'func': vault_entry},
     {'bundleName': 'Vault Exit', 'windowSize': 2, 'func': vault_exit},
-    {'bundleName': 'Vault Settle', 'windowSize': 4, 'func': vault_settle},
+    {'bundleName': 'Vault Settle', 'lookBehind': 2, 'windowSize': 2, 'rewrite': True, 'func': vault_settle},
     {'bundleName': 'Vault Deleverage fCash', 'windowSize': 2, 'func': vault_deleverage_fcash},
     {'bundleName': 'Vault Deleverage Prime Debt', 'windowSize': 2, 'func': vault_deleverage_prime_debt},
     {'bundleName': 'Vault Liquidate Cash', 'windowSize': 6, 'func': vault_liquidate_cash_balance},
+    {'bundleName': 'Vault Withdraw Cash', 'windowSize': 2, 'func': vault_withdraw_cash},
+    {'bundleName': 'Vault Burn Cash', 'windowSize': 1, 'func': vault_burn_cash},
+    {'bundleName': 'Vault Settle Cash', 'windowSize': 1, 'lookBehind': 1, 'rewrite': True, 'func': vault_settle_cash},
     # Vault Secondary Debt
     {'bundleName': 'Vault Secondary Borrow', 'windowSize': 2, 'lookBehind': 2, 'bundleSize': 1, 'func': vault_secondary_borrow},
     {'bundleName': 'Vault Secondary Repay', 'windowSize': 2, 'lookBehind': 2, 'bundleSize': 1, 'func': vault_secondary_repay},
     {'bundleName': 'Vault Secondary Settle', 'windowSize': 2, 'func': vault_secondary_settle},
+    {'bundleName': 'Vault Mint Cash', 'lookBehind': 2, 'windowSize': 1, 'func': vault_mint_cash},
 ]
