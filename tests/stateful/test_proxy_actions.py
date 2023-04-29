@@ -62,7 +62,7 @@ def test_cannot_reinitialize_proxy(environment, useNToken, accounts):
 @given(useNToken=strategy("bool"))
 def test_upgrade_pcash_proxy(environment, accounts, useNToken):
     proxy = getProxy(environment, useNToken)
-    emptyImpl = EmptyProxy.deploy({"from": accounts[0]})
+    emptyImpl = EmptyProxy.deploy(accounts[0], {"from": accounts[0]})
 
     proxyEnum = 0 if useNToken else 1
     with brownie.reverts():
