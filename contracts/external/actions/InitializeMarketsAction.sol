@@ -56,6 +56,10 @@ library InitializeMarketsAction {
     using nTokenHandler for nTokenPortfolio;
     using InterestRateCurve for InterestRateParameters;
 
+    // Cash balances are always in 8 decimal precision so some minimum amount
+    // of cash is required before we can initialize markets.
+    int256 private constant MIN_CASH_REQUIRED = 1_000;
+
     event MarketsInitialized(uint16 currencyId);
 
     struct GovernanceParameters {
@@ -257,7 +261,7 @@ library InitializeMarketsAction {
 
         // We can't have less net asset cash than our percent basis or some markets will end up not
         // initialized
-        require(netPrimeCashAvailable > int256(Constants.DEPOSIT_PERCENT_BASIS)); // dev: insufficient cash
+        require(netPrimeCashAvailable > MIN_CASH_REQUIRED); // dev: insufficient cash
 
         return netPrimeCashAvailable;
     }

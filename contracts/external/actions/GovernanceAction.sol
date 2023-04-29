@@ -97,6 +97,8 @@ contract GovernanceAction is StorageLayoutV2, NotionalGovernance, UUPSUpgradeabl
             beacon = Deployments.NTOKEN_BEACON;
         } else if (proxy == Deployments.BeaconType.PCASH) {
             beacon = Deployments.PCASH_BEACON;
+        } else if (proxy == Deployments.BeaconType.PDEBT) {
+            beacon = Deployments.PDEBT_BEACON;
         } else if (proxy == Deployments.BeaconType.WRAPPED_FCASH) {
             beacon = Deployments.WRAPPED_FCASH_BEACON;
         } else {

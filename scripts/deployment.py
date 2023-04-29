@@ -200,7 +200,7 @@ def deployNotionalContracts(deployer, **kwargs):
 def deployNotional(deployer, guardianAddress, comptroller):
     # NOTE: rebalancing strategy is only tested on mainnet fork
     (router, pauseRouter, contracts) = deployNotionalContracts(
-        deployer, Comptroller=comptroller, RebalancingStrategy=ZERO_ADDRESS
+        deployer, Comptroller=comptroller
     )
 
     initializeData = web3.eth.contract(abi=Router.abi).encodeABI(
