@@ -583,8 +583,8 @@ def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
     )
 
     with EventChecker(environment, 'Account Action',
-        account=accounts[0],
-        netfCashAssets=lambda x: list(x.values())[0] == -50e8
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values())[0] == 50e8
     ) as e:
         e['txn'] = transferOp.initiateTransfer(
             accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[1]}
@@ -695,8 +695,8 @@ def test_bidirectional_fcash_transfer_to_account_will_trade(
 
     with EventChecker(environment, 'Account Action',
         maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
-        account=accounts[0],
-        netfCashAssets=lambda x: list(x.values()) == [-50e8, 50e8]
+        account=accounts[1],
+        netfCashAssets=lambda x: list(x.values()) == [50e8, -50e8]
     ) as e:
         e['txn'] = transferOp.initiateBatchTransfer(
             accounts[0], accounts[1], erc1155ids, amounts, data, {"from": accounts[1]}
@@ -730,7 +730,7 @@ def test_transfer_and_batch_lend(environment, accounts):
 
     with EventChecker(environment, 'Account Action',
         account=accounts[1],
-        netfCashAssets=lambda x: list(x.values()) == [-100e8]
+        netfCashAssets=lambda x: list(x.values()) == [0]
     ) as e:
         e['txn'] = environment.notional.safeTransferFrom(
             accounts[1], accounts[0], erc1155id, 100e8, data, {"from": accounts[1]}
@@ -770,7 +770,7 @@ def test_batch_transfer_and_batch_lend(environment, accounts):
 
     with EventChecker(environment, 'Account Action',
         account=accounts[1],
-        netfCashAssets=lambda x: list(x.values()) == [-100e8, -50e8]
+        netfCashAssets=lambda x: list(x.values()) == [0, 50e8]
     ) as e:
         e['txn'] = environment.notional.safeBatchTransferFrom(
             accounts[1], accounts[0], erc1155ids, [100e8, 50e8], data, {"from": accounts[1]}

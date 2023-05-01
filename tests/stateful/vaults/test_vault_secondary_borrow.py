@@ -333,13 +333,6 @@ def test_roll_position(accounts, multiCurrencyVault, environment, isPrime, rollT
         )
         e['txn'] = txn
 
-    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
-    # grouped = group_events(decoded)
-    # assert len(grouped['Vault Entry']) == 0
-    # assert len(grouped['Vault Roll']) == 1
-    # assert len(grouped['Vault Secondary Debt']) == 2
-    # assert len(grouped['Vault Transfer']) == 2
-
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
 

@@ -15,13 +15,6 @@ contract MockBitmapAssetsHandler is AbstractSettingsRouter {
 
     constructor(address settingsLib) AbstractSettingsRouter(settingsLib) { }
 
-    event TotalfCashDebtOutstandingChanged(
-        uint16 indexed currencyId,
-        uint256 indexed maturity,
-        int256 totalfCashDebt,
-        int256 netDebtChange
-    );
-
     function setCashGroup(uint256 id, CashGroupSettings calldata cg) external {
         CashGroup.setCashGroupStorage(id, cg);
     }
