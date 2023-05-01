@@ -14,6 +14,7 @@ library Deployments {
     enum BeaconType {
         NTOKEN,
         PCASH,
+        PDEBT,
         WRAPPED_FCASH
     }
 
