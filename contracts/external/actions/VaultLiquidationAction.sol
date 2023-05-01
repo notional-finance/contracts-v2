@@ -175,6 +175,9 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, currencyIndex, cashToLiquidator.neg(), false);
     }
 
+
+    /// @notice Handles an edge case where vaults that have secondary borrows and have cash in excess of debts
+    /// in one currency but debts in another currency.
     function liquidateExcessVaultCash(
         address account,
         address vault,
@@ -208,6 +211,9 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         );
 
         int256 depositUnderlyingInternal = _depositUnderlyingInternal.toInt();
+        // Calculation does the following:
+        // excessCashUnderlyingInternal = debtCashInUnderlyingInternal * exchangeRateToExcessCashUnderlying * liquidation bonus
+        // cashToLiquidator = excessCashPR(excessCashUnderlyingInternal)
         cashToLiquidator = f.excessCashPR.convertFromUnderlying(
             depositUnderlyingInternal
                 .mul(vaultConfig.excessCashLiquidationBonus)
@@ -219,6 +225,9 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         if (h.netDebtOutstanding[excessCashIndex] < cashToLiquidator) {
             // Limit the deposit to what is held by the account
             cashToLiquidator = h.netDebtOutstanding[excessCashIndex];
+            // Calculation does the following:
+            // excessCashUnderlyingInternal = excessCashPR(excessPrimeCash)
+            // liquidatorDepositUnderlying = excessCashUnderlyingInternal * exchangeRateToDebtCashUnderlying * liquidationBonus
             depositUnderlyingInternal = f.excessCashPR.convertToUnderlying(cashToLiquidator)
                 .mul(f.exchangeRate)
                 .mul(Constants.PERCENTAGE_DECIMALS)
