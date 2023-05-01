@@ -72,7 +72,12 @@ interface NotionalProxy is
     );
 
     /// @notice Emits every time interest is accrued
-    event PrimeCashInterestAccrued(uint16 indexed currencyId, PrimeCashFactors factors);
+    event PrimeCashInterestAccrued(
+        uint16 indexed currencyId,
+        uint256 underlyingScalar,
+        uint256 supplyScalar,
+        uint256 debtScalar
+    );
 
     event PrimeCashCurveChanged(uint16 indexed currencyId);
 

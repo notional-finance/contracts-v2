@@ -34,7 +34,12 @@ library PrimeCashExchangeRate {
     event PrimeProxyDeployed(uint16 indexed currencyId, address proxy, bool isCashProxy);
 
     /// @notice Emits every time interest is accrued
-    event PrimeCashInterestAccrued(uint16 indexed currencyId, PrimeCashFactors factors);
+    event PrimeCashInterestAccrued(
+        uint16 indexed currencyId,
+        uint256 underlyingScalar,
+        uint256 supplyScalar,
+        uint256 debtScalar
+    );
 
     event PrimeCashCurveChanged(uint16 indexed currencyId);
 
@@ -240,7 +245,9 @@ library PrimeCashExchangeRate {
             Emitter.emitMintOrBurnPrimeCash(Constants.FEE_RESERVE, currencyId, primeSupply);
         }
 
-        emit PrimeCashInterestAccrued(currencyId, p);
+        emit PrimeCashInterestAccrued(
+            currencyId, p.underlyingScalar, p.supplyScalar, p.debtScalar
+        );
     }
 
     /// @notice Updates prime debt when borrowing occurs. Whenever borrowing occurs, prime
