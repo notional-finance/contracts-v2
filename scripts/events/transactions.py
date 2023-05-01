@@ -327,10 +327,7 @@ typeMatchers = [
         {'op': '.', 'exp': ['Vault Liquidate Cash']},
     ], 'extractor': extract_vault_liquidate_cash},
     { 'transactionType': 'Vault Liquidate Excess Cash', 'pattern': [
-        {'op': '.', 'exp': ['Vault Withdraw Cash']},
-        {'op': '.', 'exp': ['Vault Burn Cash']},
-        {'op': '.', 'exp': ['Deposit and Transfer']},
-        {'op': '.', 'exp': ['Vault Mint Cash']},
+        {'op': '.', 'exp': ['Vault Liquidate Excess Cash']},
     ], 'extractor': extract_vault_liquidate_cash},
     { 'transactionType': 'Account Action', 'endMarkers': ['AccountContextUpdate'], 'pattern': [
         # TODO: note this does not actually work for minting / redeeming nTokens b/c they get

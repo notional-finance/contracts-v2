@@ -578,16 +578,29 @@ def vault_burn_cash(window):
         window[0]['assetType'] == 'Vault Cash'
     )
 
-def vault_mint_cash(window):
+def vault_liquidate_excess_cash(window):
     return (
-        window[0]['transferType'] == 'Mint' and
-        window[0]['assetType'] == 'pCash'
+        window[0]['transferType'] == 'Transfer' and
+        window[0]['assetType'] == 'pCash' and
+        window[0]['fromSystemAccount'] == "Vault"
     ) and (
-        window[1]['transferType'] == 'Transfer' and
-        window[1]['assetType'] == 'pCash'
+        window[1]['transferType'] == 'Burn' and
+        window[1]['assetType'] == 'pCash' and
+        window[1]['fromSystemAccount'] is None
     ) and (
-        window[2]['transferType'] == 'Mint' and
+        window[2]['transferType'] == 'Burn' and
         window[2]['assetType'] == 'Vault Cash'
+    ) and (
+        window[3]['transferType'] == 'Mint' and
+        window[3]['assetType'] == 'pCash' and
+        window[3]['fromSystemAccount'] is None
+    ) and (
+        window[4]['transferType'] == 'Transfer' and
+        window[4]['assetType'] == 'pCash' and
+        window[4]['toSystemAccount'] == "Vault"
+    ) and (
+        window[5]['transferType'] == 'Mint' and
+        window[5]['assetType'] == 'Vault Cash'
     )
 
 def vault_settle_cash(window):
@@ -773,5 +786,5 @@ bundleCriteria = [
     {'bundleName': 'Vault Secondary Borrow', 'windowSize': 2, 'lookBehind': 2, 'bundleSize': 1, 'func': vault_secondary_borrow},
     {'bundleName': 'Vault Secondary Repay', 'windowSize': 2, 'lookBehind': 2, 'bundleSize': 1, 'func': vault_secondary_repay},
     {'bundleName': 'Vault Secondary Settle', 'windowSize': 2, 'func': vault_secondary_settle},
-    {'bundleName': 'Vault Mint Cash', 'lookBehind': 2, 'windowSize': 1, 'func': vault_mint_cash},
+    {'bundleName': 'Vault Liquidate Excess Cash', 'windowSize': 1, 'lookBehind': 5, 'rewrite': True, 'func': vault_liquidate_excess_cash},
 ]

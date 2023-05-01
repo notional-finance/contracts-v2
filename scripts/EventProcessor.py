@@ -197,7 +197,7 @@ def scanTransferBundle(eventStore, txid):
         # the transfer set
         windowSize = criteria['windowSize']
 
-        if len(eventStore['transfers']) - startIndex != windowSize:
+        if len(eventStore['transfers']) - startIndex < windowSize:
             # Unbundled transfers do not match the window size
             continue
 
@@ -214,7 +214,7 @@ def scanTransferBundle(eventStore, txid):
             lookBehind = criteria['lookBehind']
 
         # This window should match the entire length of unmatched transfers
-        window = eventStore['transfers'][startIndex - lookBehind:]
+        window = eventStore['transfers'][startIndex - lookBehind:startIndex + windowSize]
         if criteria['func'](window):
             bundleSize = windowSize
             if 'bundleSize' in criteria:
@@ -302,13 +302,14 @@ def match(matcher, bundles, startIndex, markers):
             marker = find(markers, lambda m: endLogIndex < m['logIndex'] and m['name'] in matcher['endMarkers'])
             if marker:
                 return (startIndex, endIndex, marker)
+            else:
+                startIndex += 1
         else:
             return (startIndex, endIndex, None)
     
     return (None, None, None)
 
 def match_here(pattern, bundles):
-    LOGGER.info("in match here call {}, {}".format(pattern, bundles))
     if len(pattern) == 0:
         # End of pattern, return the end index
         return len(bundles)
