@@ -3,6 +3,8 @@ from copy import copy
 
 import pytest
 from brownie import (
+    EmptyProxy,
+    UpgradeableBeacon,
     AccountAction,
     BatchAction,
     CalculationViews,
@@ -102,20 +104,34 @@ def deployGovernance(deployer, noteERC20, guardian, governorConfig):
         {"from": deployer},
     )
 
-def deployBeacons(deployer, proxy):
-    factoryDeployer = "0x284CbC48848F8eB19c9aF5A3750059D22f148739"
-    deployer.transfer(factoryDeployer, 1e18)
+def deployBeacons(deployer, notional):
+    emptyImpl = EmptyProxy.deploy(deployer, {"from": deployer})
+    beaconDeployer = "0x0D251Bd6c14e02d34f68BFCB02c54cBa3D108122"
 
-    # NOTE: the contract address still depends on the impl address
-    nTokenImpl = nTokenERC20Proxy.deploy(proxy.address, {"from": factoryDeployer})
-    pCashImpl = PrimeCashProxy.deploy(proxy.address, {"from": factoryDeployer})
-    pDebtImpl = PrimeDebtProxy.deploy(proxy.address, {"from": factoryDeployer})
-    factory = UpgradeableBeaconFactory.deploy({"from": factoryDeployer})
+    nTokenBeacon = UpgradeableBeacon.deploy(emptyImpl, {"from": beaconDeployer})
+    assert nTokenBeacon.address == "0xc4FD259b816d081C8bdd22D6bbd3495DB1573DB7"
+    pCashBeacon = UpgradeableBeacon.deploy(emptyImpl, {"from": beaconDeployer})
+    assert pCashBeacon.address == "0x1F681977aF5392d9Ca5572FB394BC4D12939A6A9"
+    pDebtBeacon = UpgradeableBeacon.deploy(emptyImpl, {"from": beaconDeployer})
+    assert pDebtBeacon.address == "0xDF08039c0af34E34660aC7c2705C0Da953247640"
 
-    nTokenBeacon = factory.deployBeacon(proxy, nTokenImpl, 1).return_value
-    pCashBeacon = factory.deployBeacon(proxy, pCashImpl, 2).return_value
-    pDebtBeacon = factory.deployBeacon(proxy, pDebtImpl, 3).return_value
-    print("factory: ", factory.address)
+    nTokenBeacon.transferOwnership(notional.address, {"from": beaconDeployer})
+    pCashBeacon.transferOwnership(notional.address, {"from": beaconDeployer})
+    pDebtBeacon.transferOwnership(notional.address, {"from": beaconDeployer})
+
+    nTokenImpl = nTokenERC20Proxy.deploy(notional.address, {"from": beaconDeployer})
+    pCashImpl = PrimeCashProxy.deploy(notional.address, {"from": beaconDeployer})
+    pDebtImpl = PrimeDebtProxy.deploy(notional.address, {"from": beaconDeployer})
+
+
+    # Deployer is currently the owner here.
+    notional.upgradeBeacon(0, nTokenImpl, {"from": deployer})
+    notional.upgradeBeacon(1, pCashImpl, {"from": deployer})
+    notional.upgradeBeacon(2, pDebtImpl, {"from": deployer})
+
+    # nTokenBeacon = factory.deployBeacon(proxy, nTokenImpl, 1).return_value
+    # pCashBeacon = factory.deployBeacon(proxy, pCashImpl, 2).return_value
+    # pDebtBeacon = factory.deployBeacon(proxy, pDebtImpl, 3).return_value
     print("nToken: ", nTokenBeacon)
     print("pCash: ", pCashBeacon)
     print("pDebt: ", pDebtBeacon)
@@ -211,12 +227,12 @@ def deployNotional(deployer, guardianAddress, comptroller):
         router.address, initializeData, {"from": deployer}  # Deployer is set to owner
     )
 
-    deployBeacons(deployer, proxy)
-
     notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi(
         "Notional", proxy.address, abi=notionalInterfaceABI, owner=deployer
     )
+
+    deployBeacons(deployer, notional)
 
     return (pauseRouter, router, proxy, notional, contracts)
 

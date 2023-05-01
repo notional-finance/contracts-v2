@@ -68,7 +68,7 @@ contract Router is StorageLayoutV1 {
     function _checkHardcodedAddresses() private pure {
         uint256 chainId;
         assembly { chainId := chainid() }
-        if (chainId == Deployments.MAINNET) {
+        if (chainId == Deployments.MAINNET || chainId == Deployments.LOCAL) {
             require(Deployments.NOTE_TOKEN_ADDRESS == 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5, "NOTE");
             require(address(Deployments.WETH) == 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, "WETH");
         } else if (chainId == Deployments.ARBITRUM_ONE) {
