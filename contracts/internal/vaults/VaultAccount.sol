@@ -34,22 +34,6 @@ library VaultAccountLib {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
 
-    event VaultSettledAssetsRemaining(
-        address indexed vault,
-        uint256 indexed maturity,
-        int256 remainingPrimeCash,
-        uint256 remainingStrategyTokens
-    );
-
-    event VaultAccountLendAtZeroInterest(
-        address indexed vault,
-        uint256 indexed maturity,
-        address indexed account,
-        uint16 currencyId,
-        int256 fCashRepaid,
-        int256 primeCashCostToLend
-    );
-
     /// @notice Returns a single account's vault position
     function getVaultAccount(
         address account, VaultConfig memory vaultConfig

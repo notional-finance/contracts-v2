@@ -34,16 +34,6 @@ library VaultSecondaryBorrow {
     using PrimeRateLib for PrimeRate;
     using VaultConfiguration for VaultConfig;
 
-    /// @notice Emitted when a vault executes a secondary borrow
-    event VaultSecondaryTransaction(
-        address indexed vault,
-        address indexed account,
-        uint16 indexed currencyId,
-        uint256 maturity,
-        int256 netUnderlyingDebt,
-        int256 netPrimeSupply
-    );
-
     struct SecondaryExchangeRates {
         int256 rateDecimals;
         int256 exchangeRateOne;
