@@ -63,9 +63,27 @@ contract Router is StorageLayoutV1 {
         address vaultAccountHealth;
     }
 
+    // Ensures that when we deploy, the hardcoded addresses are encoded properly to the chain that is
+    // being deployed to
+    function _checkHardcodedAddresses() private pure {
+        uint256 chainId;
+        assembly { chainId := chainid() }
+        if (chainId == Deployments.MAINNET) {
+            require(Deployments.NOTE_TOKEN_ADDRESS == 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5, "NOTE");
+            require(address(Deployments.WETH) == 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, "WETH");
+        } else if (chainId == Deployments.ARBITRUM_ONE) {
+            require(Deployments.NOTE_TOKEN_ADDRESS == 0x019bE259BC299F3F653688c7655C87F998Bc7bC1, "NOTE");
+            require(address(Deployments.WETH) == 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1, "WETH");
+        } else {
+            revert("Invalid Chain");
+        }
+    }
+
     constructor(
         DeployedContracts memory contracts
     ) {
+        _checkHardcodedAddresses();
+
         GOVERNANCE = contracts.governance;
         VIEWS = contracts.views;
         INITIALIZE_MARKET = contracts.initializeMarket;
