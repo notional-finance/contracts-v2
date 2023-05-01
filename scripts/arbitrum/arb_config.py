@@ -216,8 +216,8 @@ ListedTokens = {
         "fCashCurves" : [{
             "kinkUtilization1": 15,
             "kinkUtilization2": 70,
-            "kinkRate1": 17,
-            "kinkRate2": 51,
+            "kinkRate1": 4,
+            "kinkRate2": 34,
             "maxRate25BPS": 120,
             "feeRatePercent": 8,
             "minFeeRate5BPS": 3,
@@ -225,8 +225,8 @@ ListedTokens = {
         }, {
             "kinkUtilization1": 15,
             "kinkUtilization2": 70,
-            "kinkRate1": 20,
-            "kinkRate2": 61,
+            "kinkRate1": 5,
+            "kinkRate2": 41,
             "maxRate25BPS": 100,
             "feeRatePercent": 8,
             "minFeeRate5BPS": 3,

@@ -25,12 +25,12 @@ def deploy_note_proxy(deployer, emptyProxy):
     # https://etherscan.io/tx/0xcd23bcecfef5de7afcc76d32350055de906d3394fcf1d35f3490a7c62926cb64
     return nProxy.deploy(emptyProxy, bytes(), {"from": deployer})
 
-def deploy_notional_proxy(deployer, emptyProxy):
+def deploy_notional_proxy(deployer, router, calldata):
     assert deployer.address == DEPLOYER
     assert deployer.nonce == 28
     # Must be nonce = 28
     # https://etherscan.io/tx/0xd1334bf8efcbc152b3e8de40887f534171a9993082e8b4d6187bd6271e7ac0b9
-    notional = nProxy.deploy(emptyProxy, bytes(), {"from": deployer})
+    notional = nProxy.deploy(router, calldata, {"from": deployer})
     assert notional.address == "0x1344A36A1B56144C3Bc62E7757377D288fDE0369"
     return notional
 
@@ -187,6 +187,7 @@ def initialize_markets(notional, fundingAccount):
     notional.initializeMarkets(3, True, {"from": fundingAccount})
     notional.initializeMarkets(4, True, {"from": fundingAccount})
     notional.initializeMarkets(5, True, {"from": fundingAccount})
+    notional.initializeMarkets(6, True, {"from": fundingAccount})
 
 
 BeaconType = {
@@ -202,7 +203,7 @@ def main():
     fundingAccount = accounts.at("0x7d7935EDd4b6cDB5f34B0E1cCEAF85a3C4A11254", force=True)
     owner = accounts.at(OWNER, force=True)
 
-    impl = EmptyProxy.deploy(deployer, {"from": deployer})
+    impl = EmptyProxy.deploy(owner, {"from": deployer})
     deploy_note_proxy(deployer, impl)
     (nTokenBeacon, pCashBeacon, pDebtBeacon) = deploy_beacons(beaconDeployer, impl)
 
@@ -210,11 +211,12 @@ def main():
     deployer.transfer(deployer, 0)
     deployer.transfer(deployer, 0)
     deployer.transfer(deployer, 0)
-    notional = deploy_notional_proxy(deployer, impl)
-
+    # Deployer is set to the owner here for initialization
     calldata = router.initialize.encode_input(deployer, pauseRouter, owner)
+    notional = deploy_notional_proxy(deployer, router, calldata)
+
     proxy = Contract.from_abi("notional", notional.address, EmptyProxy.abi, deployer)
-    proxy.upgradeToAndCall(router, calldata, {"from": deployer})
+    # proxy.upgradeToAndCall(router, calldata, {"from": deployer})
     assert notional.getImplementation() == router.address
 
     try:
@@ -262,3 +264,11 @@ def main():
         except Exception as err:
             assert err.revert_msg == "Over Supply Cap"
 
+    # Deployer needs to transfer ownership to the owner
+    notional.transferOwnership(owner, False, {"from": deployer})
+    assert notional.owner() == deployer
+
+    for (i, symbol) in enumerate(ListedOrder):
+        rates = [ m[5] / 1e9 for m in notional.getActiveMarkets(i + 1) ]
+        print("Market Rates for {}: {}".format(symbol, rates))
+        
