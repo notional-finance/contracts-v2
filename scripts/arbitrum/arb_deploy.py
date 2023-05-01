@@ -8,6 +8,16 @@ OWNER = "0xbf778Fc19d0B55575711B6339A3680d07352B221"
 DEPLOYER = "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
 BEACON_DEPLOYER = "0x0D251Bd6c14e02d34f68BFCB02c54cBa3D108122"
 
+WHALES = {
+    'ETH': accounts[0],
+    # GMX Vault
+    'DAI': "0x489ee077994b6658eafa855c308275ead8097c4a",
+    'USDC': "0x489ee077994b6658eafa855c308275ead8097c4a",
+    'WBTC': "0x489ee077994b6658eafa855c308275ead8097c4a",
+    'wstETH': "0xba12222222228d8ba445958a75a0704d566bf2c8",
+    'FRAX':  "0x489ee077994b6658eafa855c308275ead8097c4a"
+}
+
 def deploy_note_proxy(deployer, emptyProxy):
     assert deployer.address == DEPLOYER
     assert deployer.nonce == 1
@@ -233,3 +243,22 @@ def main():
         list_currency(c, notional, deployer, fundingAccount)
 
     initialize_markets(notional, fundingAccount)
+
+    for (i, symbol) in enumerate(ListedOrder):
+        try:
+            token = ListedTokens[symbol]
+            whale = WHALES[symbol]
+            # Donate the initial balance
+            if symbol != "ETH":
+                erc20 = Contract.from_abi("token", token['address'], interface.IERC20.abi)
+                balance = erc20.balanceOf(whale)
+                erc20.approve(notional.address, 2 ** 256 - 1, {"from": whale})
+                msgValue = 0
+            else:
+                balance = 10e18
+                msgValue = 10e18
+
+            notional.depositUnderlyingToken(WHALES[symbol], i + 1, balance, {"from": whale, "value": msgValue})
+        except Exception as err:
+            assert err.revert_msg == "Over Supply Cap"
+
