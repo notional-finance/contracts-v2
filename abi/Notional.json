@@ -31,49 +31,6 @@
             {
                 "indexed": true,
                 "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint40",
-                "name": "maturity",
-                "type": "uint40"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netPrimeCash",
-                "type": "int256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netfCash",
-                "type": "int256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netLiquidityTokens",
-                "type": "int256"
-            }
-        ],
-        "name": "AddRemoveLiquidity",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
                 "name": "owner",
                 "type": "address"
             },
@@ -116,31 +73,6 @@
             }
         ],
         "name": "ApprovalForAll",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netCashChange",
-                "type": "int256"
-            }
-        ],
-        "name": "CashBalanceChange",
         "type": "event"
     },
     {
@@ -235,43 +167,6 @@
             }
         ],
         "name": "IncentivesMigrated",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint40",
-                "name": "maturity",
-                "type": "uint40"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netPrimeCash",
-                "type": "int256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netfCash",
-                "type": "int256"
-            }
-        ],
-        "name": "LendBorrowTrade",
         "type": "event"
     },
     {
@@ -507,34 +402,27 @@
                 "internalType": "uint16",
                 "name": "currencyId",
                 "type": "uint16"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "underlyingScalar",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "supplyScalar",
+                "type": "uint256"
+            },
+            {
+                "indexed": false,
+                "internalType": "uint256",
+                "name": "debtScalar",
+                "type": "uint256"
             }
         ],
         "name": "PrimeCashInterestAccrued",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "totalPrimeSupply",
-                "type": "uint256"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "totalPrimeDebt",
-                "type": "uint256"
-            }
-        ],
-        "name": "PrimeDebtChanged",
         "type": "event"
     },
     {
@@ -560,31 +448,6 @@
             }
         ],
         "name": "PrimeProxyDeployed",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "totalPrimeSupply",
-                "type": "uint256"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint256",
-                "name": "lastTotalUnderlyingValue",
-                "type": "uint256"
-            }
-        ],
-        "name": "PrimeSupplyChanged",
         "type": "event"
     },
     {
@@ -680,25 +543,6 @@
         "inputs": [
             {
                 "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "fee",
-                "type": "int256"
-            }
-        ],
-        "name": "ReserveFeeAccrued",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
                 "internalType": "uint256",
                 "name": "currencyId",
                 "type": "uint256"
@@ -729,68 +573,6 @@
         "anonymous": false,
         "inputs": [
             {
-                "indexed": true,
-                "internalType": "uint256",
-                "name": "currencyId",
-                "type": "uint256"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint256",
-                "name": "maturity",
-                "type": "uint256"
-            },
-            {
-                "indexed": false,
-                "internalType": "uint128",
-                "name": "rate",
-                "type": "uint128"
-            }
-        ],
-        "name": "SetSettlementRate",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "settledAccount",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "settler",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "amountToSettleAsset",
-                "type": "int256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "fCashAmount",
-                "type": "int256"
-            }
-        ],
-        "name": "SettledCashDebt",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
                 "indexed": false,
                 "internalType": "uint16",
                 "name": "currencyId",
@@ -804,37 +586,6 @@
             }
         ],
         "name": "SweepCashIntoMarkets",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint256",
-                "name": "maturity",
-                "type": "uint256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "totalfCashDebt",
-                "type": "int256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netDebtChange",
-                "type": "int256"
-            }
-        ],
-        "name": "TotalfCashDebtOutstandingChanged",
         "type": "event"
     },
     {
@@ -1440,68 +1191,6 @@
         "type": "event"
     },
     {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint40",
-                "name": "maturity",
-                "type": "uint40"
-            },
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "purchaser",
-                "type": "address"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "fCashAmountToPurchase",
-                "type": "int256"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "netPrimeCashNToken",
-                "type": "int256"
-            }
-        ],
-        "name": "nTokenResidualPurchase",
-        "type": "event"
-    },
-    {
-        "anonymous": false,
-        "inputs": [
-            {
-                "indexed": true,
-                "internalType": "address",
-                "name": "account",
-                "type": "address"
-            },
-            {
-                "indexed": true,
-                "internalType": "uint16",
-                "name": "currencyId",
-                "type": "uint16"
-            },
-            {
-                "indexed": false,
-                "internalType": "int256",
-                "name": "tokenSupplyChange",
-                "type": "int256"
-            }
-        ],
-        "name": "nTokenSupplyChange",
-        "type": "event"
-    },
-    {
         "inputs": [
             {
                 "internalType": "uint16",
@@ -2057,6 +1746,11 @@
                         "internalType": "int256[2]",
                         "name": "minAccountSecondaryBorrow",
                         "type": "int256[2]"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "excessCashLiquidationBonus",
+                        "type": "int256"
                     }
                 ],
                 "internalType": "struct VaultConfig",
@@ -2661,7 +2355,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "totalFeeBPS",
+                        "name": "maxDiscountFactor5BPS",
                         "type": "uint8"
                     },
                     {
@@ -2671,38 +2365,33 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "debtBuffer5BPS",
+                        "name": "debtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "fCashHaircut5BPS",
+                        "name": "fCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRate5BPS",
+                        "name": "minOracleRate25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationfCashHaircut5BPS",
+                        "name": "liquidationfCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationDebtBuffer5BPS",
+                        "name": "liquidationDebtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
-                        "internalType": "uint8[]",
-                        "name": "liquidityTokenHaircuts",
-                        "type": "uint8[]"
-                    },
-                    {
-                        "internalType": "uint8[]",
-                        "name": "rateScalars",
-                        "type": "uint8[]"
+                        "internalType": "uint8",
+                        "name": "maxOracleRate25BPS",
+                        "type": "uint8"
                     }
                 ],
                 "internalType": "struct CashGroupSettings",
@@ -3498,7 +3187,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "totalFeeBPS",
+                        "name": "maxDiscountFactor5BPS",
                         "type": "uint8"
                     },
                     {
@@ -3508,38 +3197,33 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "debtBuffer5BPS",
+                        "name": "debtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "fCashHaircut5BPS",
+                        "name": "fCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRate5BPS",
+                        "name": "minOracleRate25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationfCashHaircut5BPS",
+                        "name": "liquidationfCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationDebtBuffer5BPS",
+                        "name": "liquidationDebtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
-                        "internalType": "uint8[]",
-                        "name": "liquidityTokenHaircuts",
-                        "type": "uint8[]"
-                    },
-                    {
-                        "internalType": "uint8[]",
-                        "name": "rateScalars",
-                        "type": "uint8[]"
+                        "internalType": "uint8",
+                        "name": "maxOracleRate25BPS",
+                        "type": "uint8"
                     }
                 ],
                 "internalType": "struct CashGroupSettings",
@@ -3574,7 +3258,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "totalFeeBPS",
+                        "name": "maxDiscountFactor5BPS",
                         "type": "uint8"
                     },
                     {
@@ -3584,38 +3268,33 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "debtBuffer5BPS",
+                        "name": "debtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "fCashHaircut5BPS",
+                        "name": "fCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRate5BPS",
+                        "name": "minOracleRate25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationfCashHaircut5BPS",
+                        "name": "liquidationfCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationDebtBuffer5BPS",
+                        "name": "liquidationDebtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
-                        "internalType": "uint8[]",
-                        "name": "liquidityTokenHaircuts",
-                        "type": "uint8[]"
-                    },
-                    {
-                        "internalType": "uint8[]",
-                        "name": "rateScalars",
-                        "type": "uint8[]"
+                        "internalType": "uint8",
+                        "name": "maxOracleRate25BPS",
+                        "type": "uint8"
                     }
                 ],
                 "internalType": "struct CashGroupSettings",
@@ -5150,7 +4829,7 @@
                     },
                     {
                         "internalType": "int256[3]",
-                        "name": "debtOutstanding",
+                        "name": "netDebtOutstanding",
                         "type": "int256[3]"
                     }
                 ],
@@ -5365,6 +5044,11 @@
                         "internalType": "int256[2]",
                         "name": "minAccountSecondaryBorrow",
                         "type": "int256[2]"
+                    },
+                    {
+                        "internalType": "int256",
+                        "name": "excessCashLiquidationBonus",
+                        "type": "int256"
                     }
                 ],
                 "internalType": "struct VaultConfig",
@@ -5600,6 +5284,40 @@
                 "type": "uint16"
             },
             {
+                "internalType": "uint256",
+                "name": "maturity",
+                "type": "uint256"
+            },
+            {
+                "internalType": "int256",
+                "name": "vaultAccountCashBalance",
+                "type": "int256"
+            }
+        ],
+        "name": "getfCashRequiredToLiquidateCash",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "fCashRequired",
+                "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "discountFactor",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            },
+            {
                 "internalType": "bool",
                 "name": "isFirstInit",
                 "type": "bool"
@@ -5687,6 +5405,50 @@
             {
                 "internalType": "int256",
                 "name": "",
+                "type": "int256"
+            }
+        ],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "vault",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "liquidator",
+                "type": "address"
+            },
+            {
+                "internalType": "uint256",
+                "name": "excessCashIndex",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "debtIndex",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "_depositUnderlyingInternal",
+                "type": "uint256"
+            }
+        ],
+        "name": "liquidateExcessVaultCash",
+        "outputs": [
+            {
+                "internalType": "int256",
+                "name": "cashToLiquidator",
                 "type": "int256"
             }
         ],
@@ -5944,17 +5706,17 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "maxRate25BPS",
+                        "name": "maxRateUnits",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "minFeeRateBPS",
+                        "name": "minFeeRate5BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "maxFeeRateBPS",
+                        "name": "maxFeeRate25BPS",
                         "type": "uint8"
                     },
                     {
@@ -6952,13 +6714,7 @@
             }
         ],
         "name": "settleSecondaryBorrowForAccount",
-        "outputs": [
-            {
-                "internalType": "bool",
-                "name": "didTransferSecondary",
-                "type": "bool"
-            }
-        ],
+        "outputs": [],
         "stateMutability": "nonpayable",
         "type": "function"
     },
@@ -7160,7 +6916,7 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "totalFeeBPS",
+                        "name": "maxDiscountFactor5BPS",
                         "type": "uint8"
                     },
                     {
@@ -7170,38 +6926,33 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "debtBuffer5BPS",
+                        "name": "debtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "fCashHaircut5BPS",
+                        "name": "fCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "settlementPenaltyRate5BPS",
+                        "name": "minOracleRate25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationfCashHaircut5BPS",
+                        "name": "liquidationfCashHaircut25BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "liquidationDebtBuffer5BPS",
+                        "name": "liquidationDebtBuffer25BPS",
                         "type": "uint8"
                     },
                     {
-                        "internalType": "uint8[]",
-                        "name": "liquidityTokenHaircuts",
-                        "type": "uint8[]"
-                    },
-                    {
-                        "internalType": "uint8[]",
-                        "name": "rateScalars",
-                        "type": "uint8[]"
+                        "internalType": "uint8",
+                        "name": "maxOracleRate25BPS",
+                        "type": "uint8"
                     }
                 ],
                 "internalType": "struct CashGroupSettings",
@@ -7352,17 +7103,17 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "maxRate25BPS",
+                        "name": "maxRateUnits",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "minFeeRateBPS",
+                        "name": "minFeeRate5BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "maxFeeRateBPS",
+                        "name": "maxFeeRate25BPS",
                         "type": "uint8"
                     },
                     {
@@ -7412,17 +7163,17 @@
                     },
                     {
                         "internalType": "uint8",
-                        "name": "maxRate25BPS",
+                        "name": "maxRateUnits",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "minFeeRateBPS",
+                        "name": "minFeeRate5BPS",
                         "type": "uint8"
                     },
                     {
                         "internalType": "uint8",
-                        "name": "maxFeeRateBPS",
+                        "name": "maxFeeRate25BPS",
                         "type": "uint8"
                     },
                     {
@@ -7588,6 +7339,11 @@
                         "internalType": "uint32[2]",
                         "name": "minAccountSecondaryBorrow",
                         "type": "uint32[2]"
+                    },
+                    {
+                        "internalType": "uint8",
+                        "name": "excessCashLiquidationBonus",
+                        "type": "uint8"
                     }
                 ],
                 "internalType": "struct VaultConfigStorage",
