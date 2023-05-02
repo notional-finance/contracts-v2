@@ -243,7 +243,6 @@ def test_roll_vault_below_max_collateral_ratio(environment, vault, roll_account,
             roll_account, vault, 50_000e8, maturity2, 60_000e18, 0, 0, "", {"from": roll_account}
         )
 
-@pytest.mark.only
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
     initialMaturity=strategy("uint", min_value=0, max_value=2),
@@ -378,7 +377,6 @@ def test_roll_vault_success(
 
     check_system_invariants(environment, accounts, [vault])
 
-@pytest.mark.only
 def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     environment.notional.updateVault(
         vault.address,
@@ -423,7 +421,7 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
         vault=vault,
         account=accounts[1],
         newMaturity=maturity2,
-        debtAmount=103_00e8,
+        debtAmount=103_000e8,
         lendAtZero=True
     ) as e:
         txn = environment.notional.rollVaultPosition(
