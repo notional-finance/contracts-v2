@@ -18,9 +18,12 @@ def get_router_args(router):
         router.ERC1155(),
         router.LIQUIDATE_CURRENCY(),
         router.LIQUIDATE_FCASH(),
-        router.cETH(),
         router.TREASURY(),
         router.CALCULATION_VIEWS(),
+        router.VAULT_ACCOUNT_ACTION(),
+        router.VAULT_ACTION(),
+        router.VAULT_LIQUIDATION_ACTION(),
+        router.VAULT_ACCOUNT_HEALTH(),
     ]
 
 
@@ -28,6 +31,8 @@ def main():
     networkName = network.show_active()
     if networkName == "mainnet-fork" or networkName == "mainnet-current":
         networkName = "mainnet"
+    if networkName == "arbitrum-fork" or networkName == "arbitrum-current":
+        networkName = "arbitrum-one"
     if networkName == "goerli-fork":
         networkName = "goerli"
     output_file = "v2.{}.json".format(networkName)
