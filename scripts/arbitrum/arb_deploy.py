@@ -1,8 +1,12 @@
 from brownie import ZERO_ADDRESS, Contract, accounts, UnderlyingHoldingsOracle, ChainlinkAdapter, EmptyProxy, nProxy, UpgradeableBeacon, nTokenERC20Proxy, PrimeCashProxy, PrimeDebtProxy, interface
+from brownie.network import Chain
 from scripts.arbitrum.arb_config import ListedOrder, ListedTokens
 from scripts.common import TokenType
 from scripts.deployment import deployNotionalContracts
 from tests.helpers import get_balance_action
+import pdb;
+
+chain = Chain()
 
 OWNER = "0xbf778Fc19d0B55575711B6339A3680d07352B221"
 DEPLOYER = "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3"
@@ -198,6 +202,9 @@ BeaconType = {
 }
 
 def main():
+    if chain.id != 42161:
+        raise Exception("Incorrect Chain Id")
+
     deployer = accounts.at(DEPLOYER, force=True)
     beaconDeployer = accounts.at(BEACON_DEPLOYER, force=True)
     fundingAccount = accounts.at("0x7d7935EDd4b6cDB5f34B0E1cCEAF85a3C4A11254", force=True)
