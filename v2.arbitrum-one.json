@@ -1,0 +1,38 @@
+{
+    "actions": {
+        "GovernanceAction": "0x10aae34011c256A9E63ab5ac50154C2539c0f51d",
+        "Views": "0xb15167FfF26202Aa3d20Ecfd7f46a34Fa4126e49",
+        "InitializeMarketsAction": "0x422A2e95009f11e9E144FE7fd1a7c7A9C759Bb6A",
+        "nTokenAction": "0x662F1be7f07C90031F7B5264f71Bd1AC0E975526",
+        "BatchAction": "0x0092A5552162f911ccF7f456e85f473cE259707F",
+        "AccountAction": "0xc2763a6465F5C86769A1Af826dB270A6367b03B7",
+        "ERC1155Action": "0xdE14D5F07456c86F070C108A04Ae2fafdbD2A939",
+        "LiquidateCurrencyAction": "0xdfb618098fC858F43fe0E5Fb906AdFE96786832f",
+        "LiquidatefCashAction": "0x1c510763432C0e65d86f313612d4e1E2D26E4332",
+        "TreasuryAction": "0x1cd33f81420Bfce8A3622dc56BBD617b7Fa3c93A",
+        "CalculationViews": "0x280deCD520da16e5571A6f2Fb803A57e0c16f423",
+        "VaultAccountAction": "0xAbd096049E0CDCecFE26a3b1Bc7bb38438F1B488",
+        "VaultAction": "0x63757F772B8aab66F4dE09617e8F257249EFcb93",
+        "VaultLiquidationAction": "0x5f11E94E0A69ac8490f45eB27a6478dCDDB0227E",
+        "VaultAccountHealth": "0xFFd7531ED937F703B269815950cB75bdAAA341c9"
+    },
+    "chainId": 42161,
+    "deployer": "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3",
+    "guardian": "",
+    "libs": {
+        "FreeCollateralExternal": "0x72Ec9dE3eFD22552b6dc17142EAd505A48940D4E",
+        "MigrateIncentives": "0x6085B0a8f4c7ffA2E8CA578037792D6535d1E29B",
+        "SettleAssetsExternal": "0xa40aedAac28F9574124D7c8EFf59732cC77f1DD4",
+        "TradingAction": "0xCa2848903d7B5896796FE2687e76cCEC16B89b90",
+        "nTokenMintAction": "0x086b4ecD75c494dD36641195E89c25373E06d7cB",
+        "nTokenRedeemAction": "0x95DF7E34403beCd532f2BE160cacda56F0BD6bA3"
+    },
+    "networkName": "arbitrum-one",
+    "note": "0x019bE259BC299F3F653688c7655C87F998Bc7bC1",
+    "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
+    "routers": {
+        "PauseRouter": "0x6b986A60216ACA687457782aDFA0B002aD392Ce7",
+        "Router": "0xB12b08045c2FB403Fcae579641D0a011AAd8ED70"
+    },
+    "startBlock": 86540849
+}
