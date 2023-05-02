@@ -35,13 +35,12 @@ def main():
         networkName = "arbitrum-one"
     if networkName == "goerli-fork":
         networkName = "goerli"
-    output_file = "v2.{}.json".format(networkName)
+    output_file = "v3.{}.json".format(networkName)
     addresses = None
     with open(output_file, "r") as f:
         addresses = json.load(f)
 
     notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
     notional = Contract.from_abi("Notional", addresses["notional"], abi=notionalInterfaceABI)
-    governance = GovernorAlpha.at(addresses["governor"])
     note = NoteERC20.at(addresses["note"])
     router = Contract.from_abi("Router", addresses["notional"], abi=Router.abi)

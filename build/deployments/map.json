@@ -262,6 +262,9 @@
     "MigrateIncentives": [
       "0x6085B0a8f4c7ffA2E8CA578037792D6535d1E29B"
     ],
+    "NoteERC20": [
+      "0x019bE259BC299F3F653688c7655C87F998Bc7bC1"
+    ],
     "PauseRouter": [
       "0x6b986A60216ACA687457782aDFA0B002aD392Ce7"
     ],
