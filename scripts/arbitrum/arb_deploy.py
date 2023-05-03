@@ -121,8 +121,8 @@ def _list_currency(symbol, notional, deployer, pCashOracle, ethOracle, fundingAc
         pCashOracle,
         True,  # allowDebt
         token['primeRateOracleTimeWindow5Min'],
-        symbol,
         token['name'],
+        symbol,
         {"from": deployer}
     )
     currencyId = txn.events["ListCurrency"]["newCurrencyId"]
