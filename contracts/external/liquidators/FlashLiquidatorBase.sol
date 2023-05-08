@@ -2,26 +2,32 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./BaseLiquidator.sol";
-import "./UniV3SwapRouter.sol";
-import "../../math/SafeInt256.sol";
-import "../../../interfaces/notional/NotionalProxy.sol";
-import "../../../interfaces/compound/CTokenInterface.sol";
-import "../../../interfaces/compound/CErc20Interface.sol";
-import "../../../interfaces/compound/CEtherInterface.sol";
-import "../../../interfaces/aave/IFlashLender.sol";
-import "../../../interfaces/aave/IFlashLoanReceiver.sol";
-import "../../../interfaces/IWstETH.sol";
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/math/SafeMath.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {
+    BaseLiquidator, 
+    LiquidationType,
+    LiquidationAction, 
+    TradeData,
+    CollateralCurrencyLiquidation,
+    CrossCurrencyfCashLiquidation
+} from "./BaseLiquidator.sol";
+import {TradeHandler, Trade} from "./TradeHandler.sol";
+import {Constants} from "../../global/Constants.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
+import {ITradingModule} from "../../../interfaces/notional/ITradingModule.sol";
+import {IFlashLender} from "../../../interfaces/aave/IFlashLender.sol";
+import {IFlashLoanReceiver} from "../../../interfaces/aave/IFlashLoanReceiver.sol";
+import {IWstETH} from "../../../interfaces/IWstETH.sol";
 
 abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
     using SafeInt256 for int256;
     using SafeMath for uint256;
+    using TradeHandler for Trade;
 
     address public immutable LENDING_POOL;
-    address public immutable DEX_1;
-    address public immutable DEX_2;
+    ITradingModule public immutable TRADING_MODULE;
 
     constructor(
         NotionalProxy notional_,
@@ -29,12 +35,10 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
         address weth_,
         IWstETH wstETH_,
         address owner_,
-        address dex1,
-        address dex2
+        address tradingModule_
     ) BaseLiquidator(notional_, weth_, wstETH_, owner_) {
         LENDING_POOL = lendingPool_;
-        DEX_1 = dex1;
-        DEX_2 = dex2;
+        TRADING_MODULE = ITradingModule(tradingModule_);
     }
 
     function _enableCurrency(uint16 currencyId) internal override returns (address) {
@@ -46,14 +50,6 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
         
         // Lending pool needs to be able to pull underlying
         checkAllowanceOrSet(underlying, LENDING_POOL);
-
-        if (DEX_1 != address(0)) {
-            checkAllowanceOrSet(underlying, DEX_1);
-        }
-
-        if (DEX_2 != address(0)) {
-            checkAllowanceOrSet(underlying, DEX_2);
-        }
 
         return underlying;
     }
@@ -77,7 +73,8 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
             0
         );
         localProfit = IERC20(asset).balanceOf(address(this));
-        collateralProfit = collateralAddress == address(0) ? 0 : IERC20(collateralAddress).balanceOf(address(this));
+        collateralProfit = collateralAddress == address(0) ? 
+            0 : IERC20(collateralAddress).balanceOf(address(this));
     }
 
     function executeOperation(
@@ -158,13 +155,17 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
     }
 
     function _executeDexTrade(uint256 ethValue, TradeData memory tradeData) internal {
-        require(
-            tradeData.dexAddress == DEX_1 || tradeData.dexAddress == DEX_2,
-            "bad exchange address"
-        );
-
-        // prettier-ignore
-        (bool success, /* return value */) = tradeData.dexAddress.call{value: ethValue}(tradeData.params);
-        require(success, "dex trade failed");
+        if (tradeData.useDynamicSlippage) {
+            tradeData.trade._executeTradeWithDynamicSlippage({
+                dexId: tradeData.dexId,
+                tradingModule: TRADING_MODULE,
+                dynamicSlippageLimit: tradeData.dynamicSlippageLimit
+            });
+        } else {
+            tradeData.trade._executeTrade({
+                dexId: tradeData.dexId,
+                tradingModule: TRADING_MODULE
+            });
+        }
     }
 }

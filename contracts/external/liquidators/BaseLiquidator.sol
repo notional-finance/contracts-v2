@@ -2,12 +2,13 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "../../../interfaces/notional/NotionalProxy.sol";
-import "../../../interfaces/compound/CErc20Interface.sol";
-import "../../../interfaces/compound/CEtherInterface.sol";
-import "../../../interfaces/IWstETH.sol";
-import "./LiquidatorStorageLayoutV1.sol";
-import "../../internal/markets/DateTime.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
+import {Trade} from "../../../interfaces/notional/ITradingModule.sol";
+import {IWstETH} from "../../../interfaces/IWstETH.sol";
+import {Token} from "../../global/Types.sol";
+import {Constants} from "../../global/Constants.sol";
+import {LiquidatorStorageLayoutV1} from "./LiquidatorStorageLayoutV1.sol";
 import {WETH9} from "../../../interfaces/WETH9.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
@@ -54,8 +55,10 @@ struct CrossCurrencyfCashLiquidation {
 }
 
 struct TradeData {
-    address dexAddress;
-    bytes params;
+    Trade trade;
+    uint16 dexId;
+    bool useDynamicSlippage;
+    uint32 dynamicSlippageLimit;
 }
 
 enum LiquidationType {

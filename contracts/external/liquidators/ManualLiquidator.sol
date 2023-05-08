@@ -2,14 +2,15 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import "@openzeppelin/contracts/access/AccessControl.sol";
-import "@openzeppelin/contracts/proxy/Initializable.sol";
-import "./FlashLiquidatorBase.sol";
-import "../../../interfaces/compound/CErc20Interface.sol";
-import "../../../interfaces/compound/CEtherInterface.sol";
-import "../../../interfaces/uniswap/v3/ISwapRouter.sol";
-import "../../../interfaces/IWstETH.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {AccessControl} from "@openzeppelin/contracts/access/AccessControl.sol";
+import {Initializable} from "@openzeppelin/contracts/proxy/Initializable.sol";
+import {PortfolioAsset, BalanceAction, BalanceActionWithTrades} from "../../global/Types.sol";
+import {FlashLiquidatorBase, TradeData} from "./FlashLiquidatorBase.sol";
+import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
+import {IWstETH} from "../../../interfaces/IWstETH.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
 
 contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
     using SafeInt256 for int256;
@@ -27,8 +28,7 @@ contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
         address weth_,
         IWstETH wstETH_,
         address note_,
-        address dex1,
-        address dex2
+        address tradingModule_
     )
         FlashLiquidatorBase(
             notional_,
@@ -36,8 +36,7 @@ contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
             weth_,
             wstETH_,
             address(0),
-            dex1,
-            dex2
+            tradingModule_
         )
         initializer
     {

@@ -2,9 +2,19 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "./FlashLiquidatorBase.sol";
-import "../../math/SafeInt256.sol";
-import "../../../interfaces/IWstETH.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeMath} from "@openzeppelin/contracts/math/SafeMath.sol";
+import {FlashLiquidatorBase} from "./FlashLiquidatorBase.sol";
+import {
+    TradeActionType,
+    DepositActionType, 
+    BalanceAction, 
+    BalanceActionWithTrades
+} from "../../global/Types.sol";
+import {SafeInt256} from "../../math/SafeInt256.sol";
+import {DateTime} from "../../internal/markets/DateTime.sol";
+import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
+import {IWstETH} from "../../../interfaces/IWstETH.sol";
 
 contract FlashLiquidator is FlashLiquidatorBase {
     using SafeInt256 for int256;
@@ -16,8 +26,7 @@ contract FlashLiquidator is FlashLiquidatorBase {
         address weth_,
         IWstETH wstETH_,
         address owner_,
-        address dex1,
-        address dex2
+        address tradingModule_
     )
         FlashLiquidatorBase(
             notional_,
@@ -25,8 +34,7 @@ contract FlashLiquidator is FlashLiquidatorBase {
             weth_,
             wstETH_,
             owner_,
-            dex1,
-            dex2
+            tradingModule_
         )
     {}
 
