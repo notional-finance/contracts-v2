@@ -17,6 +17,8 @@ struct LiquidationAction {
     uint8 liquidationType;
     bool withdrawProfit;
     bool hasTransferFee;
+    bool tradeInWETH;
+    bytes preLiquidationTrade;
     bytes payload;
 }
 
@@ -71,10 +73,13 @@ enum LiquidationType {
 abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
     using SafeInt256 for int256;
     using SafeUint256 for uint256;
+
+    uint256 internal constant WSTETH_CURRENCY_ID = 5;
     
     NotionalProxy public immutable NOTIONAL;
     WETH9 public immutable WETH;
     IWstETH public immutable wstETH;
+    bool internal immutable UNWRAP_WSTETH;
 
     modifier onlyOwner() {
         require(owner == msg.sender, "Ownable: caller is not the owner");
@@ -85,12 +90,14 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
         NotionalProxy notional_,
         address weth_,
         IWstETH wstETH_,
-        address owner_
+        address owner_,
+        bool unwrapStETH_
     ) {
         NOTIONAL = notional_;
         WETH = WETH9(weth_);
         wstETH = wstETH_;
         owner = owner_;
+        UNWRAP_WSTETH = unwrapStETH_;
     }
 
     function checkAllowanceOrSet(address erc20, address spender) internal {
@@ -182,18 +189,12 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
             liquidation.maxNTokenLiquidation,
             true, // Withdraw collateral
             true // Redeem to underlying
-        ); 
+        );
 
-        // Do not redeem stETH
-        if (liquidation.collateralCurrency != 5) {
-            // Redeem to underlying for collateral because it needs to be traded on the DEX
-            _redeemAndWithdraw(liquidation.collateralCurrency, uint96(collateralNTokens), true);
-        }
+        // Redeem nTokens
+        _redeemAndWithdraw(liquidation.collateralCurrency, uint96(collateralNTokens), true);
 
-        if (liquidation.collateralCurrency == Constants.ETH_CURRENCY_ID) {
-            // Wrap everything to WETH for trading
-            _wrapToWETH();
-        } else if (liquidation.collateralCurrency == 5) {
+        if (UNWRAP_WSTETH && liquidation.collateralCurrency == WSTETH_CURRENCY_ID) {
             // Unwrap to stETH for tradding
             _unwrapStakedETH();
         }
@@ -201,11 +202,7 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
         // Will withdraw all cash balance, no need to redeem local currency, it will be
         // redeemed later
         if (action.hasTransferFee) _redeemAndWithdraw(liquidation.localCurrency, 0, false);
-
-        emit CollateralLiquidation(IERC20(liquidation.collateralUnderlyingAddress).balanceOf(address(this)));
     }
-
-    event CollateralLiquidation(uint256 collateral);
 
     function _liquidateLocalfCash(LiquidationAction memory action, address[] memory assets)
         internal
@@ -282,10 +279,6 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
             0,
             true
         );
-        if (liquidation.fCashCurrency == Constants.ETH_CURRENCY_ID) {
-            // Wrap everything to WETH for trading
-            _wrapToWETH();
-        }
 
         // NOTE: no withdraw if _hasTransferFees, _sellfCashAssets with withdraw everything
     }

@@ -28,7 +28,8 @@ contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
         address weth_,
         IWstETH wstETH_,
         address note_,
-        address tradingModule_
+        address tradingModule_,
+        bool unwrapStETH_
     )
         FlashLiquidatorBase(
             notional_,
@@ -36,7 +37,8 @@ contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
             weth_,
             wstETH_,
             address(0),
-            tradingModule_
+            tradingModule_,
+            unwrapStETH_
         )
         initializer
     {
@@ -197,8 +199,8 @@ contract ManualLiquidator is FlashLiquidatorBase, AccessControl, Initializable {
         );
     }
 
-    function executeDexTrade(uint256 ethValue, TradeData calldata tradeData) external ownerOrUser {
-        _executeDexTrade(ethValue, tradeData);
+    function executeDexTrade(TradeData calldata tradeData) external ownerOrUser {
+        _executeDexTrade(tradeData);
     }
 
     function wrapToWETH() external ownerOrUser {

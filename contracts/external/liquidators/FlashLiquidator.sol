@@ -26,7 +26,8 @@ contract FlashLiquidator is FlashLiquidatorBase {
         address weth_,
         IWstETH wstETH_,
         address owner_,
-        address tradingModule_
+        address tradingModule_,
+        bool unwrapStETH_
     )
         FlashLiquidatorBase(
             notional_,
@@ -34,7 +35,8 @@ contract FlashLiquidator is FlashLiquidatorBase {
             weth_,
             wstETH_,
             owner_,
-            tradingModule_
+            tradingModule_,
+            unwrapStETH_
         )
     {}
 

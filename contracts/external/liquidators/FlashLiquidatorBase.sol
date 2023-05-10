@@ -35,8 +35,9 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
         address weth_,
         IWstETH wstETH_,
         address owner_,
-        address tradingModule_
-    ) BaseLiquidator(notional_, weth_, wstETH_, owner_) {
+        address tradingModule_,
+        bool unwrapStETH_
+    ) BaseLiquidator(notional_, weth_, wstETH_, owner_, unwrapStETH_) {
         LENDING_POOL = lendingPool_;
         TRADING_MODULE = ITradingModule(tradingModule_);
     }
@@ -55,8 +56,13 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
     }
 
     // Profit estimation
-    function flashLoan(address asset, uint256 amount, bytes calldata params, address collateralAddress) 
-        external onlyOwner returns (uint256 localProfit, uint256 collateralProfit) {
+    function flashLoan(
+        address asset, 
+        uint256 amount, 
+        bytes calldata params, 
+        address localAddress, 
+        address collateralAddress
+    ) external onlyOwner returns (uint256 flashLoanResidual, uint256 localProfit, uint256 collateralProfit) {
         address[] memory assets = new address[](1);
         uint256[] memory amounts = new uint256[](1);
 
@@ -72,9 +78,11 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
             params,
             0
         );
-        localProfit = IERC20(asset).balanceOf(address(this));
+        flashLoanResidual = IERC20(asset).balanceOf(address(this));
+        localProfit = localAddress == address(0) ? 
+            address(this).balance : IERC20(localAddress).balanceOf(address(this));
         collateralProfit = collateralAddress == address(0) ? 
-            0 : IERC20(collateralAddress).balanceOf(address(this));
+            address(this).balance : IERC20(collateralAddress).balanceOf(address(this));
     }
 
     function executeOperation(
@@ -91,6 +99,11 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
             WETH.withdraw(amounts[0]);
         }
 
+        if (action.preLiquidationTrade.length > 0) {
+            TradeData memory tradeData = abi.decode(action.preLiquidationTrade, (TradeData));
+            _executeDexTrade(tradeData);
+        }
+
         if (LiquidationType(action.liquidationType) == LiquidationType.LocalCurrency) {
             _liquidateLocal(action, assets);
         } else if (LiquidationType(action.liquidationType) == LiquidationType.CollateralCurrency) {
@@ -101,7 +114,7 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
             _liquidateCrossCurrencyfCash(action, assets);
         }
 
-        if (assets[0] == address(WETH)) {
+        if (action.tradeInWETH) {
             WETH.deposit{value: address(this).balance}();
         }
 
@@ -110,6 +123,10 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
             LiquidationType(action.liquidationType) == LiquidationType.CrossCurrencyfCash
         ) {
             _dexTrade(action);
+        }
+
+        if (!action.tradeInWETH && assets[0] == address(WETH)) {
+            WETH.deposit{value: address(this).balance}();
         }
 
         if (action.withdrawProfit) {
@@ -138,7 +155,7 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
             );
 
             collateralUnderlyingAddress = liquidation.collateralUnderlyingAddress;
-            _executeDexTrade(0, liquidation.tradeData);
+            _executeDexTrade(liquidation.tradeData);
         } else {
             CrossCurrencyfCashLiquidation memory liquidation = abi.decode(
                 action.payload,
@@ -146,7 +163,7 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
             );
 
             collateralUnderlyingAddress = liquidation.fCashUnderlyingAddress;
-            _executeDexTrade(0, liquidation.tradeData);
+            _executeDexTrade(liquidation.tradeData);
         }
 
         if (action.withdrawProfit) {
@@ -154,7 +171,7 @@ abstract contract FlashLiquidatorBase is BaseLiquidator, IFlashLoanReceiver {
         }
     }
 
-    function _executeDexTrade(uint256 ethValue, TradeData memory tradeData) internal {
+    function _executeDexTrade(TradeData memory tradeData) internal {
         if (tradeData.useDynamicSlippage) {
             tradeData.trade._executeTradeWithDynamicSlippage({
                 dexId: tradeData.dexId,
