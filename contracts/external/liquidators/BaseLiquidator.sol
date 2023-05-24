@@ -119,6 +119,12 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
         }
     }
 
+    /// @notice Used by bots to get free collateral for a given account via callStatic
+    function getFreeCollateral(address account) external returns (int256, int256[] memory) {
+        NOTIONAL.settleAccount(account);
+        return NOTIONAL.getFreeCollateral(account);
+    }
+
     function _enableCurrency(uint16 currencyId) internal virtual returns (address) {
         (
             /* Token memory assetToken */, 
