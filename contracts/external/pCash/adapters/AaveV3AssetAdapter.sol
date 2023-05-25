@@ -45,7 +45,19 @@ library AaveV3AssetAdapter {
         uint256[] memory msgValue = new uint256[](underlyingIsETH ? 3 : 2);
 
         if (underlyingIsETH) {
-        
+            targets[0] = address(Deployments.WETH);
+            msgValue[0] = depositUnderlyingAmount;
+            callData[0] = abi.encodeWithSelector(WETH9.deposit.selector, depositUnderlyingAmount);
+
+            targets[1] = address(Deployments.WETH);
+            callData[1] = abi.encodeWithSelector(IERC20.approve.selector, assetToken, depositUnderlyingAmount);
+
+            targets[2] = assetToken;
+            callData[2] = abi.encodeWithSelector(
+                IWrappedAToken.deposit.selector, 
+                depositUnderlyingAmount,
+                from
+            );        
         } else {
             targets[0] = underlyingToken;
             callData[0] = abi.encodeWithSelector(IERC20.approve.selector, assetToken, depositUnderlyingAmount);
