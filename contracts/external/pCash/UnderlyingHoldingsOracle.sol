@@ -2,7 +2,6 @@
 pragma solidity =0.8.17;
 
 import {Constants} from "../../global/Constants.sol";
-
 import {IERC20} from "../../../interfaces/IERC20.sol";
 import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
 import {
