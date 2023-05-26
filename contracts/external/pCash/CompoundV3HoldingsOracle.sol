@@ -3,35 +3,37 @@ pragma solidity =0.8.17;
 
 import {UnderlyingHoldingsOracle} from "./UnderlyingHoldingsOracle.sol";
 import {NotionalProxy} from "../../../interfaces/notional/NotionalProxy.sol";
-import {AaveV3AssetAdapter} from "./adapters/AaveV3AssetAdapter.sol";
+import {CompoundV3AssetAdapter} from "./adapters/CompoundV3AssetAdapter.sol";
 import {DepositData, RedeemData} from "../../../interfaces/notional/IPrimeCashHoldingsOracle.sol";
 
-struct AaveV3DeploymentParams {
+struct CompoundV3DeploymentParams {
     NotionalProxy notional;
     address underlying;
-    address waToken;
+    address cToken;
 }
 
-contract AaveV3HoldingsOracle is UnderlyingHoldingsOracle {
+contract CompoundV3HoldingsOracle is UnderlyingHoldingsOracle {
     uint8 private constant NUM_ASSET_TOKENS = 1;
-    address internal immutable AAVE_ASSET_TOKEN;
+    address internal immutable ASSET_TOKEN;
 
-    constructor(AaveV3DeploymentParams memory params) 
+    constructor(CompoundV3DeploymentParams memory params) 
         UnderlyingHoldingsOracle(params.notional, params.underlying) {
-        AAVE_ASSET_TOKEN = params.waToken;
+        // Compound V3 adapter does not support ETH for now
+        require(!UNDERLYING_IS_ETH);
+        ASSET_TOKEN = params.cToken;
     }
 
     function _holdings() internal view virtual override returns (address[] memory) {
         address[] memory result = new address[](NUM_ASSET_TOKENS);
-        result[0] = AAVE_ASSET_TOKEN;
+        result[0] = ASSET_TOKEN;
         return result;
     }
 
     function _holdingValuesInUnderlying() internal view virtual override returns (uint256[] memory) {
         uint256[] memory result = new uint256[](NUM_ASSET_TOKENS);
         address[] memory tokens = new address[](NUM_ASSET_TOKENS);
-        tokens[0] = AAVE_ASSET_TOKEN;
-        result[0] = _aaveUnderlyingValue(NOTIONAL.getStoredTokenBalances(tokens)[0]);
+        tokens[0] = ASSET_TOKEN;
+        result[0] = _assetUnderlyingValue(NOTIONAL.getStoredTokenBalances(tokens)[0]);
         return result;
     }
 
@@ -39,15 +41,15 @@ contract AaveV3HoldingsOracle is UnderlyingHoldingsOracle {
         // NUM_ASSET_TOKENS + underlying
         address[] memory tokens = new address[](NUM_ASSET_TOKENS + 1);
         tokens[0] = UNDERLYING_TOKEN;
-        tokens[1] = AAVE_ASSET_TOKEN;
+        tokens[1] = ASSET_TOKEN;
 
         uint256[] memory balances = NOTIONAL.getStoredTokenBalances(tokens);
-        return _aaveUnderlyingValue(balances[1]) + balances[0];
+        return _assetUnderlyingValue(balances[1]) + balances[0];
     }
 
-    function _aaveUnderlyingValue(uint256 assetBalance) internal view returns (uint256) {
-        return AaveV3AssetAdapter.getUnderlyingValue({
-            assetToken: AAVE_ASSET_TOKEN,
+    function _assetUnderlyingValue(uint256 assetBalance) internal view returns (uint256) {
+        return CompoundV3AssetAdapter.getUnderlyingValue({
+            assetToken: ASSET_TOKEN,
             assetBalance: assetBalance
         });
     } 
@@ -56,11 +58,11 @@ contract AaveV3HoldingsOracle is UnderlyingHoldingsOracle {
     function _getRedemptionCalldata(uint256 withdrawAmount) internal view virtual override returns (
         RedeemData[] memory redeemData
     ) {
-        return AaveV3AssetAdapter.getRedemptionCalldata({
+        return CompoundV3AssetAdapter.getRedemptionCalldata({
             from: address(NOTIONAL),
-            assetToken: AAVE_ASSET_TOKEN,
-            redeemUnderlyingAmount: withdrawAmount,
-            underlyingIsETH: UNDERLYING_IS_ETH
+            assetToken: ASSET_TOKEN,
+            underlyingToken: UNDERLYING_TOKEN,
+            redeemUnderlyingAmount: withdrawAmount
         });
     }
 
@@ -70,7 +72,7 @@ contract AaveV3HoldingsOracle is UnderlyingHoldingsOracle {
     ) internal view virtual override returns (
         RedeemData[] memory redeemData
     ) {
-        require(holdings.length == NUM_ASSET_TOKENS && holdings[0] == AAVE_ASSET_TOKEN);
+        require(holdings.length == NUM_ASSET_TOKENS && holdings[0] == ASSET_TOKEN);
         return _getRedemptionCalldata(withdrawAmounts[0]);
     }
 
@@ -80,13 +82,12 @@ contract AaveV3HoldingsOracle is UnderlyingHoldingsOracle {
     ) internal view virtual override returns (
         DepositData[] memory depositData
     ) {
-        require(holdings.length == NUM_ASSET_TOKENS && holdings[0] == AAVE_ASSET_TOKEN);
-        return AaveV3AssetAdapter.getDepositCalldata({
+        require(holdings.length == NUM_ASSET_TOKENS && holdings[0] == ASSET_TOKEN);
+        return CompoundV3AssetAdapter.getDepositCalldata({
             from: address(NOTIONAL),
-            assetToken: AAVE_ASSET_TOKEN,
+            assetToken: ASSET_TOKEN,
             underlyingToken: UNDERLYING_TOKEN,
-            depositUnderlyingAmount: depositAmounts[0],
-            underlyingIsETH: UNDERLYING_IS_ETH
+            depositUnderlyingAmount: depositAmounts[0]
         });
     }
 }
