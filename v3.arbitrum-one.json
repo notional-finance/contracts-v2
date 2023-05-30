@@ -34,5 +34,25 @@
         "PauseRouter": "0x6b986A60216ACA687457782aDFA0B002aD392Ce7",
         "Router": "0xB12b08045c2FB403Fcae579641D0a011AAd8ED70"
     },
-    "startBlock": 86540849
+    "startBlock": 86540849,
+    "tokens": {
+        "DAI": {
+            "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
+        },
+        "USDC": {
+            "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
+        },
+        "WBTC": {
+            "address": "0x2f2a2543B76A4166549F7aaB2e75Bef0aefC5B0f"
+        },
+        "WETH": {
+            "address": "0x82aF49447D8a07e3bd95BD0d56f35241523fBab1"
+        },
+        "wstETH": {
+            "address": "0x5979D7b546E38E414F7E9822514be443A4800529"
+        },
+        "FRAX": {
+            "address": "0x17FC002b466eEc40DaE837Fc4bE5c67993ddBd6F"
+        }
+    }
 }

@@ -14,85 +14,95 @@ from tests.helpers import get_interest_rate_curve
 from scripts.primeCashOracle import CompoundConfig
 from scripts.deployment import deployNotionalContracts, deployBeacons
 
-with open("v2.mainnet.json", "r") as j:
-    MAINNET = json.load(j)
+def getEnvironment(accounts, configFile, migrate=False):
+    with open(configFile, "r") as j:
+        config = json.load(j)
+    return V3Environment(accounts, config, migrate)
 
 class V3Environment:
-    def __init__(self, accounts):
+    def __init__(self, accounts, config, migrate=False):
         notionalInterfaceABI = interface.NotionalProxy.abi
         self.deployer = accounts[0]
         self.notional = Contract.from_abi(
-            "Notional", MAINNET["notional"], abi=notionalInterfaceABI
+            "Notional", config["notional"], abi=notionalInterfaceABI
         )
         self.proxy = Contract.from_abi(
-            "Notional", MAINNET["notional"], abi=nProxy.abi
+            "Notional", config["notional"], abi=nProxy.abi
         )
         self.router = Contract.from_abi(
-            "Notional", MAINNET["notional"], abi=Router.abi
+            "Notional", config["notional"], abi=Router.abi
         )
 
-        deployBeacons(self.deployer, self.notional)
-    
-        self.rebalancingStrategy = ProportionalRebalancingStrategy.deploy(MAINNET["notional"], {"from": self.deployer})
+        self.tokens = {
+            'DAI': Contract.from_abi('DAI', config['tokens']['DAI']['address'], MockERC20.abi),
+            'USDC': Contract.from_abi('USDC', config['tokens']['USDC']['address'], MockERC20.abi),
+            'WBTC': Contract.from_abi('WBTC', config['tokens']['WBTC']['address'], MockERC20.abi),
+            'WETH': Contract.from_abi('WETH', config['tokens']['WETH']['address'], MockERC20.abi),
+            'wstETH': Contract.from_abi('wstETH', config['tokens']['wstETH']['address'], MockERC20.abi),
+            'FRAX': Contract.from_abi('FRAX', config['tokens']['FRAX']['address'], MockERC20.abi),
+        }
 
-        (self.finalRouter, self.pauseRouter, self.contracts) = deployNotionalContracts(
-            self.deployer, 
-            Comptroller=MAINNET["compound"]["comptroller"],
-            RebalancingStrategy=self.rebalancingStrategy
-        )
+        if migrate:
+            deployBeacons(self.deployer, self.notional)
+        
+            self.rebalancingStrategy = ProportionalRebalancingStrategy.deploy(
+                config["notional"], 
+                {"from": self.deployer}
+            )
 
-        self.patchFix = MigratePrimeCash.deploy(
-            self.proxy.getImplementation(),
-            self.pauseRouter.address,
-            self.proxy.address,
-            {"from": self.deployer}
-        )
+            (self.finalRouter, self.pauseRouter, self.contracts) = deployNotionalContracts(
+                self.deployer, 
+                Comptroller=config["compound"]["comptroller"],
+                RebalancingStrategy=self.rebalancingStrategy
+            )
+
+            self.patchFix = MigratePrimeCash.deploy(
+                self.proxy.getImplementation(),
+                self.pauseRouter.address,
+                self.proxy.address,
+                {"from": self.deployer}
+            )
+
+            # Deploys Prime Cash Oracles
+            self.pETH = CompoundV2HoldingsOracle.deploy([
+                self.notional,
+                CompoundConfig["ETH"]["underlying"],
+                CompoundConfig["ETH"]["cToken"],
+                self.notional.getCurrencyAndRates(1)["assetRate"]["rateOracle"],
+            ], {"from": self.deployer})
+
+            self.pDAI = CompoundV2HoldingsOracle.deploy([
+                self.notional,
+                CompoundConfig["DAI"]["underlying"],
+                CompoundConfig["DAI"]["cToken"],
+                self.notional.getCurrencyAndRates(2)["assetRate"]["rateOracle"]
+            ], {"from": self.deployer})
+
+            self.pUSDC = CompoundV2HoldingsOracle.deploy([
+                self.notional,
+                CompoundConfig["USDC"]["underlying"],
+                CompoundConfig["USDC"]["cToken"],
+                self.notional.getCurrencyAndRates(3)["assetRate"]["rateOracle"],
+            ], {"from": self.deployer})
+
+            self.pWBTC = CompoundV2HoldingsOracle.deploy([
+                self.notional,
+                CompoundConfig["WBTC"]["underlying"],
+                CompoundConfig["WBTC"]["cToken"],
+                self.notional.getCurrencyAndRates(4)["assetRate"]["rateOracle"],
+            ], {"from": self.deployer})
+
+            self.primeCashOracles = { 'ETH': self.pETH, 'DAI': self.pDAI, 'USDC': self.pUSDC, 'WBTC': self.pWBTC }
+
+            self.tokens['cETH'] = Contract.from_abi('cETH', CompoundConfig['ETH']['cToken'], MockERC20.abi)
+            self.tokens['cDAI'] = Contract.from_abi('cDAI', CompoundConfig['DAI']['cToken'], MockERC20.abi),
+            self.tokens['cUSDC'] = Contract.from_abi('cUSDC', CompoundConfig['USDC']['cToken'], MockERC20.abi),
+            self.tokens['cWBTC'] = Contract.from_abi('cWBTC', CompoundConfig['WBTC']['cToken'], MockERC20.abi),
 
         self.owner = self.notional.owner()
         self.pauseRouter = self.router.pauseRouter()
         self.guardian = self.router.pauseGuardian()
         self.multisig = "0x02479BFC7Dce53A02e26fE7baea45a0852CB0909"
-
-        self.tokens = {
-            'DAI': Contract.from_abi('DAI', CompoundConfig['DAI']['underlying'], MockERC20.abi),
-            'USDC': Contract.from_abi('USDC', CompoundConfig['USDC']['underlying'], MockERC20.abi),
-            'WBTC': Contract.from_abi('WBTC', CompoundConfig['WBTC']['underlying'], MockERC20.abi),
-            'cETH': Contract.from_abi('cETH', CompoundConfig['ETH']['cToken'], MockERC20.abi),
-            'cDAI': Contract.from_abi('cDAI', CompoundConfig['DAI']['cToken'], MockERC20.abi),
-            'cUSDC': Contract.from_abi('cUSDC', CompoundConfig['USDC']['cToken'], MockERC20.abi),
-            'cWBTC': Contract.from_abi('cWBTC', CompoundConfig['WBTC']['cToken'], MockERC20.abi),
-        }
-
-        # Deploys Prime Cash Oracles
-        self.pETH = CompoundV2HoldingsOracle.deploy([
-            self.notional,
-            CompoundConfig["ETH"]["underlying"],
-            CompoundConfig["ETH"]["cToken"],
-            self.notional.getCurrencyAndRates(1)["assetRate"]["rateOracle"],
-        ], {"from": self.deployer})
-
-        self.pDAI = CompoundV2HoldingsOracle.deploy([
-            self.notional,
-            CompoundConfig["DAI"]["underlying"],
-            CompoundConfig["DAI"]["cToken"],
-            self.notional.getCurrencyAndRates(2)["assetRate"]["rateOracle"]
-        ], {"from": self.deployer})
-
-        self.pUSDC = CompoundV2HoldingsOracle.deploy([
-            self.notional,
-            CompoundConfig["USDC"]["underlying"],
-            CompoundConfig["USDC"]["cToken"],
-            self.notional.getCurrencyAndRates(3)["assetRate"]["rateOracle"],
-        ], {"from": self.deployer})
-
-        self.pWBTC = CompoundV2HoldingsOracle.deploy([
-            self.notional,
-            CompoundConfig["WBTC"]["underlying"],
-            CompoundConfig["WBTC"]["cToken"],
-            self.notional.getCurrencyAndRates(4)["assetRate"]["rateOracle"],
-        ], {"from": self.deployer})
-
-        self.primeCashOracles = { 'ETH': self.pETH, 'DAI': self.pDAI, 'USDC': self.pUSDC, 'WBTC': self.pWBTC }
 
     def setMigrationSettings(self):
         # TODO: change these...
