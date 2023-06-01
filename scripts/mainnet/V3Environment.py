@@ -3,6 +3,7 @@ from brownie import (
     accounts,
     Contract, 
     interface, 
+    ZERO_ADDRESS,
     MigratePrimeCash, 
     nProxy, 
     Router, 
@@ -20,7 +21,7 @@ def getEnvironment(accounts, configFile, migrate=False):
     return V3Environment(accounts, config, migrate)
 
 class V3Environment:
-    def __init__(self, accounts, config, migrate=False):
+    def __init__(self, accounts, config, migrate=True):
         notionalInterfaceABI = interface.NotionalProxy.abi
         self.deployer = accounts[0]
         self.notional = Contract.from_abi(
