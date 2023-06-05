@@ -43,6 +43,24 @@ class V3Environment:
             'FRAX': Contract.from_abi('FRAX', config['tokens']['FRAX']['address'], MockERC20.abi),
         }
 
+        self.owner = self.notional.owner()
+        self.pauseRouter = self.router.pauseRouter()
+        self.guardian = self.router.pauseGuardian()
+        self.multisig = "0x02479BFC7Dce53A02e26fE7baea45a0852CB0909"
+
+        self.rebalancingStrategy = ProportionalRebalancingStrategy.deploy(
+            config["notional"], 
+            {"from": self.deployer}
+        )
+
+        (self.finalRouter, self.pauseRouter, self.contracts) = deployNotionalContracts(
+            self.deployer, 
+            Comptroller=ZERO_ADDRESS,
+            RebalancingStrategy=self.rebalancingStrategy
+        )
+
+        self.notional.upgradeTo(self.finalRouter, {"from": self.owner})
+
         if migrate:
             deployBeacons(self.deployer, self.notional)
         
@@ -99,11 +117,6 @@ class V3Environment:
             self.tokens['cDAI'] = Contract.from_abi('cDAI', CompoundConfig['DAI']['cToken'], MockERC20.abi),
             self.tokens['cUSDC'] = Contract.from_abi('cUSDC', CompoundConfig['USDC']['cToken'], MockERC20.abi),
             self.tokens['cWBTC'] = Contract.from_abi('cWBTC', CompoundConfig['WBTC']['cToken'], MockERC20.abi),
-
-        self.owner = self.notional.owner()
-        self.pauseRouter = self.router.pauseRouter()
-        self.guardian = self.router.pauseGuardian()
-        self.multisig = "0x02479BFC7Dce53A02e26fE7baea45a0852CB0909"
 
     def setMigrationSettings(self):
         # TODO: change these...
