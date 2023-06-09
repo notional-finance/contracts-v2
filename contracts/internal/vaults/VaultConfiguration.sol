@@ -202,6 +202,16 @@ library VaultConfiguration {
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(vaultConfig.borrowCurrencyId);
         require(!underlyingToken.hasTransferFee); 
 
+        if (vaultConfig.secondaryBorrowCurrencies[0] != 0) {
+            require(!TokenHandler.getUnderlyingToken(
+                vaultConfig.secondaryBorrowCurrencies[0]).hasTransferFee);
+        }
+
+        if (vaultConfig.secondaryBorrowCurrencies[1] != 0) {
+            require(!TokenHandler.getUnderlyingToken(
+                vaultConfig.secondaryBorrowCurrencies[1]).hasTransferFee);
+        }
+
         store[vaultAddress] = vaultConfig;
     }
 
