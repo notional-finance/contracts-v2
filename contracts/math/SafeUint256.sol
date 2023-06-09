@@ -128,7 +128,7 @@ library SafeUint256 {
     }
 
     function toUint72(uint256 x) internal pure returns (uint72) {
-        require(x <= type(uint8).max);
+        require(x <= type(uint72).max);
         return uint72(x);
     }
     
