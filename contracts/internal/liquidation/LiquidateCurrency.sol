@@ -246,6 +246,10 @@ library LiquidateCurrency {
                     .div(liquidationDiscount)
                     .sub(factors.collateralETHRate.haircut);
 
+            // Governance cannot set parameters such that a combination of collateral and debt results in
+            // a negative denominator here.
+            require(denominator > 0); // dev: negative denominator
+
             requiredCollateralPrimeCash = collateralDenominatedFC
                 .mul(Constants.PERCENTAGE_DECIMALS)
                 .div(denominator);
