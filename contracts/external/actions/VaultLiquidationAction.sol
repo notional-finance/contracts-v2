@@ -103,9 +103,7 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         if (vaultAccount.maturity == Constants.PRIME_CASH_VAULT_MATURITY) {
             // Vault account will not incur a cash balance if they are in the prime cash maturity, their debts
             // will be paid down directly.
-            _reduceAccountDebt(
-                vaultConfig, vaultState, vaultAccount, pr, currencyIndex, depositUnderlyingInternal, true
-            );
+            _reduceAccountDebt(vaultConfig, vaultState, vaultAccount, currencyIndex, depositUnderlyingInternal, true);
             depositAmountPrimeCash = 0;
         }
 
@@ -171,7 +169,7 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         );
 
         // Do not emit the secondary debt event, will be emitted inside _transferCashToVault
-        _reduceAccountDebt(vaultConfig, vaultState, vaultAccount, pr, currencyIndex, fCashDeposit, false);
+        _reduceAccountDebt(vaultConfig, vaultState, vaultAccount, currencyIndex, fCashDeposit, false);
         vaultAccount.setVaultAccountForLiquidation(vaultConfig, currencyIndex, cashToLiquidator.neg(), false);
     }
 
@@ -321,7 +319,6 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         VaultConfig memory vaultConfig,
         VaultState memory vaultState,
         VaultAccount memory vaultAccount,
-        PrimeRate memory primeRate,
         uint256 currencyIndex,
         int256 depositUnderlyingInternal,
         bool checkMinBorrow
@@ -332,8 +329,7 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
         } else {
             // Only set one of the prime rates, the other prime rate is not used since
             // the net debt amount is set to zero
-            PrimeRate[2] memory pr;
-            pr[currencyIndex - 1] = primeRate;
+            PrimeRate[2] memory pr = VaultSecondaryBorrow.getSecondaryPrimeRateStateful(vaultConfig);
 
             VaultSecondaryBorrow.updateAccountSecondaryDebt(
                 vaultConfig,
