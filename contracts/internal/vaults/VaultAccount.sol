@@ -155,6 +155,9 @@ library VaultAccountLib {
                 LibStorage.getVaultAccountSecondaryDebtShare()[vaultAccount.account][vaultConfig.vault];
             uint256 secondaryMaturity = _s.maturity;
             require(vaultAccount.maturity == secondaryMaturity || secondaryMaturity == 0); // dev: invalid maturity
+
+            // Sanity check to ensure that secondary maturity is set properly
+            if (secondaryMaturity == 0) require(_s.accountDebtOne == 0 && _s.accountDebtTwo == 0);
         }
 
         uint256 newDebtStorageValue = VaultStateLib.calculateDebtStorage(
