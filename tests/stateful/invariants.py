@@ -30,7 +30,7 @@ def get_all_markets(env, currencyId):
     return markets
 
 
-def check_system_invariants(env, accounts, vaults=[], vaultfCashOverrides=[]):
+def check_system_invariants(env, accounts, vaults=[]):
     for (currencyId, nToken) in env.nToken.items():
         try:
             env.notional.initializeMarkets(currencyId, False)
@@ -41,7 +41,7 @@ def check_system_invariants(env, accounts, vaults=[], vaultfCashOverrides=[]):
     check_stored_token_balance(env)
     check_cash_balance(env, accounts, vaults)
     check_ntoken(env, accounts)
-    check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides)
+    check_portfolio_invariants(env, accounts, vaults)
     check_account_context(env, accounts)
     check_token_incentive_balance(env, accounts)
     check_vault_invariants(env, accounts, vaults)
@@ -106,6 +106,11 @@ def check_cash_balance(env, accounts, vaults):
 
             for m in maturities:
                 totalDebtUnderlying = 0
+                # NOTE: this will break if there are multiple vaults lending at zero in the
+                # tests
+                (_, _, primeCashHeldInReserve) = env.notional.getTotalfCashDebtOutstanding(currencyId, m)
+                positiveCashBalances += primeCashHeldInReserve
+
                 if currencyId == config["borrowCurrencyId"]:
                     state = env.notional.getVaultState(vault, m)
                     totalDebtUnderlying = state["totalDebtUnderlying"]
@@ -198,15 +203,10 @@ def check_ntoken(env, accounts):
             assert nToken.getPresentValueAssetDenominated() + nTokenAccount["cashBalance"] > 0
 
 
-def check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides=[]):
+def check_portfolio_invariants(env, accounts, vaults):
     fCashDebt = defaultdict(lambda: 0)
     fCashLend = defaultdict(lambda: 0)
     liquidityToken = defaultdict(dict)
-    for o in vaultfCashOverrides:
-        if o["fCash"] > 0:
-            fCashLend[(o["currencyId"], o["maturity"])] += o["fCash"]
-        else:
-            fCashDebt[(o["currencyId"], o["maturity"])] += o["fCash"]
 
     for account in accounts:
         portfolio = env.notional.getAccountPortfolio(account.address)
@@ -288,16 +288,18 @@ def check_portfolio_invariants(env, accounts, vaults, vaultfCashOverrides=[]):
                 fCashDebt[(currencyId, m)] += totalDebtUnderlying
 
     for (key, debt) in fCashDebt.items():
+        (totalfCashDebt, fCashDebtHeldInReserve, primeCashHeldInReserve) = env.notional.getTotalfCashDebtOutstanding(key[0], key[1])
+
         # Assert that all fCash balances net off to zero
-        assert fCashLend[key] + debt == 0
+        assert fCashLend[key] + debt + fCashDebtHeldInReserve == 0
         # Check that the total fCash debt equals total debt outstanding
-        overrides = sum([v['fCash'] for v in vaultfCashOverrides if v['currencyId'] == key[0] and v['maturity'] == key[1]])
-        assert env.notional.getTotalfCashDebtOutstanding(key[0], key[1]) + overrides == debt
+        assert totalfCashDebt == debt
 
     # Check the opposite way just in case
     for (key, lend) in fCashLend.items():
+        (totalfCashDebt, fCashDebtHeldInReserve, primeCashHeldInReserve) = env.notional.getTotalfCashDebtOutstanding(key[0], key[1])
         # Assert that all fCash balances net off to zero
-        assert fCashDebt[key] + lend == 0
+        assert fCashDebt[key] + lend + fCashDebtHeldInReserve == 0
 
 
 def check_account_context(env, accounts):

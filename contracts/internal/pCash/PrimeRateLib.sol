@@ -457,19 +457,22 @@ library PrimeRateLib {
         );
 
         // This is purely done to fully reconcile off chain accounting with the edge condition where
-        // leveraged vaults lend at zero interest.
+        // leveraged vaults lend at zero interest. In this code block, no prime debt is created or
+        // destroyed (the totalfCashDebt figure above does not include fCashDebt held in settlement
+        // reserve). Only prime cash held in reserve is burned to repay the settled debt. Excess cash
+        // is sent to the fee reserve.
         int256 fCashDebtInReserve = -int256(s.fCashDebtHeldInSettlementReserve);
         int256 primeCashInReserve = int256(s.primeCashHeldInSettlementReserve);
-        if (fCashDebtInReserve > 0 || primeCashInReserve > 0) {
-            int256 settledPrimeCash = convertFromUnderlying(settlementRate, fCashDebtInReserve);
-            int256 excessCash;
-            if (primeCashInReserve > settledPrimeCash) {
-                excessCash = primeCashInReserve - settledPrimeCash;
+        if (fCashDebtInReserve < 0 || 0 < primeCashInReserve) {
+            int256 settledDebtInPrimeCash = convertFromUnderlying(settlementRate, fCashDebtInReserve);
+            // 0 < primeCashInReserve 0 and settledDebtInPrimeCash < 0
+            int256 excessCash = primeCashInReserve.add(settledDebtInPrimeCash);
+            if (0 < excessCash) {
                 BalanceHandler.incrementFeeToReserve(currencyId, excessCash);
             } 
 
             Emitter.emitSettlefCashDebtInReserve(
-                currencyId, maturity, fCashDebtInReserve, settledPrimeCash, excessCash
+                currencyId, maturity, fCashDebtInReserve, settledDebtInPrimeCash, excessCash
             );
         }
 
