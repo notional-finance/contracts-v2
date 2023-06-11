@@ -448,15 +448,7 @@ def test_roll_vault_lending_fails(environment, accounts, vault, roll_account):
     # This is approx equal because there is no vault fee assessed
     assert pytest.approx(rollBorrowLendCostInternal + 1_000e8, rel=1e-5) == netSharesMinted
 
-    # Increase the reserve balance to account for the cash used to offset the fCash
-    (primeRate, _, _, _) = environment.notional.getPrimeFactors(2, chain.time() + 1)
-    environment.notional.setReserveCashBalance(
-        2,
-        environment.notional.getReserveBalance(2)
-        + math.floor(100_000e8 * 1e36 / primeRate["supplyFactor"]),
-    )
-    vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity1, "fCash": -100_000e8}]
-    check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)
+    check_system_invariants(environment, accounts, [vault])
 
 
 @given(

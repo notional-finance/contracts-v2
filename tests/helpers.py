@@ -717,7 +717,7 @@ def simulate_init_markets(mock, currencyId, additionalfCash=0):
     market[3] = 0
     market[4] = 0
 
-    totalDebt = mock.getTotalfCashDebtOutstanding(currencyId, tref)
+    (totalDebt, _, _) = mock.getTotalfCashDebtOutstanding(currencyId, tref)
     # Clear the nToken fCash from total debt
     mock.setTotalfCashDebtOutstanding(currencyId, tref, totalDebt + 100_000e8)
     mock.setMarket(currencyId, tref, market)

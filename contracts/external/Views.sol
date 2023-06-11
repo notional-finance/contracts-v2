@@ -20,7 +20,8 @@ import {
     AccountBalance,
     BalanceStorage,
     Deprecated_AssetRateParameters,
-    RebalancingContextStorage
+    RebalancingContextStorage,
+    TotalfCashDebtStorage
 } from "../global/Types.sol";
 import {SafeUint256} from "../math/SafeUint256.sol";
 import {SafeInt256} from "../math/SafeInt256.sol";
@@ -277,8 +278,16 @@ contract Views is StorageLayoutV2, NotionalViews {
 
     function getTotalfCashDebtOutstanding(
         uint16 currencyId, uint256 maturity
-    ) external view override returns (int256) {
-        return PrimeCashExchangeRate.getTotalfCashDebtOutstanding(currencyId, maturity);
+    ) external view override returns (
+        int256 totalfCashDebt,
+        int256 fCashDebtHeldInSettlementReserve,
+        int256 primeCashHeldInSettlementReserve
+    ) {
+        mapping(uint256 => mapping(uint256 => TotalfCashDebtStorage)) storage store = LibStorage.getTotalfCashDebtOutstanding();
+        TotalfCashDebtStorage storage s = store[currencyId][maturity];
+        totalfCashDebt =  -int256(s.totalfCashDebt);
+        fCashDebtHeldInSettlementReserve =  -int256(s.fCashDebtHeldInSettlementReserve);
+        primeCashHeldInSettlementReserve = int256(s.primeCashHeldInSettlementReserve);
     }
 
     /// @notice Returns the asset settlement rate for a given maturity

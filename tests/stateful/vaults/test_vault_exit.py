@@ -9,6 +9,7 @@ from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from fixtures import *
+from scripts.EventProcessor import processTxn
 from tests.constants import PRIME_CASH_VAULT_MATURITY, SECONDS_IN_QUARTER
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.snapshot import EventChecker
@@ -592,7 +593,6 @@ def test_exit_vault_transfer_to_receiver(environment, vault, accounts, useReceiv
 
     check_system_invariants(environment, accounts, [vault])
 
-
 @given(useReceiver=strategy("bool"))
 def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     environment.notional.updateVault(
@@ -657,14 +657,22 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     assert vaultState["totalDebtUnderlying"] == -100_000e8
     assert vaultState["totalVaultShares"] == vaultAccount["vaultShares"]
 
-    (primeRate, _, _, _) = environment.notional.getPrimeFactors(2, chain.time() + 1)
-    environment.notional.setReserveCashBalance(
-        2,
-        environment.notional.getReserveBalance(2)
-        + math.floor(100_000e8 * 1e36 / primeRate["supplyFactor"]),
-    )
-    vaultfCashOverrides = [{"currencyId": 2, "maturity": maturity, "fCash": -100_000e8}]
-    check_system_invariants(environment, accounts, [vault], vaultfCashOverrides)
+    check_system_invariants(environment, accounts, [vault])
+
+    chain.mine(1, timestamp=maturity)
+    (_, fCashInReserve, primeCashInReserve) = environment.notional.getTotalfCashDebtOutstanding(2, maturity)
+    txn = environment.notional.initializeMarkets(2, False, {"from": accounts[0]})
+    eventStore = processTxn(environment, txn)
+    burnPCash = [  t for t in eventStore['transfers'] if t['assetType'] == 'pCash' and t['transferType'] == 'Burn' and t['fromSystemAccount'] == 'Settlement' ]
+    burnFCash = [  t for t in eventStore['transfers'] if t['assetType'] == 'fCash' and t['transferType'] == 'Burn' and t['fromSystemAccount'] == 'Settlement' ]
+    assert len(burnPCash) == 1
+    assert len(burnFCash) == 1
+    assert burnPCash[0]['value'] == primeCashInReserve
+    assert burnFCash[0]['value'] == fCashInReserve
+
+    (_, _, primeCashHeldInReserve) = environment.notional.getTotalfCashDebtOutstanding(2, maturity)
+    assert primeCashHeldInReserve == 0
+    check_system_invariants(environment, accounts, [vault])
 
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),

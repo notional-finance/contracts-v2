@@ -275,7 +275,6 @@ library Emitter {
         emit TransferSingle(msg.sender, Constants.SETTLEMENT_RESERVE, address(0), id, uint256(fCashDebtInReserve.abs()));
         // The settled prime debt doesn't exist in this case since we don't add the debt to the
         // total prime debt so we just "burn" the prime cash that only exists in an off chain accounting context.
-        // TODO: may want to emit a repay event here instead...
         emitMintOrBurnPrimeCash(Constants.SETTLEMENT_RESERVE, currencyId, settledPrimeCash);
         if (excessCash > 0) {
             // Any excess prime cash in reserve is "transferred" to the fee reserve

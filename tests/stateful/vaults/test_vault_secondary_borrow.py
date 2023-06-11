@@ -285,15 +285,7 @@ def test_vault_exit_at_zero_interest(accounts, multiCurrencyVault, environment):
     # assert len(grouped['Vault Secondary Debt']) == 1
     # assert len(grouped['Vault Exit [Lend at Zero]']) == 1
 
-    # TODO: switch this to read from the system instead
-    (primeRate, _, _, _) = environment.notional.getPrimeFactors(1, chain.time() + 1)
-    environment.notional.setReserveCashBalance(
-        1,
-        environment.notional.getReserveBalance(1)
-        + math.floor(10e8 * 1e36 / primeRate["supplyFactor"]),
-    )
-    vaultfCashOverrides = [{"currencyId": 1, "maturity": maturity, "fCash": -10e8}]
-    check_system_invariants(environment, accounts, [multiCurrencyVault], vaultfCashOverrides)
+    check_system_invariants(environment, accounts, [multiCurrencyVault])
 
 @given(rollToPrime=strategy("bool"), isPrime=strategy("bool"))
 def test_roll_position(accounts, multiCurrencyVault, environment, isPrime, rollToPrime):
