@@ -268,8 +268,9 @@ library VaultValuation {
             // value). Resolving this would require additional complexity for not much gain. An
             // account within 20% of the minBorrowSize in a vault that has fCash discounting enabled
             // may experience a full liquidation as a result.
+            int256 postLiquidationDebtOutstanding = h.netDebtOutstanding[currencyIndex].neg().sub(depositUnderlyingInternal);
             require(
-                h.netDebtOutstanding[currencyIndex].sub(depositUnderlyingInternal) < minBorrowSize,
+                postLiquidationDebtOutstanding == 0 || minBorrowSize <= postLiquidationDebtOutstanding,
                 "Must Liquidate All Debt"
             );
         } else {
