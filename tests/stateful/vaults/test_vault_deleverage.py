@@ -373,6 +373,48 @@ def check_deleverage_invariants(
 
     check_system_invariants(environment, accounts, [vault])
 
+
+@given(
+    currencyId=strategy("uint", min_value=1, max_value=3),
+    isPrime=strategy("bool"),
+    enablefCashDiscount=strategy("bool"),
+)
+def test_cannot_deleverage_below_min_borrow(
+    environment, accounts, currencyId, isPrime, enablefCashDiscount 
+):
+    # This vault price forces a full liquidation
+    vaultPrice = 0.92
+    e = setup_deleverage_conditions(
+        environment, accounts, currencyId, isPrime, enablefCashDiscount, vaultPrice
+    )
+    environment.notional.updateVault(
+        e['vault'].address,
+        get_vault_config(
+            currencyId=currencyId,
+            flags=set_flags(
+                0, ENABLED=True, ENABLE_FCASH_DISCOUNT=enablefCashDiscount, ALLOW_ROLL_POSITION=True
+            ),
+            minAccountBorrowSize=100 * e['multiple'],
+        ),
+        100_000_000e8,
+    )
+
+    depositAmount = 125 * e['multiple'] * 1e8
+    with brownie.reverts("Must Liquidate All Debt"):
+        # Min Borrow is 100, debt is 200, must liquidate down to zero if going below
+        # 100 debt outstanding
+        environment.notional.deleverageAccount(
+            accounts[1],
+            e["vault"].address,
+            accounts[2],
+            0,
+            depositAmount,
+            {"from": accounts[2], "value": depositAmount * 1e10 + 1e10 if currencyId == 1 else 0},
+        )
+ 
+
+
+
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
     isPrime=strategy("bool"),
@@ -382,7 +424,6 @@ def check_deleverage_invariants(
 def test_deleverage_account_partial(
     environment, accounts, currencyId, isPrime, enablefCashDiscount, deleverageShare
 ):
-    isPrime = False
     # TODO: if we reduce the vault price, we may need to liquidate full...
     vaultPrice = 0.955
     e = setup_deleverage_conditions(
@@ -790,7 +831,6 @@ def setup_deleverage_account_over_debt_balance(
 
     return e
 
-@pytest.mark.only
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_excess_cash_can_exit(environment, accounts, currencyId):
     e = setup_deleverage_account_over_debt_balance(environment, accounts, currencyId)
@@ -840,7 +880,6 @@ def test_excess_cash_can_exit(environment, accounts, currencyId):
     assert pytest.approx(expectedUnderlyingWithdraw, rel=1e-5) == balanceAfter - balanceBefore
     check_system_invariants(environment, accounts, [e['vault']])
 
-@pytest.mark.only
 @given(currencyId=strategy("uint", min_value=1, max_value=3))
 def test_excess_cash_can_settle(environment, accounts, currencyId):
     e = setup_deleverage_account_over_debt_balance(environment, accounts, currencyId)
