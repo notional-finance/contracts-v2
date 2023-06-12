@@ -36,6 +36,8 @@ abstract contract BaseERC4626Proxy is IERC20, IERC4626, Initializable, ITransfer
     using SafeUint256 for uint256;
     using SafeInt256 for int256;
 
+    event ProxyRenamed();
+
     /*** IMMUTABLES [SET ON IMPLEMENTATION] ***/
     
     /// @notice Inherits from Constants.INTERNAL_TOKEN_PRECISION
@@ -104,6 +106,17 @@ abstract contract BaseERC4626Proxy is IERC20, IERC4626, Initializable, ITransfer
 
         nativeDecimals = IERC20WithDecimals(underlying).decimals();
         require(nativeDecimals < 36);
+    }
+
+    function rename(
+        string memory underlyingName_,
+        string memory underlyingSymbol_
+    ) external {
+        require(msg.sender == NOTIONAL.owner());
+        (string memory namePrefix, string memory symbolPrefix) = _getPrefixes();
+        name = string(abi.encodePacked(namePrefix, " ", underlyingName_));
+        symbol = string(abi.encodePacked(symbolPrefix, underlyingSymbol_));
+        emit ProxyRenamed();
     }
 
     /// @notice Allows ERC20 transfer events to be emitted from the proper address so that

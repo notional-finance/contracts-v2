@@ -43,6 +43,16 @@ def test_cannot_emit_unless_notional(environment, accounts, useNToken):
     txn = proxy.emitTransfer(accounts[1], accounts[2], 100e8, {"from": environment.notional})
     assert 'Transfer' in txn.events
 
+def test_cannot_rename_unless_owner(environment, accounts):
+    proxy = getProxy(environment, False)
+
+    with brownie.reverts():
+        proxy.rename("a", "b", {"from": accounts[1]})
+    
+    proxy.rename("a", "a", {"from": accounts[0]})
+    assert proxy.name() == "pCash a"
+    assert proxy.symbol() == "pa"
+
 @given(useNToken=strategy("bool"))
 def test_cannot_reinitialize_proxy(environment, useNToken, accounts):
     proxy = getProxy(environment, useNToken)
