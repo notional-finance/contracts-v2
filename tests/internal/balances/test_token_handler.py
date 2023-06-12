@@ -399,21 +399,20 @@ class TestTokenHandler:
             else:
                 nativeBalanceBefore = t.balanceOf(tokenHandler)
 
+            cTokenBalanceBefore = tokens['cTokens'][i].balanceOf(tokenHandler)
             txn = tokenHandler.withdrawPrimeCash(
                 accounts[0], i + 1, primeCashToWithdraw, False, {"from": accounts[0]}
             )
+            cTokenBalanceAfter = tokens['cTokens'][i].balanceOf(tokenHandler)
+            
             accountBalanceAfter = accounts[0].balance() if i == 0 else t.balanceOf(accounts[0])
             actualTransfer = txn.events['WithdrawPCash']['actualTransferExternal']
             primeRateAfter = txn.events['WithdrawPCash']['pr']
             assert beforeFactors["accountBalance"] - accountBalanceAfter == actualTransfer
 
-            if actualTransfer > nativeBalanceBefore:
-                if i + 1 == 1:
-                    assert len(txn.events["Transfer"]) == 1
-                    # This is for the WETH redemption
-                    assert len(txn.events["Withdraw"]) == 1
-                else:
-                    assert len(txn.events["Transfer"]) > 1
+            if -actualTransfer > nativeBalanceBefore:
+                exRate = tokens['cTokens'][i].exchangeRateStored()
+                assert pytest.approx((cTokenBalanceBefore - cTokenBalanceAfter) * exRate / 1e18 + nativeBalanceBefore, abs=1e10) == -actualTransfer
 
             self.post_transfer_assertions(
                 tokens,
@@ -446,7 +445,6 @@ class TestTokenHandler:
         with brownie.reverts():
             tokenHandler.getPositiveCashBalance(accounts[0], 1)
 
-    @pytest.mark.only
     @given(hasNToken=strategy("bool"), allowPrimeBorrow=strategy("bool"))
     def test_fcash_liquidation_neg_cash(self, accounts, tokens, hasNToken, allowPrimeBorrow):
         tokenHandler = tokens["handler"]

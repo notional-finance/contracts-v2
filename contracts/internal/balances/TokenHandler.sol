@@ -267,7 +267,7 @@ library TokenHandler {
         IPrimeCashHoldingsOracle oracle = PrimeCashExchangeRate.getPrimeCashHoldingsOracle(currencyId);
         // Redemption data returns an array of contract calls to make from the Notional proxy (which
         // is holding all of the money market tokens).
-        (RedeemData[] memory data) = oracle.getRedemptionCalldata(withdrawAmountExternal);
+        (RedeemData[] memory data) = oracle.getRedemptionCalldata(withdrawAmountExternal - currentBalance);
 
         // This is the total expected underlying that we should redeem after all redemption calls
         // are executed.
