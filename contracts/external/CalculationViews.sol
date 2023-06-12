@@ -184,17 +184,17 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         uint256 timeToMaturity = market.maturity - blockTime;
 
         // prettier-ignore
-        (int256 primeCash, /* int fee */) =
+        (int256 primeCash, /* int fee */, uint256 postFeeInterestRate) =
             InterestRateCurve.calculatefCashTrade(market, cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         // Check the slippage here and revert
         if (rateLimit != 0) {
             if (fCashAmount < 0) {
                 // Do not allow borrows over the rate limit
-                require(market.lastImpliedRate <= rateLimit, "Trade failed, slippage");
+                require(postFeeInterestRate <= rateLimit, "Trade failed, slippage");
             } else {
                 // Do not allow lends under the rate limit
-                require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
+                require(postFeeInterestRate >= rateLimit, "Trade failed, slippage");
             }
         }
 

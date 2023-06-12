@@ -70,9 +70,9 @@ library Market {
         int256 fCashToAccount,
         uint256 timeToMaturity,
         uint256 marketIndex
-    ) internal returns (int256 netPrimeCash) {
+    ) internal returns (int256 netPrimeCash, uint256 postFeeInterestRate) {
         int256 netPrimeCashToReserve;
-        (netPrimeCash, netPrimeCashToReserve) = InterestRateCurve.calculatefCashTrade(
+        (netPrimeCash, netPrimeCashToReserve, postFeeInterestRate) = InterestRateCurve.calculatefCashTrade(
             market,
             cashGroup,
             fCashToAccount,

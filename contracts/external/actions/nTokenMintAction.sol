@@ -354,7 +354,7 @@ library nTokenMintAction {
             fCashAmount = perMarketDepositUnderlying.mulInRatePrecision(assumedExchangeRate);
         }
 
-        int256 netPrimeCash = market.executeTrade(
+        (int256 netPrimeCash, /* */) = market.executeTrade(
             tokenAddress, cashGroup, fCashAmount, timeToMaturity, marketIndex
         );
 

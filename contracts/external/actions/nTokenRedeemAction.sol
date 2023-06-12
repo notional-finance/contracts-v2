@@ -297,7 +297,7 @@ library nTokenRedeemAction {
             if (netfCash[i] == 0) continue;
 
             nToken.cashGroup.loadMarket(market, i + 1, false, block.timestamp);
-            int256 netPrimeCash = market.executeTrade(
+            (int256 netPrimeCash, /* */) = market.executeTrade(
                 account,
                 nToken.cashGroup,
                 // Use the negative of fCash notional here since we want to net it out
