@@ -276,6 +276,17 @@ contract Views is StorageLayoutV2, NotionalViews {
         return InterestRateCurve.getPrimeCashInterestRateParameters(currencyId);
     }
 
+    function getPrimeInterestRate(uint16 currencyId) external view override returns (
+        uint256 annualDebtRatePreFee,
+        uint256 annualDebtRatePostFee,
+        uint256 annualSupplyRate
+    ) {
+        return PrimeCashExchangeRate.getPrimeInterestRates(
+            currencyId,
+            PrimeCashExchangeRate.getPrimeCashFactors(currencyId)
+       );
+    }
+
     function getTotalfCashDebtOutstanding(
         uint16 currencyId, uint256 maturity
     ) external view override returns (

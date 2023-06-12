@@ -89,6 +89,12 @@ interface NotionalViews {
 
     function getPrimeInterestRateCurve(uint16 currencyId) external view returns (InterestRateParameters memory);
 
+    function getPrimeInterestRate(uint16 currencyId) external view returns (
+        uint256 annualDebtRatePreFee,
+        uint256 annualDebtRatePostFee,
+        uint256 annualSupplyRate
+    );
+
     function getTotalfCashDebtOutstanding(uint16 currencyId, uint256 maturity) external view returns (
         int256 totalfCashDebt,
         int256 fCashDebtHeldInSettlementReserve,
