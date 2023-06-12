@@ -843,3 +843,88 @@ def test_liquidate_cross_currency_cash(
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 
+
+def test_enforce_min_borrow_on_liquidation(accounts, MultiBorrowStrategyVault, environment, ethDAIOracle):
+    vault = MultiBorrowStrategyVault.deploy(
+        "multi",
+        environment.notional.address,
+        2, 1, 3,
+        [ethDAIOracle, ethDAIOracle],
+        {"from": accounts[0]}
+    )
+
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2,
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=True),
+            secondaryBorrowCurrencies=[1, 3],
+            minAccountSecondaryBorrow=[1, 1],
+            maxDeleverageCollateralRatioBPS=2500,
+            minAccountBorrowSize=50_000,
+            excessCashLiquidationBonus=101
+        ),
+        100_000_000e8,
+    )
+
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address,
+        1,
+        10_000e8
+    )
+
+    environment.notional.updateSecondaryBorrowCapacity(
+        vault.address,
+        3,
+        10_000e8
+    )
+
+    environment.notional.enterVault(
+        accounts[1],
+        vault.address,
+        25_000e18,
+        PRIME_CASH_VAULT_MATURITY,
+        100_000e8,
+        0,
+        eth_abi.encode_abi(["uint256[2]"], [[Wei(10e8), Wei(100e8)]]),
+        {"from": accounts[1]}
+    )
+    ethDAIOracle.setAnswer(0.0004e18, {"from": accounts[0]})
+
+    environment.notional.updateVault(
+        vault.address,
+        get_vault_config(
+            currencyId=2,
+            flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=True),
+            secondaryBorrowCurrencies=[1, 3],
+            minAccountSecondaryBorrow=[5, 200],
+            maxDeleverageCollateralRatioBPS=2500,
+            minAccountBorrowSize=50_000,
+            excessCashLiquidationBonus=101
+        ),
+        100_000_000e8,
+    )
+
+    with brownie.reverts("Must Liquidate All Debt"):
+        depositAmount = 7e8
+        environment.notional.deleverageAccount(
+            accounts[1],
+            vault,
+            accounts[2],
+            1,
+            depositAmount,
+            {"from": accounts[2], "value": depositAmount * 1e10 }
+        )
+
+    # Can deleverage even though the other currency is below the min borrow
+    depositAmount = 5e8
+    environment.notional.deleverageAccount(
+        accounts[1],
+        vault,
+        accounts[2],
+        1,
+        depositAmount,
+        {"from": accounts[2], "value": depositAmount * 1e10 }
+    )
+
+    check_system_invariants(environment, accounts, [vault])

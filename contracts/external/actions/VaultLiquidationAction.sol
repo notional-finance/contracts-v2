@@ -331,16 +331,26 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
             // the net debt amount is set to zero
             PrimeRate[2] memory pr = VaultSecondaryBorrow.getSecondaryPrimeRateStateful(vaultConfig);
 
-            VaultSecondaryBorrow.updateAccountSecondaryDebt(
+            (int256 accountDebtOne, int256 accountDebtTwo) = VaultSecondaryBorrow.updateAccountSecondaryDebt(
                 vaultConfig,
                 vaultAccount.account,
                 vaultAccount.maturity,
                 currencyIndex == 1 ? depositUnderlyingInternal : 0,
                 currencyIndex == 2 ? depositUnderlyingInternal : 0,
                 pr,
-                checkMinBorrow,
+                false,
                 false // do not emit events during liquidation, they are emitted prior
             );
+
+            // Only check the minimum borrow requirement on the debt that is being liquidated.
+            if (checkMinBorrow) {
+                int256 accountDebt = currencyIndex == 1 ? accountDebtOne : accountDebtTwo;
+                require(
+                    accountDebt == 0 ||
+                    vaultConfig.minAccountSecondaryBorrow[currencyIndex - 1] <= -accountDebt,
+                    "Min Borrow"
+                );
+            }
         }
     }
 
