@@ -240,8 +240,6 @@ library VaultAccountLib {
         require(vaultAccount.accountDebtUnderlying <= 0);
         vaultState.totalDebtUnderlying = vaultState.totalDebtUnderlying.add(netUnderlyingDebt);
 
-        // Truncate dust balances towards zero
-        if (0 < vaultState.totalDebtUnderlying && vaultState.totalDebtUnderlying < 10) vaultState.totalDebtUnderlying = 0;
         require(vaultState.totalDebtUnderlying <= 0);
     }
 
