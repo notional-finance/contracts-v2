@@ -46,7 +46,7 @@ contract MockMarket is StorageLayoutV1, AbstractSettingsRouter {
             int256
         )
     {
-        (int256 primeCash, int256 cashToReserve) =
+        (int256 primeCash, int256 cashToReserve, /* */) =
             InterestRateCurve.calculatefCashTrade(marketState, cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
         return (marketState, primeCash, cashToReserve);

@@ -226,7 +226,8 @@ library TradingAction {
         // fCash to account will be negative here
         if (tradeType == TradeActionType.Borrow) fCashAmount = fCashAmount.neg();
 
-        cashAmount = market.executeTrade(
+        uint256 postFeeInterestRate;
+        (cashAmount, postFeeInterestRate) = market.executeTrade(
             account,
             cashGroup,
             fCashAmount,
@@ -238,10 +239,10 @@ library TradingAction {
         if (rateLimit != 0) {
             if (tradeType == TradeActionType.Borrow) {
                 // Do not allow borrows over the rate limit
-                require(market.lastImpliedRate <= rateLimit, "Trade failed, slippage");
+                require(postFeeInterestRate <= rateLimit, "Trade failed, slippage");
             } else {
                 // Do not allow lends under the rate limit
-                require(market.lastImpliedRate >= rateLimit, "Trade failed, slippage");
+                require(postFeeInterestRate >= rateLimit, "Trade failed, slippage");
             }
         }
     }

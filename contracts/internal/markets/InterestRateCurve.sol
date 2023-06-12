@@ -358,30 +358,36 @@ library InterestRateCurve {
     /// to the market is in the opposite direction.
     /// @param timeToMaturity number of seconds until maturity
     /// @param marketIndex the relevant tenor of the market to trade on
-    /// @return netAssetCash amount of asset cash to credit or debit to an account
-    /// @return netAssetCashToReserve amount of cash to credit to the reserve (always positive)
+    /// @return netPrimeCashToAccount amount of asset cash to credit or debit to an account
+    /// @return primeCashToReserve amount of cash to credit to the reserve (always positive)
+    /// @return postFeeInterestRate
     function calculatefCashTrade(
         MarketParameters memory market,
         CashGroupParameters memory cashGroup,
         int256 fCashToAccount,
         uint256 timeToMaturity,
         uint256 marketIndex
-    ) internal view returns (int256, int256) {
+    ) internal view returns (int256 netPrimeCashToAccount, int256 primeCashToReserve, uint256 postFeeInterestRate) {
         // Market index must be greater than zero
         require(marketIndex > 0);
         // We return false if there is not enough fCash to support this trade.
         // if fCashToAccount > 0 and totalfCash - fCashToAccount <= 0 then the trade will fail
         // if fCashToAccount < 0 and totalfCash > 0 then this will always pass
-        if (market.totalfCash <= fCashToAccount) return (0, 0);
+        if (market.totalfCash <= fCashToAccount) return (0, 0, 0);
 
         InterestRateParameters memory irParams = getActiveInterestRateParameters(cashGroup.currencyId, marketIndex);
         int256 totalCashUnderlying = cashGroup.primeRate.convertToUnderlying(market.totalPrimeCash);
 
         // returns the net cash amounts to apply to each of the three relevant balances.
+        // TODO: pass down the post fee interest rate here
+        int256 netUnderlyingToAccount;
+        int256 netUnderlyingToMarket;
+        int256 netUnderlyingToReserve;
         (
-            int256 netUnderlyingToAccount,
-            int256 netUnderlyingToMarket,
-            int256 netUnderlyingToReserve
+            netUnderlyingToAccount,
+            netUnderlyingToMarket,
+            netUnderlyingToReserve,
+            postFeeInterestRate
         ) = _getNetCashAmountsUnderlying(
             irParams,
             market,
@@ -392,7 +398,7 @@ library InterestRateCurve {
         );
 
         // Signifies a failed net cash amount calculation
-        if (netUnderlyingToAccount == 0) return (0, 0);
+        if (netUnderlyingToAccount == 0) return (0, 0, 0);
 
         {
             // Do not allow utilization to go above 100 on trading, calculate the utilization after
@@ -402,19 +408,19 @@ library InterestRateCurve {
             totalCashUnderlying = totalCashUnderlying.add(netUnderlyingToMarket);
 
             uint256 utilization = getfCashUtilization(0, market.totalfCash, totalCashUnderlying);
-            if (utilization > uint256(Constants.RATE_PRECISION)) return (0, 0);
+            if (utilization > uint256(Constants.RATE_PRECISION)) return (0, 0, 0);
 
             uint256 newPreFeeImpliedRate = getInterestRate(irParams, utilization);
 
             // It's technically possible that the implied rate is actually exactly zero we will still
             // fail in this case. If this does happen we may assume that markets are not initialized.
-            if (newPreFeeImpliedRate == 0) return (0, 0);
+            if (newPreFeeImpliedRate == 0) return (0, 0, 0);
 
             // Saves the preFeeInterestRate and fCash
             market.lastImpliedRate = newPreFeeImpliedRate;
         }
 
-        return _setNewMarketState(
+        (netPrimeCashToAccount, primeCashToReserve) = _setNewMarketState(
             market,
             cashGroup.primeRate,
             netUnderlyingToAccount,
@@ -434,17 +440,22 @@ library InterestRateCurve {
         int256 totalCashUnderlying,
         int256 fCashToAccount,
         uint256 timeToMaturity
-    ) private pure returns (int256 postFeeCashToAccount, int256 netUnderlyingToMarket, int256 cashToReserve) {
+    ) private pure returns (
+        int256 postFeeCashToAccount,
+        int256 netUnderlyingToMarket,
+        int256 cashToReserve,
+        uint256 postFeeInterestRate
+    ) {
         uint256 utilization = getfCashUtilization(fCashToAccount, market.totalfCash, totalCashUnderlying);
         // Do not allow utilization to go above 100 on trading
-        if (utilization > uint256(Constants.RATE_PRECISION)) return (0, 0, 0);
+        if (utilization > uint256(Constants.RATE_PRECISION)) return (0, 0, 0, 0);
         uint256 preFeeInterestRate = getInterestRate(irParams, utilization);
 
         int256 preFeeCashToAccount = fCashToAccount.divInRatePrecision(
             getfCashExchangeRate(preFeeInterestRate, timeToMaturity)
         ).neg();
 
-        uint256 postFeeInterestRate = getPostFeeInterestRate(irParams, preFeeInterestRate, fCashToAccount < 0);
+        postFeeInterestRate = getPostFeeInterestRate(irParams, preFeeInterestRate, fCashToAccount < 0);
         postFeeCashToAccount = fCashToAccount.divInRatePrecision(
             getfCashExchangeRate(postFeeInterestRate, timeToMaturity)
         ).neg();
