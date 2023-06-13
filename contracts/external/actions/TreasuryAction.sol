@@ -140,7 +140,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             primeCashRedeemAmount.neg(),
             primeRate,
             true // if ETH, transfers it as WETH
-        );
+        ).neg();
 
         require(actualTransferExternal > 0);
         return uint256(actualTransferExternal);
