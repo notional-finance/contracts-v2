@@ -4338,6 +4338,35 @@
                 "type": "uint16"
             }
         ],
+        "name": "getPrimeInterestRate",
+        "outputs": [
+            {
+                "internalType": "uint256",
+                "name": "annualDebtRatePreFee",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "annualDebtRatePostFee",
+                "type": "uint256"
+            },
+            {
+                "internalType": "uint256",
+                "name": "annualSupplyRate",
+                "type": "uint256"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
         "name": "getPrimeInterestRateCurve",
         "outputs": [
             {
@@ -4719,7 +4748,17 @@
         "outputs": [
             {
                 "internalType": "int256",
-                "name": "",
+                "name": "totalfCashDebt",
+                "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "fCashDebtHeldInSettlementReserve",
+                "type": "int256"
+            },
+            {
+                "internalType": "int256",
+                "name": "primeCashHeldInSettlementReserve",
                 "type": "int256"
             }
         ],
