@@ -160,9 +160,19 @@ library TokenHandler {
             primeRate.convertToUnderlying(primeCashToMint) 
         );
 
-        (actualTransferExternal, /* */) = depositUnderlyingExternal(
+        int256 netPrimeSupplyChange;
+        (actualTransferExternal, netPrimeSupplyChange) = depositUnderlyingExternal(
             account, currencyId, netTransferExternal, primeRate, returnNativeTokenWrapped
         );
+
+        // Ensures that the prime cash minted is positive and always greater than
+        // the amount of prime cash that will be credited to the depositor. Any dust
+        // amounts here will accrue to the protocol. primeCashToMint is asserted to be
+        // positive so if netPrimeSupplyChange is negative (which it should never be),
+        // then this will revert as well.
+        int256 diff = netPrimeSupplyChange - primeCashToMint;
+        require(0 <= diff); // dev: diff above zero
+        require(diff <= 500); // dev: diff above error
     }
 
     /// @notice Deposits an amount of underlying tokens to mint prime cash
