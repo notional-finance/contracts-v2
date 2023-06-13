@@ -71,9 +71,11 @@ contract Router is StorageLayoutV1 {
         if (chainId == Deployments.MAINNET || chainId == Deployments.LOCAL) {
             require(Deployments.NOTE_TOKEN_ADDRESS == 0xCFEAead4947f0705A14ec42aC3D44129E1Ef3eD5, "NOTE");
             require(address(Deployments.WETH) == 0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2, "WETH");
+            require(address(Deployments.SEQUENCER_UPTIME_ORACLE) == address(0), "SEQUENCER");
         } else if (chainId == Deployments.ARBITRUM_ONE) {
             require(Deployments.NOTE_TOKEN_ADDRESS == 0x019bE259BC299F3F653688c7655C87F998Bc7bC1, "NOTE");
             require(address(Deployments.WETH) == 0x82aF49447D8a07e3bd95BD0d56f35241523fBab1, "WETH");
+            require(address(Deployments.SEQUENCER_UPTIME_ORACLE) == 0xFdB631F5EE196F0ed6FAa767959853A9F217697D, "SEQUENCER");
         } else {
             revert("Invalid Chain");
         }
