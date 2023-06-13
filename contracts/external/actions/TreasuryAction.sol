@@ -379,7 +379,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             if (targetAmount < currentAmount) {
                 redeemAmounts[i] = currentAmount - targetAmount;
             } else if (currentAmount < targetAmount) {
-                    depositAmounts[i] = targetAmount - currentAmount;
+                depositAmounts[i] = targetAmount - currentAmount;
             }
         }
 

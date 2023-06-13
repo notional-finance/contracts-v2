@@ -15,6 +15,10 @@ library CompoundV2AssetAdapter {
         uint256 rateAdapterPrecision,
         uint256 redeemUnderlyingAmount
     ) internal view returns (RedeemData[] memory data) {
+        if (redeemUnderlyingAmount == 0) {
+            return data;
+        }
+
         address[] memory targets = new address[](1);
         bytes[] memory callData = new bytes[](1);
         targets[0] = assetToken;
@@ -22,10 +26,6 @@ library CompoundV2AssetAdapter {
 
         data = new RedeemData[](1);
         data[0] = RedeemData(targets, callData, redeemUnderlyingAmount, assetToken);
-    }
-
-    function getRedemptionLength() internal view returns (uint256) {
-        return 1;
     }
 
     function getDepositCalldata(
@@ -36,6 +36,10 @@ library CompoundV2AssetAdapter {
         uint256 depositUnderlyingAmount,
         bool underlyingIsETH
     ) internal view returns (DepositData[] memory data) {
+        if (depositUnderlyingAmount == 0) {
+            return data;
+        }
+
         address[] memory targets = new address[](1);
         bytes[] memory callData = new bytes[](1);
         uint256[] memory msgValue = new uint256[](1);
