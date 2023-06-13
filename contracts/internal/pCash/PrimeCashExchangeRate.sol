@@ -533,20 +533,6 @@ library PrimeCashExchangeRate {
             prior.lastTotalUnderlyingValue = currentUnderlyingValue;
         }
 
-        uint256 oracleMoneyMarketRate = LibStorage.getRebalancingContext()[currencyId].oracleMoneyMarketRate;
-
-        // Update the oracle supply rate, used for valuations of sub 3 month
-        // idiosyncratic fCash
-        prior.oracleSupplyRate = InterestRateCurve.updateRateOracle(
-            prior.lastAccrueTime,
-            // This is the annual prime supply rate plus the underlying oracle money
-            // market rate.
-            annualSupplyRate.add(oracleMoneyMarketRate),
-            prior.oracleSupplyRate,
-            prior.rateOracleTimeWindow,
-            blockTime
-        );
-
         // Update the last accrue time
         prior.lastAccrueTime = blockTime;
 
