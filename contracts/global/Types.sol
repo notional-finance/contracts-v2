@@ -746,14 +746,12 @@ struct PrimeCashHoldingsOracle {
 
 // Per currency rebalancing context
 struct RebalancingContextStorage {
-    // Holds the previous underlying scalar to calculate the oracle money market rate
-    uint80 previousUnderlyingScalarAtRebalance;
+    // Holds the previous supply factor to calculate the oracle money market rate
+    uint128 previousSupplyFactorAtRebalance;
     // Rebalancing has a cool down period that sets the time averaging of the oracle money market rate
     uint40 rebalancingCooldownInSeconds;
     uint40 lastRebalanceTimestampInSeconds;
-    // The annualized underlying money market interest rate calculated based on the underlying scalar
-    uint32 oracleMoneyMarketRate;
-    // 64 bytes left
+    // 48 bytes left
 }
 
 struct TotalfCashDebtStorage {

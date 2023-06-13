@@ -23,7 +23,7 @@ interface NotionalTreasury {
 
     event RebalancingCooldownUpdated(uint16 currencyId, uint40 cooldownTimeInSeconds);
 
-    event CurrencyRebalanced(uint16 currencyId, uint256 underlyingScalar, uint256 annualizedInterestRate);
+    event CurrencyRebalanced(uint16 currencyId, uint256 supplyFactor, uint256 annualizedInterestRate);
 
     function claimCOMPAndTransfer(address[] calldata ctokens) external returns (uint256);
 

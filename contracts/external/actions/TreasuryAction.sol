@@ -6,6 +6,7 @@ import {
     Token,
     PrimeRate,
     PrimeCashFactors,
+    PrimeCashFactorsStorage,
     RebalancingContextStorage
 } from "../../global/Types.sol";
 import {StorageLayoutV2} from "../../global/StorageLayoutV2.sol";
@@ -237,19 +238,19 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         );
 
         // Accrues interest up to the current block before any rebalancing is executed
-        PrimeRateLib.buildPrimeRateStateful(currencyId);
+        PrimeRate memory pr = PrimeRateLib.buildPrimeRateStateful(currencyId);
 
-        PrimeCashFactors memory factors = PrimeCashExchangeRate.getPrimeCashFactors(currencyId);
         _executeRebalance(currencyId);
 
         // if previous underlying scalar at rebalance == 0, then it is the first rebalance and
         // annualized interest rate will be left as zero. The previous underlying scalar will
         // be set to the new factors.underlyingScalar.
         uint256 annualizedInterestRate;
-        if (context.previousUnderlyingScalarAtRebalance != 0) {
-            uint256 interestRate = factors.underlyingScalar
+        uint256 supplyFactor = pr.supplyFactor.toUint();
+        if (context.previousSupplyFactorAtRebalance != 0) {
+            uint256 interestRate = supplyFactor
                 .mul(Constants.SCALAR_PRECISION)
-                .div(context.previousUnderlyingScalarAtRebalance)
+                .div(context.previousSupplyFactorAtRebalance)
                 .sub(Constants.SCALAR_PRECISION) 
                 .div(uint256(Constants.RATE_PRECISION));
 
@@ -258,16 +259,21 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
                 .div(block.timestamp.sub(context.lastRebalanceTimestampInSeconds));
         }
 
-        _saveRebalancingContext(currencyId, factors.underlyingScalar, annualizedInterestRate);
+        _saveRebalancingContext(currencyId, supplyFactor.toUint128());
+        _saveOracleSupplyRate(currencyId, annualizedInterestRate);
 
-        emit CurrencyRebalanced(currencyId, factors.underlyingScalar, annualizedInterestRate);
+        emit CurrencyRebalanced(currencyId, supplyFactor, annualizedInterestRate);
     }
 
-    function _saveRebalancingContext(uint16 currencyId, uint256 underlyingScalar, uint256 annualizedInterestRate) private {
+    function _saveOracleSupplyRate(uint16 currencyId, uint256 annualizedInterestRate) private {
+        mapping(uint256 => PrimeCashFactorsStorage) storage store = LibStorage.getPrimeCashFactors();
+        store[currencyId].oracleSupplyRate = annualizedInterestRate.toUint32();
+    }
+
+    function _saveRebalancingContext(uint16 currencyId, uint128 supplyFactor) private {
         mapping(uint16 => RebalancingContextStorage) storage store = LibStorage.getRebalancingContext();
         store[currencyId].lastRebalanceTimestampInSeconds = block.timestamp.toUint40();
-        store[currencyId].previousUnderlyingScalarAtRebalance = underlyingScalar.toUint80();
-        store[currencyId].oracleMoneyMarketRate = annualizedInterestRate.toUint32();
+        store[currencyId].previousSupplyFactorAtRebalance = supplyFactor;
     }
 
     function _getRebalancingTargets(uint16 currencyId, address[] memory holdings) private view returns (uint8[] memory targets) {
