@@ -23,6 +23,12 @@ library Deployments {
     WETH9 internal constant WETH = WETH9(0x82aF49447D8a07e3bd95BD0d56f35241523fBab1);
     // OPTIMISM: 0x4200000000000000000000000000000000000006
 
+    // Chainlink L2 Sequencer Uptime: https://docs.chain.link/data-feeds/l2-sequencer-feeds/
+    // MAINNET: NOT SET
+    // AggregatorV2V3Interface internal constant SEQUENCER_UPTIME_ORACLE = AggregatorV2V3Interface(address(0));
+    // ARBITRUM: 0xFdB631F5EE196F0ed6FAa767959853A9F217697D
+    AggregatorV2V3Interface internal constant SEQUENCER_UPTIME_ORACLE = AggregatorV2V3Interface(0xFdB631F5EE196F0ed6FAa767959853A9F217697D);
+
     enum BeaconType {
         NTOKEN,
         PCASH,
