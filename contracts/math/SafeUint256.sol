@@ -152,6 +152,11 @@ library SafeUint256 {
         return uint112(x);
     }
 
+    function toUint128(uint256 x) internal pure returns (uint128) {
+        require(x <= type(uint128).max);
+        return uint128(x);
+    }
+
     function toInt(uint256 x) internal pure returns (int256) {
         require (x <= uint256(type(int256).max)); // dev: toInt overflow
         return int256(x);
