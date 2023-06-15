@@ -156,10 +156,10 @@ library Constants {
     // Placeholder constant to mark the variable rate prime cash maturity
     uint40 internal constant PRIME_CASH_VAULT_MATURITY = type(uint40).max;
 
-    // This represents the maximum difference in internal precision units
-    // before and after a rebalancing. 10_000 represents 0.0001 units delta
+    // This represents the maximum percent change allowed before and after 
+    // a rebalancing. 100_000 represents a 0.01% change
     // as a result of rebalancing. We should expect to never lose value as
     // a result of rebalancing, but some rounding errors may exist as a result
     // of redemption and deposit.
-    int256 internal constant REBALANCING_UNDERLYING_DELTA = 10_000;
+    int256 internal constant REBALANCING_UNDERLYING_DELTA_PERCENT = 100_000;
 }

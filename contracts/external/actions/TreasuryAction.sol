@@ -294,7 +294,7 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         uint8[] memory rebalancingTargets = _getRebalancingTargets(currencyId, holdings);
         RebalancingData memory data = _calculateRebalance(oracle, holdings, rebalancingTargets);
 
-        (/* */, uint256 totalUnderlyingValueBefore) = oracle.getTotalUnderlyingValueStateful();
+        (uint256 totalUnderlyingValueBefore, /* */) = oracle.getTotalUnderlyingValueStateful();
 
         // Process redemptions first
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
@@ -303,10 +303,15 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         // Process deposits
         _executeDeposits(underlyingToken, data.depositData);
 
-        (/* */, uint256 totalUnderlyingValueAfter) = oracle.getTotalUnderlyingValueStateful();
+        (uint256 totalUnderlyingValueAfter, /* */) = oracle.getTotalUnderlyingValueStateful();
 
         int256 underlyingDelta = totalUnderlyingValueBefore.toInt().sub(totalUnderlyingValueAfter.toInt());
-        require(underlyingDelta.abs() < Constants.REBALANCING_UNDERLYING_DELTA);
+        int256 underlyingPrecision = (10**oracle.decimals()).toInt();
+        int256 percentChange = underlyingDelta.abs()
+            .mul(underlyingPrecision)
+            .mul(Constants.RATE_PRECISION)
+            .div(totalUnderlyingValueBefore.toInt().mul(underlyingPrecision));
+        require(percentChange < Constants.REBALANCING_UNDERLYING_DELTA_PERCENT);
     }
 
     function _executeDeposits(Token memory underlyingToken, DepositData[] memory deposits) private {
@@ -370,7 +375,9 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
         for (uint256 i; i < holdings.length; i++) {
             address holding = holdings[i];
-            uint256 targetAmount = totalValue * rebalancingTargets[i] / uint256(Constants.PERCENTAGE_DECIMALS);
+            uint256 targetAmount = totalValue.mul(rebalancingTargets[i]).div(
+                uint256(Constants.PERCENTAGE_DECIMALS)
+            );
             uint256 currentAmount = values[i];
 
             redeemHoldings[i] = holding;
