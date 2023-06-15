@@ -281,7 +281,7 @@ library TokenHandler {
 
         // This is the total expected underlying that we should redeem after all redemption calls
         // are executed.
-        uint256 totalUnderlyingRedeemed = executeMoneyMarketRedemptions(underlying, data);
+        (/* */, uint256 totalUnderlyingRedeemed) = executeMoneyMarketRedemptions(underlying, data);
 
         // Ensure that we have sufficient funds before we exit
         require(withdrawAmountExternal <= currentBalance.add(totalUnderlyingRedeemed)); // dev: insufficient redeem
@@ -367,7 +367,7 @@ library TokenHandler {
     function executeMoneyMarketRedemptions(
         Token memory underlyingToken,
         RedeemData[] memory redeemData
-    ) internal returns (uint256 totalUnderlyingRedeemed) {
+    ) internal returns (bool hasFailure, uint256 totalUnderlyingRedeemed) {
         for (uint256 i; i < redeemData.length; i++) {
             RedeemData memory data = redeemData[i];
             // Measure the token balance change if the `assetToken` value is set in the
@@ -381,8 +381,10 @@ library TokenHandler {
             // or redemption from WETH involved. We only measure the asset token balance change
             // on the final redemption call, as dictated by the prime cash holdings oracle.
             for (uint256 j; j < data.targets.length; j++) {
-                // This will revert if the individual call reverts.
-                GenericToken.executeLowLevelCall(data.targets[j], 0, data.callData[j]);
+                // Allow low level calls to revert
+                if (!GenericToken.executeLowLevelCall(data.targets[j], 0, data.callData[j], true)) {
+                    hasFailure = true;
+                }
             }
 
             // Ensure that we get sufficient underlying on every redemption
