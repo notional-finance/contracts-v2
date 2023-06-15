@@ -298,10 +298,12 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
 
         // Process redemptions first
         Token memory underlyingToken = TokenHandler.getUnderlyingToken(currencyId);
-        TokenHandler.executeMoneyMarketRedemptions(underlyingToken, data.redeemData);
+        (bool hasFailure, /* */) = TokenHandler.executeMoneyMarketRedemptions(underlyingToken, data.redeemData);
 
-        // Process deposits
-        _executeDeposits(underlyingToken, data.depositData);
+        if (!hasFailure) {
+            // Process deposits only if redemptions were successful
+            _executeDeposits(underlyingToken, data.depositData);
+        }
 
         (uint256 totalUnderlyingValueAfter, /* */) = oracle.getTotalUnderlyingValueStateful();
 
@@ -327,11 +329,11 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
             uint256 oldUnderlyingBalance = underlyingToken.balanceOf(address(this));
 
             for (uint256 j; j < depositData.targets.length; ++j) {
-                // This will revert if the individual call reverts.
                 GenericToken.executeLowLevelCall(
                     depositData.targets[j], 
                     depositData.msgValue[j], 
-                    depositData.callData[j]
+                    depositData.callData[j],
+                    true // Allow low level calls to revert
                 );
             }
 

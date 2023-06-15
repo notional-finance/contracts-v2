@@ -8,6 +8,8 @@ import {SafeUint256} from "../../../math/SafeUint256.sol";
 library GenericToken {
     using SafeUint256 for uint256;
 
+    event LowLevelCallFailed(address indexed target, uint256 msgValue, bytes callData, string revertMessage);
+
     function transferNativeTokenOut(
         address account,
         uint256 amount,
@@ -64,10 +66,16 @@ library GenericToken {
     function executeLowLevelCall(
         address target,
         uint256 msgValue,
-        bytes memory callData
-    ) internal {
+        bytes memory callData,
+        bool allowFailure
+    ) internal returns (bool) {
         (bool status, bytes memory returnData) = target.call{value: msgValue}(callData);
-        require(status, checkRevertMessage(returnData));
+        if (!allowFailure) {
+            require(status, checkRevertMessage(returnData));
+        } else {
+            emit LowLevelCallFailed(target, msgValue, callData, checkRevertMessage(returnData));
+        }
+        return status;
     }
 
     function checkRevertMessage(bytes memory returnData) internal pure returns (string memory) {
