@@ -136,6 +136,7 @@ contract Router is StorageLayoutV1 {
             sig == IVaultAccountHealth.checkVaultAccountCollateralRatio.selector ||
             sig == IVaultAccountHealth.signedBalanceOfVaultTokenId.selector ||
             sig == IVaultAccountHealth.getVaultAccount.selector ||
+            sig == IVaultAccountHealth.getVaultAccountWithFeeAccrual.selector ||
             sig == IVaultAccountHealth.getVaultConfig.selector ||
             sig == IVaultAccountHealth.getBorrowCapacity.selector ||
             sig == IVaultAccountHealth.getSecondaryBorrow.selector ||
