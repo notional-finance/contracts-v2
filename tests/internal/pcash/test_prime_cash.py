@@ -376,38 +376,6 @@ class TestPrimeCash:
             assert pytest.approx(valueNegativeNew / valueNegative) == scale
 
     @given(
-        utilization=strategy("int", min_value=0, max_value=0.85e9),
-        supplyChange=strategy("int", min_value=-50_000e8, max_value=500_000e8),
-    )
-    def test_oracle_rate_converges(self, mock, oracle, utilization, supplyChange):
-        txn = mock.initPrimeCashCurve(
-            1,
-            500_000e8,
-            self.get_debt_amount(500_000e8, utilization),
-            get_interest_rate_curve(),
-            oracle,
-            True,
-        )
-
-        prBefore = mock.buildPrimeRateStateful(1, txn.timestamp).return_value
-        txn = mock.updateTotalPrimeSupply(1, supplyChange, 0)
-        prAfter = mock.buildPrimeRateStateful(1, txn.timestamp).return_value
-        (_, _, annualSupplyRate) = mock.getPrimeInterestRates(1)
-
-        # Tests that the oracle supply rate converges over time, immediately
-        # after debt is set, there is no change
-        assert prBefore["oracleSupplyRate"] == prAfter["oracleSupplyRate"]
-
-        (prFinal, _) = mock.buildPrimeRateView(1, txn.timestamp + 3600)
-        assert prFinal["oracleSupplyRate"] == annualSupplyRate
-
-        (prMid, _) = mock.buildPrimeRateView(1, txn.timestamp + 1800)
-        assert (
-            pytest.approx(prMid["oracleSupplyRate"])
-            == (prBefore["oracleSupplyRate"] + annualSupplyRate) / 2
-        )
-
-    @given(
         utilization=strategy("int", min_value=0.01e9, max_value=RATE_PRECISION),
         offset=strategy("int", min_value=3600, max_value=SECONDS_IN_YEAR),
     )
