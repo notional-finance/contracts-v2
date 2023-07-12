@@ -172,7 +172,6 @@ library TokenHandler {
         // then this will revert as well.
         int256 diff = netPrimeSupplyChange - primeCashToMint;
         require(0 <= diff); // dev: diff above zero
-        require(diff <= 500); // dev: diff above error
     }
 
     /// @notice Deposits an amount of underlying tokens to mint prime cash

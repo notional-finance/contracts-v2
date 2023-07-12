@@ -1,5 +1,7 @@
 import pytest
 
+from tests.constants import ZERO_ADDRESS
+
 
 @pytest.fixture(autouse=True)
 def isolation(fn_isolation):
@@ -15,7 +17,10 @@ def test_matching_decimals(accounts, MockAggregator, ChainlinkAdapter):
     chainlink = ChainlinkAdapter.deploy(
         baseToUSD.address,
         quoteToUSD.address,
-        "Notional USDC/ETH Chainlink Adapater",
+        False,
+        False,
+        "Notional USDC/ETH Chainlink Adapter",
+        ZERO_ADDRESS,
         {"from": accounts[0]},
     )
 
@@ -32,7 +37,10 @@ def test_decimal_mismatch(accounts, MockAggregator, ChainlinkAdapter):
     chainlink = ChainlinkAdapter.deploy(
         baseToUSD.address,
         quoteToUSD.address,
+        False,
+        False,
         "Notional USDC/ETH Chainlink Adapater",
+        ZERO_ADDRESS,
         {"from": accounts[0]},
     )
 
