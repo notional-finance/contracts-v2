@@ -3,6 +3,7 @@ pragma solidity >=0.7.6;
 
 import {WETH9} from "../../interfaces/WETH9.sol";
 import {IUpgradeableBeacon} from "../proxy/beacon/IBeacon.sol";
+import {AggregatorV2V3Interface} from "../../interfaces/chainlink/AggregatorV2V3Interface.sol";
 
 /// @title Hardcoded deployed contracts are listed here. These are hardcoded to reduce
 /// gas costs for immutable addresses. They must be updated per environment that Notional

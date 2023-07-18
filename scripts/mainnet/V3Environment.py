@@ -15,13 +15,13 @@ from tests.helpers import get_interest_rate_curve
 from scripts.primeCashOracle import CompoundConfig
 from scripts.deployment import deployNotionalContracts, deployBeacons
 
-def getEnvironment(accounts, configFile, migrate=False):
+def getEnvironment(accounts, configFile, deploy=True, migrate=False):
     with open(configFile, "r") as j:
         config = json.load(j)
-    return V3Environment(accounts, config, migrate)
+    return V3Environment(accounts, config, deploy, migrate)
 
 class V3Environment:
-    def __init__(self, accounts, config, migrate=True):
+    def __init__(self, accounts, config, deploy=True, migrate=True):
         notionalInterfaceABI = interface.NotionalProxy.abi
         self.deployer = accounts[0]
         self.notional = Contract.from_abi(
@@ -48,22 +48,15 @@ class V3Environment:
         self.guardian = self.router.pauseGuardian()
         self.multisig = "0x02479BFC7Dce53A02e26fE7baea45a0852CB0909"
 
-        self.rebalancingStrategy = ProportionalRebalancingStrategy.deploy(
-            config["notional"], 
-            {"from": self.deployer}
-        )
-
-        (self.finalRouter, self.pauseRouter, self.contracts) = deployNotionalContracts(
-            self.deployer, 
-            Comptroller=ZERO_ADDRESS,
-            RebalancingStrategy=self.rebalancingStrategy
-        )
-
-        self.notional.upgradeTo(self.finalRouter, {"from": self.owner})
-
         if migrate:
             deployBeacons(self.deployer, self.notional)
-        
+            deploy = True
+
+        if deploy:
+            comptroller = ZERO_ADDRESS
+            if "compound" in config:
+                comptroller = config["compound"]["comptroller"]
+
             self.rebalancingStrategy = ProportionalRebalancingStrategy.deploy(
                 config["notional"], 
                 {"from": self.deployer}
@@ -71,10 +64,11 @@ class V3Environment:
 
             (self.finalRouter, self.pauseRouter, self.contracts) = deployNotionalContracts(
                 self.deployer, 
-                Comptroller=config["compound"]["comptroller"],
+                Comptroller=comptroller,
                 RebalancingStrategy=self.rebalancingStrategy
             )
 
+        if migrate:
             self.patchFix = MigratePrimeCash.deploy(
                 self.proxy.getImplementation(),
                 self.pauseRouter.address,
@@ -114,9 +108,12 @@ class V3Environment:
             self.primeCashOracles = { 'ETH': self.pETH, 'DAI': self.pDAI, 'USDC': self.pUSDC, 'WBTC': self.pWBTC }
 
             self.tokens['cETH'] = Contract.from_abi('cETH', CompoundConfig['ETH']['cToken'], MockERC20.abi)
-            self.tokens['cDAI'] = Contract.from_abi('cDAI', CompoundConfig['DAI']['cToken'], MockERC20.abi),
-            self.tokens['cUSDC'] = Contract.from_abi('cUSDC', CompoundConfig['USDC']['cToken'], MockERC20.abi),
-            self.tokens['cWBTC'] = Contract.from_abi('cWBTC', CompoundConfig['WBTC']['cToken'], MockERC20.abi),
+            self.tokens['cDAI'] = Contract.from_abi('cDAI', CompoundConfig['DAI']['cToken'], MockERC20.abi)
+            self.tokens['cUSDC'] = Contract.from_abi('cUSDC', CompoundConfig['USDC']['cToken'], MockERC20.abi)
+            self.tokens['cWBTC'] = Contract.from_abi('cWBTC', CompoundConfig['WBTC']['cToken'], MockERC20.abi)
+        else:
+            self.notional.upgradeTo(self.finalRouter, {"from": self.owner})
+
 
     def setMigrationSettings(self):
         # TODO: change these...

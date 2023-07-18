@@ -2,7 +2,7 @@ import pytest
 import brownie
 from brownie import ZERO_ADDRESS, accounts, Contract, interface
 from brownie.network.state import Chain
-from scripts.mainnet.V3Environment import V3Environment
+from scripts.mainnet.V3Environment import getEnvironment
 
 chain = Chain()
 
@@ -14,7 +14,7 @@ def run_around_tests():
     
 @pytest.fixture(scope="module", autouse=True)
 def v3env(accounts):
-    return V3Environment(accounts)
+    return getEnvironment(accounts, "v2.mainnet.json", True, True)
 
 def check_stored_token_balances(v3env, underlyingDonations=None, assetDonations=None):
     balances = v3env.notional.getStoredTokenBalances([

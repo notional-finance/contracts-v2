@@ -76,6 +76,12 @@
         },
         "WETH": {
             "address": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+        },
+        "wstETH": {
+            "address": "0x7f39C581F595B53c5cb19bD0b3f8dA6c935E2Ca0"
+        },
+        "FRAX": {
+            "address": "0x853d955aCEf822Db058eb8505911ED77F175b99e"
         }
     }
 }
