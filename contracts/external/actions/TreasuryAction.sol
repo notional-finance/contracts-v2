@@ -308,11 +308,8 @@ contract TreasuryAction is StorageLayoutV2, ActionGuards, NotionalTreasury {
         (uint256 totalUnderlyingValueAfter, /* */) = oracle.getTotalUnderlyingValueStateful();
 
         int256 underlyingDelta = totalUnderlyingValueBefore.toInt().sub(totalUnderlyingValueAfter.toInt());
-        int256 underlyingPrecision = (10**oracle.decimals()).toInt();
-        int256 percentChange = underlyingDelta.abs()
-            .mul(underlyingPrecision)
-            .mul(Constants.RATE_PRECISION)
-            .div(totalUnderlyingValueBefore.toInt().mul(underlyingPrecision));
+        int256 percentChange = underlyingDelta.abs().mul(Constants.RATE_PRECISION)
+            .div(totalUnderlyingValueBefore.toInt());
         require(percentChange < Constants.REBALANCING_UNDERLYING_DELTA_PERCENT);
     }
 
