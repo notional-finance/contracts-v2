@@ -9,6 +9,8 @@ contract MockERC4626 is MockERC20, IERC4626 {
     address public override immutable asset;
 
     uint256 public scaleFactor;
+    bool public depositRevert;
+    bool public redeemRevert;
 
     constructor(
         string memory name_,
@@ -24,6 +26,14 @@ contract MockERC4626 is MockERC20, IERC4626 {
 
     function setScaleFactor(uint256 newScaleFactor) external {
         scaleFactor = newScaleFactor;
+    }
+
+    function setDepositRevert(bool revert_) external {
+        depositRevert = revert_;
+    }
+
+    function setRedeemRevert(bool revert_) external {
+        redeemRevert = revert_;
     }
 
     function totalAssets()
@@ -63,6 +73,9 @@ contract MockERC4626 is MockERC20, IERC4626 {
         uint256 assets,
         address receiver
     ) external override returns (uint256 shares) {
+        if (depositRevert) {
+            revert();
+        }
         IERC20(asset).transferFrom(msg.sender, address(this), assets);
         _transfer(address(this), receiver, assets);
         return assets;
@@ -104,6 +117,9 @@ contract MockERC4626 is MockERC20, IERC4626 {
         address receiver,
         address owner
     ) external override returns (uint256 shares) {
+        if (redeemRevert) {
+            revert();
+        }
         transferFrom(receiver, address(this), assets);
         IERC20(asset).transfer(receiver, assets);
         return assets;
