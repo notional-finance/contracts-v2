@@ -232,10 +232,10 @@ library VaultConfiguration {
     ) internal view {
         if (getFlag(vaultConfig, onlyVaultFlag)) {
             // If the only vault method is flagged, then the sender must be the vault
-            require(msg.sender == vaultConfig.vault, "Unauthorized");
+            require(msg.sender == vaultConfig.vault); // dev: unauthorized
         } else {
             // The base case is that the account must be the msg.sender
-            require(account == msg.sender, "Unauthorized");
+            require(account == msg.sender); // dev: unauthorized
         }
     }
 
@@ -486,7 +486,7 @@ library VaultConfiguration {
         // amountTransferred should never be much more than underlyingExternalToRepay (it should
         // be exactly equal) as long as the vault behaves according to spec. Any dust amounts will
         // accrue to the protocol since vaultAccount.tempCashBalance is cleared
-        require(amountTransferred >= underlyingExternalToRepay, "Insufficient repayment");
+        require(amountTransferred >= underlyingExternalToRepay);
 
         // Clear tempCashBalance to remove the dust from internal accounting. tempCashBalance must be
         // negative in this method (required at the top).

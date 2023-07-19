@@ -21,7 +21,7 @@ abstract contract ActionGuards is StorageLayoutV1 {
 
     modifier nonReentrant() {
         // On the first call to nonReentrant, _notEntered will be true
-        require(reentrancyStatus != _ENTERED, "Reentrant call");
+        require(reentrancyStatus != _ENTERED); // dev: reentered
 
         // Any calls to nonReentrant after this point will fail
         reentrancyStatus = _ENTERED;

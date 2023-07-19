@@ -334,7 +334,7 @@ library VaultAccountLib {
             // Only assess fCash fees here, Prime Cash fees are assessed in a separate method
             vaultConfig.assessVaultFees(vaultAccount, primeCashBorrowed, maturity, block.timestamp);
         }
-        require(primeCashBorrowed > 0, "Borrow failed");
+        require(primeCashBorrowed > 0); // dev: borrow failed
 
         updateAccountDebt(vaultAccount, vaultState, underlyingToBorrow, primeCashBorrowed);
 
