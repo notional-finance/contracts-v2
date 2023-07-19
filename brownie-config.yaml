@@ -19,10 +19,10 @@ networks:
       unlimited_contract_size: true
   mainnet-fork:
     cmd_settings:
-      fork_block: 16721445
+      fork_block: 17536127
   arbitrum-fork:
     cmd_settings:
-      fork_block: 85509698
+      fork_block: 103523980
 reports:
   exclude_paths:
     - interfaces/**/*.*
