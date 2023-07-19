@@ -36,7 +36,7 @@ def test_only_vault_entry(environment, vault, accounts):
     )
     maturity = environment.notional.getActiveMarkets(1)[0][1]
 
-    with brownie.reverts("Unauthorized"):
+    with brownie.reverts(dev_revert_msg="dev: unauthorized"):
         # User account cannot directly enter vault
         environment.notional.enterVault(
             accounts[1],
@@ -317,7 +317,7 @@ def test_enter_vault_borrowing_failure(environment, vault, accounts):
             {"from": accounts[1]},
         )
 
-    with brownie.reverts("Borrow failed"):
+    with brownie.reverts(dev_revert_msg="dev: borrow failed"):
         # Fails on liquidity
         environment.notional.enterVault(
             accounts[1],

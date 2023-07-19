@@ -43,6 +43,7 @@ def get_collateral_ratio(vaultConfigValuation, vault, isPrimeCash, secondaryCurr
         netUnderlyingDebtTwo = (
             kwargs.get("netUnderlyingDebtTwo", -10_000e8) if secondaryCurrencies[1] != 0 else 0
         )
+        chain.mine(1, timedelta=1)
         vaultConfigValuation.updateAccountSecondaryDebt(
             vault, accounts[0], maturity, netUnderlyingDebtOne, netUnderlyingDebtTwo, False
         )

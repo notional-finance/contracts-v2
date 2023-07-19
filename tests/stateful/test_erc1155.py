@@ -814,7 +814,10 @@ def test_create_and_settle_one_month_fcash(environment, accounts):
     assert pytest.approx(fcBefore, abs=100) == fcAfter1
 
     # Mine 6 hours to increase the oracle rate
+    environment.notional.setTreasuryManager(accounts[0], {"from": environment.notional.owner()})
+    environment.notional.rebalance([2], {"from": accounts[0]})
     chain.mine(1, timedelta=360 * 6)
+    environment.notional.rebalance([2], {"from": accounts[0]})
 
     # FC increases as a result of a higher discount rate on debt
     fcAfter2 = environment.notional.getFreeCollateral(accounts[1])[0]

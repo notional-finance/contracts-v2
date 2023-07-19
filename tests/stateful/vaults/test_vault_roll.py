@@ -169,7 +169,7 @@ def test_roll_vault_borrow_failure(environment, vault, roll_account, accounts):
         {"from": accounts[0]},
     )
 
-    with brownie.reverts("Borrow failed"):
+    with brownie.reverts(dev_revert_msg="dev: borrow failed"):
         environment.notional.rollVaultPosition(
             roll_account, vault, 100_000e8, maturity, 0, 0, 0, "", {"from": roll_account}
         )
