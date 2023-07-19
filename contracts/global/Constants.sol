@@ -162,4 +162,16 @@ library Constants {
     // a result of rebalancing, but some rounding errors may exist as a result
     // of redemption and deposit.
     int256 internal constant REBALANCING_UNDERLYING_DELTA_PERCENT = 100_000;
+
+    // Ensures that the minimum total underlying held by the contract continues
+    // to accrue interest so that money market oracle rates are properly updated
+    // between rebalancing. With a minimum rebalancing cool down time of 6 hours
+    // we would be able to detect at least 1 unit of accrual at 8 decimal precision
+    // at an interest rate of 2.8 basis points (0.0288%) with 0.05e8 minimum balance
+    // held in a given token.
+    //
+    //                          MIN_ACCRUAL * (86400 / REBALANCING_COOL_DOWN_HOURS)
+    // MINIMUM_INTEREST_RATE =  ---------------------------------------------------
+    //                                     MINIMUM_UNDERLYING_BALANCE
+    int256 internal constant MIN_TOTAL_UNDERLYING_VALUE = 0.05e8;
 }

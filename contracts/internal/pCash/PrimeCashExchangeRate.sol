@@ -297,6 +297,7 @@ library PrimeCashExchangeRate {
         s.totalPrimeSupply = newTotalPrimeSupply.toUint().toUint88();
 
         Emitter.emitBorrowOrRepayPrimeDebt(account, currencyId, netPrimeSupplyChange, netPrimeDebtChange);
+        _checkInvariant(s);
     }
 
     /// @notice Updates prime supply whenever tokens enter or exit the system.
@@ -313,6 +314,8 @@ library PrimeCashExchangeRate {
         int256 newLastTotalUnderlyingValue = int256(uint256(s.lastTotalUnderlyingValue))
             .add(netUnderlyingChange);
 
+        require(Constants.MIN_TOTAL_UNDERLYING_VALUE <= newLastTotalUnderlyingValue); // dev: min underlying
+
         // lastTotalUnderlyingValue cannot be negative since we cannot hold a negative
         // balance, if that occurs then this will revert.
         s.lastTotalUnderlyingValue = newLastTotalUnderlyingValue.toUint().toUint88();
@@ -322,6 +325,17 @@ library PrimeCashExchangeRate {
         // itself is floored at zero). If total underlying tokens held is zero, then either
         // there is no supply or the prime cash market is at 100% utilization.
         s.totalPrimeSupply = newTotalPrimeSupply.toUint().toUint88();
+
+        _checkInvariant(s);
+    }
+
+    function _checkInvariant(PrimeCashFactorsStorage storage s) private view {
+        int256 supply = int256(s.supplyScalar).mul(s.underlyingScalar).mul(s.totalPrimeSupply);
+        int256 debt = int256(s.debtScalar).mul(s.underlyingScalar).mul(s.totalPrimeDebt);
+        // Adding 1 here ensures that any balances below 1e36 that will round off will not cause
+        // invariant failures.
+        int256 underlying = int256(s.lastTotalUnderlyingValue + 1).mul(Constants.DOUBLE_SCALAR_PRECISION);
+        require(supply.sub(debt) <= underlying); // dev: invariant failed
     }
 
     function getTotalfCashDebtOutstanding(
