@@ -192,7 +192,7 @@ def test_only_vault_exit(environment, vault, accounts):
         accounts[1], vault.address, 150_000e18, maturity, 150_000e8, 0, "", {"from": accounts[1]}
     )
 
-    with brownie.reverts("Unauthorized"):
+    with brownie.reverts(dev_revert_msg="dev: unauthorized"):
         # User account cannot directly exit vault
         environment.notional.exitVault(
             accounts[1],

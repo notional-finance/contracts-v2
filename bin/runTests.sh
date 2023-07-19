@@ -9,4 +9,4 @@ brownie test tests/stateful/liquidation
 brownie test tests/stateful/vaults
 brownie test tests/stateful/test_!(settlement).py
 brownie test tests/stateful/test_settlement.py
-# brownie test tests/mainnet-fork --network mainnet-fork
+brownie test tests/mainnet-fork/test_treasury_action.py --network mainnet-fork

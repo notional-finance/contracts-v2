@@ -232,7 +232,7 @@ class TestLiquidatefCash:
 
         maturities = [assets[0][1]] * 2
         with brownie.reverts():
-            liquidation.mock.calculatefCashCrossCurrencyLiquidation(
+            liquidation.mock.calculatefCashCrossCurrencyLiquidation.call(
                 accounts[0],
                 local,
                 collateral,

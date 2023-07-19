@@ -174,7 +174,7 @@ class TestCashGroupGetters:
     def test_get_oracle_rate(self, cashGroup, maxMarketIndex, blockTime, utilization):
         initialDebt = math.floor(100_000e8 * utilization / RATE_PRECISION)
         cashGroup.setCashGroup(5, get_cash_group_with_max_markets(maxMarketIndex))
-        cashGroup.updateTotalPrimeDebt(5, 0, initialDebt)
+        cashGroup.updateTotalPrimeDebt(5, initialDebt * 2, initialDebt)
 
         tRef = get_tref(blockTime)
         validMarkets = [tRef + cashGroup.getTradedMarket(i) for i in range(1, maxMarketIndex + 1)]

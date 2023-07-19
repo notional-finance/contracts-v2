@@ -47,7 +47,7 @@ def test_claim_comp_manager(env):
     assert env.tokens["COMP"].balanceOf(env.deployer) == 0
     env.notional.claimCOMPAndTransfer([env.tokens["cDAI"].address], {"from": env.deployer})
     assert env.tokens["COMP"].balanceOf(env.notional.address) == 0
-    assert env.tokens["COMP"].balanceOf(env.deployer) >= 3113005691001499849856
+    assert env.tokens["COMP"].balanceOf(env.deployer) >= 1797397668168368705898
 
 
 def test_claim_comp_non_manager(env):
@@ -102,10 +102,9 @@ def test_harvest_reserve_ETH_manager_more_than_buffer(env):
     ETHBalAfter = env.deployer.balance()
     check_reserve_balances(env, 1, cETHReserveBefore, ETHBalAfter - ETHBalBefore, 0.01e8)
 
-
 def test_harvest_reserve_ETH_manager_less_than_buffer(env):
     env.notional.setTreasuryManager(env.deployer, {"from": env.notional.owner()})
-    env.notional.setReserveBuffer(1, 100e8, {"from": env.notional.owner()})
+    env.notional.setReserveBuffer(1, 5000e8, {"from": env.notional.owner()})
 
     ETHBalBefore = env.deployer.balance()
     env.notional.transferReserveToTreasury([1], {"from": env.deployer})

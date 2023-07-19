@@ -26,7 +26,7 @@ def test_reenter_notional(environment, vault, accounts):
 
     vault.setReenterNotional(True)
     maturity = environment.notional.getActiveMarkets(1)[0][1]
-    with brownie.reverts("Reentrant call"):
+    with brownie.reverts(dev_revert_msg="dev: reentered"):
         environment.notional.enterVault(
             accounts[1],
             vault.address,

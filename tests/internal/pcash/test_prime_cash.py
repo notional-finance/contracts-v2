@@ -96,14 +96,18 @@ class TestPrimeCash:
         assert pr == (1e36, 1e36, 0)
         assert factors["totalPrimeSupply"] == 0
 
-    def test_no_reverts_at_zero_underlying(self, mock, oracle):
+    def test_reverts_at_zero_underlying(self, mock, oracle):
         mock.initPrimeCashCurve(1, 100_000e8, 0, get_interest_rate_curve(), oracle, True)
-        txn = mock.updateTotalPrimeSupply(1, 0, -100_000e8)
-        assert mock.getPrimeCashFactors(1)['lastTotalUnderlyingValue'] == 0
-        mock.setStoredTokenBalance(ZERO_ADDRESS, 0)
+        with brownie.reverts(dev_revert_msg="dev: min underlying"):
+            mock.updateTotalPrimeSupply(1, 0, -100_000e8)
+        
+        # This is the min underlying value
+        txn = mock.updateTotalPrimeSupply(1, -100_000e8 + 0.05e8, -100_000e8 + 0.05e8)
+        assert mock.getPrimeCashFactors(1)['lastTotalUnderlyingValue'] == 0.05e8
+        mock.setStoredTokenBalance(ZERO_ADDRESS, 0.05e18)
 
         assert mock.getPrimeInterestRates(1) == (0, 0, 0)
-        (pr, factors) = mock.buildPrimeRateView(1, txn.timestamp + 1)
+        (pr, factors) = mock.buildPrimeRateView(1, txn.timestamp + 10)
         assert pr == (1e36, 1e36, 0)
         assert factors["underlyingScalar"] == 1e18
 
