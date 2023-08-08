@@ -6,6 +6,7 @@ import {
     VaultState,
     VaultConfig,
     VaultConfigStorage,
+    VaultConfigParams,
     VaultStateStorage,
     VaultBorrowCapacityStorage,
     VaultAccount,
@@ -16,6 +17,7 @@ import {Constants} from "../../global/Constants.sol";
 import {LibStorage} from "../../global/LibStorage.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
+import {FloatingPoint} from "../../math/FloatingPoint.sol";
 
 import {Emitter} from "../../internal/Emitter.sol";
 import {PrimeRateLib} from "../../internal/pCash/PrimeRateLib.sol";
@@ -41,13 +43,20 @@ contract VaultAction is ActionGuards, IVaultAction {
 
     /// @notice Updates or lists a deployed vault along with its configuration.
     /// @param vaultAddress address of deployed vault
-    /// @param vaultConfig struct of vault configuration
+    /// @param vaultParams struct of vault configuration
     /// @param maxPrimaryBorrowCapacity maximum borrow capacity
     function updateVault(
         address vaultAddress,
-        VaultConfigStorage calldata vaultConfig,
+        VaultConfigParams memory vaultParams,
         uint80 maxPrimaryBorrowCapacity
     ) external override onlyOwner {
+        // Vault Params have borrow sizes specified in full unit precision. Before they are written to
+        // storage they are packed to 32 bits. This functions like the total prime supply in underlying.
+        vaultParams.minAccountBorrowSize = FloatingPoint.packTo32Bits(vaultParams.minAccountBorrowSize);
+        vaultParams.minAccountSecondaryBorrow[0] = FloatingPoint.packTo32Bits(vaultParams.minAccountSecondaryBorrow[0]);
+        vaultParams.minAccountSecondaryBorrow[1] = FloatingPoint.packTo32Bits(vaultParams.minAccountSecondaryBorrow[1]);
+        VaultConfigStorage memory vaultConfig = abi.decode(abi.encode(vaultParams), (VaultConfigStorage));
+
         VaultConfiguration.setVaultConfig(vaultAddress, vaultConfig);
         VaultConfiguration.setMaxBorrowCapacity(vaultAddress, vaultConfig.borrowCurrencyId, maxPrimaryBorrowCapacity);
         bool enabled = (vaultConfig.flags & VaultConfiguration.ENABLED) == VaultConfiguration.ENABLED;

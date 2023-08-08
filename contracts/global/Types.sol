@@ -510,6 +510,22 @@ struct AccountBalance {
     uint256 accountIncentiveDebt;
 }
 
+struct VaultConfigParams {
+    uint16 flags;
+    uint16 borrowCurrencyId;
+    uint256 minAccountBorrowSize;
+    uint16 minCollateralRatioBPS;
+    uint8 feeRate5BPS;
+    uint8 liquidationRate;
+    uint8 reserveFeeShare;
+    uint8 maxBorrowMarketIndex;
+    uint16 maxDeleverageCollateralRatioBPS;
+    uint16[2] secondaryBorrowCurrencies;
+    uint16 maxRequiredAccountCollateralRatioBPS;
+    uint256[2] minAccountSecondaryBorrow;
+    uint8 excessCashLiquidationBonus;
+}
+
 struct VaultConfigStorage {
     // Vault Flags (documented in VaultConfiguration.sol)
     uint16 flags;

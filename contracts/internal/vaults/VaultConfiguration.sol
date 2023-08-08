@@ -17,6 +17,7 @@ import {LibStorage} from "../../global/LibStorage.sol";
 import {Constants} from "../../global/Constants.sol";
 import {SafeInt256} from "../../math/SafeInt256.sol";
 import {SafeUint256} from "../../math/SafeUint256.sol";
+import {FloatingPoint} from "../../math/FloatingPoint.sol";
 
 import {Emitter} from "../Emitter.sol";
 import {DateTime} from "../markets/DateTime.sol";
@@ -77,7 +78,6 @@ library VaultConfiguration {
         vaultConfig.vault = vaultAddress;
         vaultConfig.flags = s.flags;
         vaultConfig.borrowCurrencyId = s.borrowCurrencyId;
-        vaultConfig.minAccountBorrowSize = int256(s.minAccountBorrowSize).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.feeRate = int256(uint256(s.feeRate5BPS).mul(Constants.FIVE_BASIS_POINTS));
         vaultConfig.minCollateralRatio = int256(uint256(s.minCollateralRatioBPS).mul(Constants.BASIS_POINT));
         vaultConfig.maxDeleverageCollateralRatio = int256(uint256(s.maxDeleverageCollateralRatioBPS).mul(Constants.BASIS_POINT));
@@ -87,9 +87,11 @@ library VaultConfiguration {
         vaultConfig.reserveFeeShare = int256(uint256(s.reserveFeeShare));
         vaultConfig.maxBorrowMarketIndex = s.maxBorrowMarketIndex;
         vaultConfig.secondaryBorrowCurrencies = s.secondaryBorrowCurrencies;
-        vaultConfig.minAccountSecondaryBorrow[0] = int256(uint256(s.minAccountSecondaryBorrow[0])).mul(Constants.INTERNAL_TOKEN_PRECISION);
-        vaultConfig.minAccountSecondaryBorrow[1] = int256(uint256(s.minAccountSecondaryBorrow[1])).mul(Constants.INTERNAL_TOKEN_PRECISION);
         vaultConfig.excessCashLiquidationBonus = int256(uint256(s.excessCashLiquidationBonus));
+
+        vaultConfig.minAccountBorrowSize = int256(FloatingPoint.unpackFromBits(s.minAccountBorrowSize));
+        vaultConfig.minAccountSecondaryBorrow[0] = int256(FloatingPoint.unpackFromBits(s.minAccountSecondaryBorrow[0]));
+        vaultConfig.minAccountSecondaryBorrow[1] = int256(FloatingPoint.unpackFromBits(s.minAccountSecondaryBorrow[1]));
     }
 
     function getVaultConfigNoPrimeRate(
@@ -140,7 +142,7 @@ library VaultConfiguration {
 
     function setVaultConfig(
         address vaultAddress,
-        VaultConfigStorage calldata vaultConfig
+        VaultConfigStorage memory vaultConfig
     ) internal {
         mapping(address => VaultConfigStorage) storage store = LibStorage.getVaultConfig();
         VaultConfig memory existingVaultConfig = _getVaultConfig(vaultAddress);
