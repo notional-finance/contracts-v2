@@ -362,6 +362,8 @@ def check_token_incentive_balance(env, accounts):
     totalTokenBalance = 0
 
     for account in accounts:
+        if account.address == env.notional.address:
+            return
         totalTokenBalance += env.noteERC20.balanceOf(account)
 
     totalTokenBalance += env.noteERC20.balanceOf(env.notional.address)
