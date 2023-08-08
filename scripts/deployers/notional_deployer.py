@@ -1,6 +1,7 @@
 import json
 
 from brownie import (
+    ZERO_ADDRESS,
     AccountAction,
     BatchAction,
     CalculationViews,
@@ -23,6 +24,8 @@ from brownie import (
     nTokenAction,
     nTokenMintAction,
     nTokenRedeemAction,
+    VaultLiquidationAction,
+    VaultAccountHealth
 )
 from brownie.network import web3
 from scripts.common import loadContractFromABI
@@ -47,7 +50,7 @@ class NotionalDeployer:
 
     def _load(self):
         if self.config is None:
-            with open("v2.{}.json".format(self.network), "r") as f:
+            with open("v3.{}.json".format(self.network), "r") as f:
                 self.config = json.load(f)
         if "libs" in self.config:
             self.libs = self.config["libs"]
@@ -120,17 +123,19 @@ class NotionalDeployer:
         # contracts["Governance"] = deployArtifact("./scripts/mainnet/GovernanceAction.json", [],
         #   deployer, "Governance")
         self._deployAction(deployer, Views)
-        self._deployAction(deployer, CalculationViews)
         self._deployAction(deployer, InitializeMarketsAction)
         self._deployAction(deployer, nTokenAction)
         self._deployAction(deployer, BatchAction)
         self._deployAction(deployer, AccountAction)
         self._deployAction(deployer, ERC1155Action)
         self._deployAction(deployer, LiquidateCurrencyAction)
+        self._deployAction(deployer, CalculationViews)
         self._deployAction(deployer, LiquidatefCashAction)
-        self._deployAction(deployer, TreasuryAction, [self.config["compound"]["comptroller"]])
-        self._deployAction(deployer, VaultAccountAction)
+        self._deployAction(deployer, TreasuryAction, [ZERO_ADDRESS])
         self._deployAction(deployer, VaultAction)
+        self._deployAction(deployer, VaultAccountAction)
+        self._deployAction(deployer, VaultLiquidationAction)
+        self._deployAction(deployer, VaultAccountHealth)
 
     def _deployRouter(self, deployer, contract, args=[]):
         if contract._name in self.routers:
@@ -169,6 +174,7 @@ class NotionalDeployer:
                 self.actions["LiquidateCurrencyAction"],
                 self.actions["LiquidatefCashAction"],
                 self.actions["CalculationViews"],
+                self.actions["VaultAccountHealth"],
             ],
         )
 
@@ -188,11 +194,12 @@ class NotionalDeployer:
                     self.actions["ERC1155Action"],
                     self.actions["LiquidateCurrencyAction"],
                     self.actions["LiquidatefCashAction"],
-                    self.config["compound"]["ctokens"]["ETH"]["address"],
                     self.actions["TreasuryAction"],
                     self.actions["CalculationViews"],
                     self.actions["VaultAccountAction"],
                     self.actions["VaultAction"],
+                    self.actions["VaultLiquidationAction"],
+                    self.actions["VaultAccountHealth"],
                 )
             ],
         )

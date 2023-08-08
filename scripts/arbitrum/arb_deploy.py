@@ -4,7 +4,6 @@ from scripts.arbitrum.arb_config import ListedOrder, ListedTokens
 from scripts.common import TokenType
 from scripts.deployment import deployNotionalContracts
 from tests.helpers import get_balance_action
-import pdb;
 
 chain = Chain()
 
