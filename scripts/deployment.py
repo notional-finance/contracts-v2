@@ -123,14 +123,14 @@ def deployBeacons(deployer, notional):
     pCashImpl = PrimeCashProxy.deploy(notional.address, {"from": beaconDeployer})
     pDebtImpl = PrimeDebtProxy.deploy(notional.address, {"from": beaconDeployer})
 
-    nTokenBeacon.upgradeTo(nTokenImpl, {"from": notional.address})
-    pCashBeacon.upgradeTo(pCashImpl, {"from": notional.address})
-    pDebtBeacon.upgradeTo(pDebtImpl, {"from": notional.address})
+    # nTokenBeacon.upgradeTo(nTokenImpl, {"from": notional.address})
+    # pCashBeacon.upgradeTo(pCashImpl, {"from": notional.address})
+    # pDebtBeacon.upgradeTo(pDebtImpl, {"from": notional.address})
 
     # Deployer is currently the owner here.
-    #notional.upgradeBeacon(0, nTokenImpl, {"from": deployer})
-    #notional.upgradeBeacon(1, pCashImpl, {"from": deployer})
-    #notional.upgradeBeacon(2, pDebtImpl, {"from": deployer})
+    notional.upgradeBeacon(0, nTokenImpl, {"from": deployer})
+    notional.upgradeBeacon(1, pCashImpl, {"from": deployer})
+    notional.upgradeBeacon(2, pDebtImpl, {"from": deployer})
 
     # nTokenBeacon = factory.deployBeacon(proxy, nTokenImpl, 1).return_value
     # pCashBeacon = factory.deployBeacon(proxy, pCashImpl, 2).return_value
