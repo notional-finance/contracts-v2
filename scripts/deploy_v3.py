@@ -9,7 +9,7 @@ def deployNotional(deployer, networkName, dryRun):
     notional.deployActions()
     notional.deployPauseRouter()
     notional.deployRouter()
-    notional.deployProxy()
+    notional.deployBeaconImplementation()
 
 
 def deployLiquidator(deployer, networkName):
