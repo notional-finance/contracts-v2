@@ -1,20 +1,28 @@
 {
     "actions": {
-        "GovernanceAction": "0x10aae34011c256A9E63ab5ac50154C2539c0f51d",
-        "Views": "0xb15167FfF26202Aa3d20Ecfd7f46a34Fa4126e49",
-        "InitializeMarketsAction": "0x422A2e95009f11e9E144FE7fd1a7c7A9C759Bb6A",
-        "nTokenAction": "0x662F1be7f07C90031F7B5264f71Bd1AC0E975526",
-        "BatchAction": "0x0092A5552162f911ccF7f456e85f473cE259707F",
         "AccountAction": "0xc2763a6465F5C86769A1Af826dB270A6367b03B7",
+        "BatchAction": "0x0092A5552162f911ccF7f456e85f473cE259707F",
+        "CalculationViews": "0x280deCD520da16e5571A6f2Fb803A57e0c16f423",
         "ERC1155Action": "0xdE14D5F07456c86F070C108A04Ae2fafdbD2A939",
+        "GovernanceAction": "0x10aae34011c256A9E63ab5ac50154C2539c0f51d",
+        "InitializeMarketsAction": "0x422A2e95009f11e9E144FE7fd1a7c7A9C759Bb6A",
         "LiquidateCurrencyAction": "0xdfb618098fC858F43fe0E5Fb906AdFE96786832f",
         "LiquidatefCashAction": "0x1c510763432C0e65d86f313612d4e1E2D26E4332",
         "TreasuryAction": "0x1cd33f81420Bfce8A3622dc56BBD617b7Fa3c93A",
-        "CalculationViews": "0x280deCD520da16e5571A6f2Fb803A57e0c16f423",
         "VaultAccountAction": "0xAbd096049E0CDCecFE26a3b1Bc7bb38438F1B488",
+        "VaultAccountHealth": "0xFFd7531ED937F703B269815950cB75bdAAA341c9",
         "VaultAction": "0x63757F772B8aab66F4dE09617e8F257249EFcb93",
         "VaultLiquidationAction": "0x5f11E94E0A69ac8490f45eB27a6478dCDDB0227E",
-        "VaultAccountHealth": "0xFFd7531ED937F703B269815950cB75bdAAA341c9"
+        "Views": "0xb15167FfF26202Aa3d20Ecfd7f46a34Fa4126e49",
+        "nTokenAction": "0x662F1be7f07C90031F7B5264f71Bd1AC0E975526"
+    },
+    "beacons": {
+        "PrimeCashProxy": "0x42C7c34433eE1A3C7dbff02E7CfAbF05daD523F3",
+        "PrimeDebtProxy": "0xe157571033113BE476ef333bb30A48EFC99B8e2D",
+        "nTokenBeacon": "0xc4FD259b816d081C8bdd22D6bbd3495DB1573DB7",
+        "nTokenERC20Proxy": "0xCAd793546c97cd9B02492BA2FDB887E4eA9f02D8",
+        "pCashBeacon": "0x1F681977aF5392d9Ca5572FB394BC4D12939A6A9",
+        "pDebtBeacon": "0xDF08039c0af34E34660aC7c2705C0Da953247640"
     },
     "chainId": 42161,
     "deployer": "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3",
@@ -39,6 +47,9 @@
         "DAI": {
             "address": "0xDA10009cBd5D07dd0CeCc66161FC93D7c9000da1"
         },
+        "FRAX": {
+            "address": "0x17FC002b466eEc40DaE837Fc4bE5c67993ddBd6F"
+        },
         "USDC": {
             "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8"
         },
@@ -50,9 +61,6 @@
         },
         "wstETH": {
             "address": "0x5979D7b546E38E414F7E9822514be443A4800529"
-        },
-        "FRAX": {
-            "address": "0x17FC002b466eEc40DaE837Fc4bE5c67993ddBd6F"
         }
     }
 }

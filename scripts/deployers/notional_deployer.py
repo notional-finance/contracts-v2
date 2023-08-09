@@ -1,4 +1,5 @@
 import json
+import subprocess
 
 from brownie import (
     ZERO_ADDRESS,
@@ -21,6 +22,9 @@ from brownie import (
     VaultAction,
     Views,
     nProxy,
+    nTokenERC20Proxy,
+    PrimeCashProxy,
+    PrimeDebtProxy,
     nTokenAction,
     nTokenMintAction,
     nTokenRedeemAction,
@@ -48,6 +52,16 @@ class NotionalDeployer:
         self.dryRun = dryRun
         self._load()
 
+    def verify(self, contract, deployed, args = []):
+        if not self.dryRun:
+            print("Verifying {} at {} with args {}".format(contract._name, deployed.address, args))
+            output = subprocess.check_output([
+                "npx", "hardhat", "verify",
+                "--network", self.network,
+                deployed.address
+            ] + args, encoding='utf-8')
+            print(output)
+
     def _load(self):
         if self.config is None:
             with open("v3.{}.json".format(self.network), "r") as f:
@@ -58,6 +72,8 @@ class NotionalDeployer:
             self.actions = self.config["actions"]
         if "routers" in self.config:
             self.routers = self.config["routers"]
+        if "beacons" in self.config:
+            self.beacons = self.config["beacons"]
         if "notional" in self.config:
             self.notional = self.config["notional"]
             self.proxy = loadContractFromABI(
@@ -68,10 +84,11 @@ class NotionalDeployer:
         self.config["libs"] = self.libs
         self.config["actions"] = self.actions
         self.config["routers"] = self.routers
+        self.config["beacons"] = self.beacons
         if self.notional is not None:
             self.config["notional"] = self.notional
         if self.persist:
-            with open("v2.{}.json".format(self.network), "w") as f:
+            with open("v3.{}.json".format(self.network), "w") as f:
                 json.dump(self.config, f, sort_keys=True, indent=4)
 
     def _deployLib(self, deployer, contract):
@@ -87,6 +104,7 @@ class NotionalDeployer:
             deployed = deployer.deploy(contract, [], "", True, True)
             self.libs[contract._name] = deployed.address
             self._save()
+            self.verify(contract, deployed)
 
     def deployLibs(self):
         deployer = ContractDeployer(self.deployer, {}, self.libs)
@@ -108,6 +126,7 @@ class NotionalDeployer:
             deployed = deployer.deploy(contract, args, "", True)
             self.actions[contract._name] = deployed.address
             self._save()
+            self.verify(deployed, [] if args is None else args)
 
     def deployAction(self, action, args=None):
         deployer = ContractDeployer(self.deployer, self.actions, self.libs)
@@ -163,6 +182,7 @@ class NotionalDeployer:
 
             self.routers[contract._name] = deployed.address
             self._save()
+            self.verify(contract, deployed, args)
 
     def deployPauseRouter(self):
         deployer = ContractDeployer(self.deployer, self.routers)
@@ -203,6 +223,28 @@ class NotionalDeployer:
                 )
             ],
         )
+
+    def _deployBeaconImplementation(self, deployer, contract):
+        args = [self.notional]
+        if contract._name in self.beacons:
+            print("{} deployed at {}".format(contract._name, self.beacons[contract._name]))
+            return
+
+        if self.dryRun:
+            print("Will deploy {} with args {}".format(contract._name, args))
+        else:
+            deployed = deployer.deploy(contract, args, "", True)
+            print("Deployed beacon implementation {} with args:".format(contract._name))
+
+            self.beacons[contract._name] = deployed.address
+            self._save()
+            self.verify(contract, deployed, args)
+
+    def deployBeaconImplementation(self):
+        deployer = ContractDeployer(self.deployer, self.beacons)
+        self._deployBeaconImplementation(deployer, nTokenERC20Proxy)
+        self._deployBeaconImplementation(deployer, PrimeCashProxy)
+        self._deployBeaconImplementation(deployer, PrimeDebtProxy)
 
     def upgradeProxy(self, oldRouter):
         print("Upgrading router from {} to {}".format(oldRouter, self.routers["Router"]))
