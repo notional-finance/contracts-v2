@@ -517,7 +517,7 @@ def test_calculate_deleverage_amount(
         vault.address,
         get_vault_config(
             maxDeleverageCollateralRatioBPS=4000,
-            minAccountBorrowSize=10_000,
+            minAccountBorrowSize=10_000e8,
             liquidationRate=104,
             flags=set_flags(0, ENABLE_FCASH_DISCOUNT=enablefCashDiscount),
         ),
@@ -610,7 +610,7 @@ def test_calculate_deleverage_amount_with_secondaries(
         get_vault_config(
             currencyId=2,
             maxDeleverageCollateralRatioBPS=4000,
-            minAccountBorrowSize=10_000,
+            minAccountBorrowSize=10_000e8,
             liquidationRate=104,
             flags=set_flags(0, ENABLE_FCASH_DISCOUNT=enablefCashDiscount),
             secondaryBorrowCurrencies=secondaryCurrencies,

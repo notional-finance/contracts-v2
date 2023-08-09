@@ -10,7 +10,7 @@ import "../internal/vaults/VaultValuation.sol";
 import "../internal/balances/TokenHandler.sol";
 import "../internal/balances/BalanceHandler.sol";
 import "./valuation/AbstractSettingsRouter.sol";
-import {AssetRateAdapter, AssetRateStorage, ETHRateStorage} from "../global/Types.sol";
+import {AssetRateAdapter, AssetRateStorage, ETHRateStorage, VaultConfigParams} from "../global/Types.sol";
 
 contract MockVaultConfiguration is AbstractSettingsRouter {
     using VaultConfiguration for VaultConfig;
@@ -76,8 +76,15 @@ contract MockVaultConfiguration is AbstractSettingsRouter {
 
     function setVaultConfig(
         address vault,
-        VaultConfigStorage calldata vaultConfig
+        VaultConfigParams memory vaultParams
     ) external {
+        // Vault Params have borrow sizes specified in full unit precision. Before they are written to
+        // storage they are packed to 32 bits. This functions like the total prime supply in underlying.
+        vaultParams.minAccountBorrowSize = FloatingPoint.packTo32Bits(vaultParams.minAccountBorrowSize);
+        vaultParams.minAccountSecondaryBorrow[0] = FloatingPoint.packTo32Bits(vaultParams.minAccountSecondaryBorrow[0]);
+        vaultParams.minAccountSecondaryBorrow[1] = FloatingPoint.packTo32Bits(vaultParams.minAccountSecondaryBorrow[1]);
+        VaultConfigStorage memory vaultConfig = abi.decode(abi.encode(vaultParams), (VaultConfigStorage));
+
         VaultConfiguration.setVaultConfig(vault, vaultConfig);
     }
 

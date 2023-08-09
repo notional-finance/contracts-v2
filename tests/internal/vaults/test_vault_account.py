@@ -30,7 +30,7 @@ def test_enforce_borrow_size(vaultConfigTokenTransfer, accounts):
         "Simple Strategy", vaultConfigTokenTransfer.address, 1, {"from": accounts[0]}
     )
     vaultConfigTokenTransfer.setVaultConfig(
-        vault.address, get_vault_config(minAccountBorrowSize=100_000)
+        vault.address, get_vault_config(minAccountBorrowSize=100_000e8)
     )
 
     with brownie.reverts("Min Borrow"):
@@ -123,7 +123,7 @@ def test_set_vault_account_liquidation(vaultConfigAccount, accounts, currencyInd
     )
     vaultConfigAccount.setVaultConfig(
         vault.address,
-        get_vault_config(currencyId=1, secondaryBorrowCurrencies=[2, 3], minAccountBorrowSize=50),
+        get_vault_config(currencyId=1, secondaryBorrowCurrencies=[2, 3], minAccountBorrowSize=50e8),
     )
 
     account = get_vault_account(accountDebtUnderlying=-100e8)
@@ -173,7 +173,7 @@ def test_set_multiple_account_cash(vaultConfigAccount, accounts):
     )
     vaultConfigAccount.setVaultConfig(
         vault.address,
-        get_vault_config(currencyId=1, secondaryBorrowCurrencies=[2, 3], minAccountBorrowSize=50),
+        get_vault_config(currencyId=1, secondaryBorrowCurrencies=[2, 3], minAccountBorrowSize=50e8),
     )
 
     account = get_vault_account(accountDebtUnderlying=-100e8)
@@ -412,7 +412,7 @@ def test_increase_secondary_debt_enforce_min_borrow(
     vaultConfigSecondaryBorrow.setVaultConfig(
         vault.address,
         get_vault_config(
-            currencyId=1, secondaryBorrowCurrencies=[2, 3], minAccountSecondaryBorrow=[100, 200]
+            currencyId=1, secondaryBorrowCurrencies=[2, 3], minAccountSecondaryBorrow=[100e8, 200e8]
         ),
     )
     vaultConfigSecondaryBorrow.setMaxBorrowCapacity(vault, 2, 10_000e8)

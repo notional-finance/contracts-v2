@@ -245,7 +245,7 @@ def setup_deleverage_conditions(
             flags=set_flags(
                 0, ENABLED=True, ENABLE_FCASH_DISCOUNT=enablefCashDiscount, ALLOW_ROLL_POSITION=True
             ),
-            minAccountBorrowSize=50 * multiple,
+            minAccountBorrowSize=50 * multiple * 1e8,
         ),
         100_000_000e8,
     )
@@ -394,7 +394,7 @@ def test_cannot_deleverage_below_min_borrow(
             flags=set_flags(
                 0, ENABLED=True, ENABLE_FCASH_DISCOUNT=enablefCashDiscount, ALLOW_ROLL_POSITION=True
             ),
-            minAccountBorrowSize=100 * e['multiple'],
+            minAccountBorrowSize=100 * e['multiple'] * 1e8,
         ),
         100_000_000e8,
     )

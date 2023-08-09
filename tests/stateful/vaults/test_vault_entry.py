@@ -384,7 +384,7 @@ def test_enter_vault(environment, SimpleStrategyVault, accounts, currencyId, isP
         get_vault_config(
             currencyId=currencyId,
             flags=set_flags(0, ENABLED=True),
-            minAccountBorrowSize=100 * multiple,
+            minAccountBorrowSize=100 * multiple * 1e8,
         ),
         100_000_000e8,
     )
@@ -452,7 +452,7 @@ def test_can_increase_vault_position(
         get_vault_config(
             currencyId=currencyId,
             flags=set_flags(0, ENABLED=True),
-            minAccountBorrowSize=100 * multiple,
+            minAccountBorrowSize=100 * multiple * 1e8,
         ),
         100_000_000e8,
     )
@@ -530,7 +530,7 @@ def test_can_deposit_to_reduce_collateral_ratio(
         get_vault_config(
             currencyId=currencyId,
             flags=set_flags(0, ENABLED=True),
-            minAccountBorrowSize=100 * multiple,
+            minAccountBorrowSize=100 * multiple * 1e8,
         ),
         100_000_000e8,
     )
