@@ -30,6 +30,7 @@ def main(dryRun=True):
     elif networkName in ["arbitrum-fork", "arbitrum-current"]:
         networkName = "arbitrum-one"
     deployer = accounts.load(networkName.upper() + "_DEPLOYER")
+    print("Deployer Address: ", deployer.address)
 
     if dryRun == "LFG":
         txt = input("Will execute REAL transactions, are you sure (type 'I am sure'): ")
