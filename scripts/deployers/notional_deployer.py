@@ -34,6 +34,7 @@ from brownie import (
 from brownie.network import web3
 from scripts.common import loadContractFromABI
 from scripts.deployers.contract_deployer import ContractDeployer
+from scripts.deployment import deployArtifact
 
 
 class NotionalDeployer:
@@ -123,10 +124,22 @@ class NotionalDeployer:
         if self.dryRun:
             print("Will deploy action contract {}".format(contract._name))
         else:
-            deployed = deployer.deploy(contract, args, "", True)
+            # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
+            # deployment. Therefore, when we deploy to production we actually deploy the artifact generated
+            # by the hardhat deployment here.
+            if contract._name == "GovernanceAction":
+                deployed = deployArtifact(
+                    "./artifacts/contracts/external/actions/GovernanceAction.sol/GovernanceAction.json",
+                    [],
+                    deployer.deployer,
+                    "Governance"
+                )
+            else:
+                deployed = deployer.deploy(contract, args, "", True)
+
             self.actions[contract._name] = deployed.address
             self._save()
-            self.verify(deployed, [] if args is None else args)
+            self.verify(contract, deployed, [] if args is None else args)
 
     def deployAction(self, action, args=None):
         deployer = ContractDeployer(self.deployer, self.actions, self.libs)
@@ -135,12 +148,6 @@ class NotionalDeployer:
     def deployActions(self):
         deployer = ContractDeployer(self.deployer, self.actions, self.libs)
         self._deployAction(deployer, GovernanceAction)
-        # Brownie and Hardhat do not compile to the same bytecode for this contract, during mainnet
-        # deployment. Therefore, when we deploy to mainnet we actually deploy the artifact generated
-        # by the hardhat deployment here. NOTE: this artifact must be generated, the artifact here
-        # will not be correct for future upgrades.
-        # contracts["Governance"] = deployArtifact("./scripts/mainnet/GovernanceAction.json", [],
-        #   deployer, "Governance")
         self._deployAction(deployer, Views)
         self._deployAction(deployer, InitializeMarketsAction)
         self._deployAction(deployer, nTokenAction)
