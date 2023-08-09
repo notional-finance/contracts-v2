@@ -289,7 +289,7 @@ def get_vault_account(environment, accounts, currencyId, isPrime, enablefCashDis
             flags=set_flags(
                 0, ENABLED=True, ALLOW_ROLL_POSITION=True, ENABLE_FCASH_DISCOUNT=enablefCashDiscount
             ),
-            minAccountBorrowSize=50 * multiple,
+            minAccountBorrowSize=50 * multiple * 1e8,
         ),
         100_000_000e8,
     )

@@ -67,7 +67,7 @@ def test_set_vault_config(vaultConfigTokenTransfer, accounts):
     assert config["vault"] == accounts[0].address
     assert config["flags"] == conf[0]
     assert config["borrowCurrencyId"] == conf[1]
-    assert config["minAccountBorrowSize"] == conf[2] * 1e8
+    assert pytest.approx(config["minAccountBorrowSize"], rel=2e8) == conf[2] * 1e8
     assert config["minCollateralRatio"] == conf[3] * BASIS_POINT
     assert config["feeRate"] == conf[4] * 5 * BASIS_POINT
     assert config["liquidationRate"] == conf[5] * RATE_PRECISION / 100

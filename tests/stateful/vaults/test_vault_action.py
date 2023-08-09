@@ -106,7 +106,7 @@ def test_pause_vault(environment, vault, accounts):
 def test_set_max_capacity(environment, vault, accounts):
     environment.notional.updateVault(
         vault.address,
-        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True), minAccountBorrowSize=1),
+        get_vault_config(currencyId=2, flags=set_flags(0, ENABLED=True), minAccountBorrowSize=1e8),
         100_000_000e8,
     )
     with brownie.reverts("Ownable: caller is not the owner"):

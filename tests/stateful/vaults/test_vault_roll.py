@@ -232,7 +232,7 @@ def test_roll_vault_below_max_collateral_ratio(environment, vault, roll_account,
             feeRate5BPS=0,
             maxDeleverageCollateralRatioBPS=2500,
             maxRequiredAccountCollateralRatio=3000,
-            minAccountBorrowSize=10_000,
+            minAccountBorrowSize=10_000e8,
         ),
         100_000_000e8,
     )
@@ -278,7 +278,7 @@ def test_roll_vault_success(
                 0, ENABLED=True, ALLOW_ROLL_POSITION=True, ENABLE_FCASH_DISCOUNT=enablefCashDiscount
             ),
             feeRate5BPS=0,
-            minAccountBorrowSize=50 * multiple,
+            minAccountBorrowSize=50 * multiple * 1e8,
         ),
         100_000_000e8,
     )
@@ -472,7 +472,7 @@ def test_roll_vault_collateral_ratio(
             currencyId=currencyId,
             flags=set_flags(0, ENABLED=True, ALLOW_ROLL_POSITION=True, ENABLE_FCASH_DISCOUNT=True),
             feeRate5BPS=0,
-            minAccountBorrowSize=50 * multiple,
+            minAccountBorrowSize=50 * multiple * 1e8,
         ),
         100_000_000e8,
     )
