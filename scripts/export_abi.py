@@ -12,7 +12,7 @@ def main():
     with open("abi/IStrategyVault.json", "w") as f:
         json.dump(StrategyVaultABI, f, sort_keys=True, indent=4)
 
-    ERC4626ABI = ContractsV2Project._build.get("IERC4626")["abi"]
+    ERC4626ABI = ContractsV2Project._build.get("BaseERC4626Proxy")["abi"]
     with open("abi/ERC4626.json", "w") as f:
         json.dump(ERC4626ABI, f, sort_keys=True, indent=4)
 

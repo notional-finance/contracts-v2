@@ -87,7 +87,7 @@
             {
                 "indexed": false,
                 "internalType": "uint256",
-                "name": "underlyingScalar",
+                "name": "supplyFactor",
                 "type": "uint256"
             },
             {
@@ -7330,9 +7330,9 @@
                         "type": "uint16"
                     },
                     {
-                        "internalType": "uint32",
+                        "internalType": "uint256",
                         "name": "minAccountBorrowSize",
-                        "type": "uint32"
+                        "type": "uint256"
                     },
                     {
                         "internalType": "uint16",
@@ -7375,9 +7375,9 @@
                         "type": "uint16"
                     },
                     {
-                        "internalType": "uint32[2]",
+                        "internalType": "uint256[2]",
                         "name": "minAccountSecondaryBorrow",
-                        "type": "uint32[2]"
+                        "type": "uint256[2]"
                     },
                     {
                         "internalType": "uint8",
@@ -7385,7 +7385,7 @@
                         "type": "uint8"
                     }
                 ],
-                "internalType": "struct VaultConfigStorage",
+                "internalType": "struct VaultConfigParams",
                 "name": "vaultConfig",
                 "type": "tuple"
             },
