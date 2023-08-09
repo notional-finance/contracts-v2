@@ -149,18 +149,32 @@ contract PauseRouter is StorageLayoutV2, UUPSUpgradeable, ActionGuards {
             sig == IVaultAccountHealth.checkVaultAccountCollateralRatio.selector ||
             sig == IVaultAccountHealth.signedBalanceOfVaultTokenId.selector ||
             sig == IVaultAccountHealth.getVaultAccount.selector ||
+            sig == IVaultAccountHealth.getVaultAccountWithFeeAccrual.selector ||
             sig == IVaultAccountHealth.getVaultConfig.selector ||
             sig == IVaultAccountHealth.getBorrowCapacity.selector ||
             sig == IVaultAccountHealth.getSecondaryBorrow.selector ||
             sig == IVaultAccountHealth.getVaultAccountSecondaryDebt.selector ||
+            sig == IVaultAccountHealth.getfCashRequiredToLiquidateCash.selector ||
             sig == IVaultAccountHealth.getVaultState.selector
         ) {
             return VAULT_ACCOUNT_HEALTH;
         } else if (
             sig == NotionalCalculations.calculateNTokensToMint.selector ||
+            sig == NotionalCalculations.nTokenPresentValueAssetDenominated.selector ||
+            sig == NotionalCalculations.nTokenPresentValueUnderlyingDenominated.selector ||
+            sig == NotionalCalculations.convertNTokenToUnderlying.selector ||
             sig == NotionalCalculations.getfCashAmountGivenCashAmount.selector ||
             sig == NotionalCalculations.getCashAmountGivenfCashAmount.selector ||
-            sig == NotionalCalculations.nTokenGetClaimableIncentives.selector
+            sig == NotionalCalculations.nTokenGetClaimableIncentives.selector ||
+            sig == NotionalCalculations.getPresentfCashValue.selector ||
+            sig == NotionalCalculations.getMarketIndex.selector ||
+            sig == NotionalCalculations.getfCashLendFromDeposit.selector ||
+            sig == NotionalCalculations.getfCashBorrowFromPrincipal.selector ||
+            sig == NotionalCalculations.getDepositFromfCashLend.selector ||
+            sig == NotionalCalculations.getPrincipalFromfCashBorrow.selector ||
+            sig == NotionalCalculations.convertCashBalanceToExternal.selector ||
+            sig == NotionalCalculations.convertSettledfCash.selector ||
+            sig == NotionalCalculations.convertUnderlyingToPrimeCash.selector
         ) {
             return CALCULATION_VIEWS;
         }
