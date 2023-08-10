@@ -14,7 +14,11 @@ contract nTokenERC20Proxy is BaseERC4626Proxy {
 
     constructor(NotionalProxy notional_) BaseERC4626Proxy(notional_) {}
 
-    function _getPrefixes() internal pure override returns (string memory namePrefix, string memory symbolPrefix) {
+    function _getPrefixes() internal pure override returns (
+        string memory namePrefix,
+        string memory nameSuffix,
+        string memory symbolPrefix
+    ) {
         namePrefix = "nToken";
         symbolPrefix = "n";
     }

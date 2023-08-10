@@ -1,6 +1,6 @@
 import brownie
 import pytest
-from brownie import nBeaconProxy, Contract, EmptyProxy, PrimeCashProxy
+from brownie import nBeaconProxy, Contract, EmptyProxy, PrimeCashProxy, PrimeDebtProxy
 from brownie.network.state import Chain
 from brownie.test import given, strategy
 from tests.helpers import initialize_environment
@@ -50,8 +50,17 @@ def test_cannot_rename_unless_owner(environment, accounts):
         proxy.rename("a", "b", {"from": accounts[1]})
     
     proxy.rename("a", "a", {"from": accounts[0]})
-    assert proxy.name() == "pCash a"
+    assert proxy.name() == "Prime a"
     assert proxy.symbol() == "pa"
+
+    proxy = Contract.from_abi('pETH', environment.notional.pDebtAddress(1), PrimeDebtProxy.abi)
+
+    with brownie.reverts():
+        proxy.rename("a", "b", {"from": accounts[1]})
+    
+    proxy.rename("a", "a", {"from": accounts[0]})
+    assert proxy.name() == "Prime a Debt"
+    assert proxy.symbol() == "pda"
 
 @given(useNToken=strategy("bool"))
 def test_cannot_reinitialize_proxy(environment, useNToken, accounts):
