@@ -90,8 +90,8 @@ abstract contract BaseERC4626Proxy is IERC20, IERC4626, Initializable, ITransfer
     ) external onlyNotional initializer {
         currencyId = currencyId_;
 
-        (string memory namePrefix, string memory symbolPrefix) = _getPrefixes();
-        name = string(abi.encodePacked(namePrefix, " ", underlyingName_));
+        (string memory namePrefix, string memory nameSuffix, string memory symbolPrefix) = _getPrefixes();
+        name = string(abi.encodePacked(namePrefix, " ", underlyingName_, nameSuffix));
         symbol = string(abi.encodePacked(symbolPrefix, underlyingSymbol_));
 
         if (underlying_ == Constants.ETH_ADDRESS) {
@@ -113,8 +113,8 @@ abstract contract BaseERC4626Proxy is IERC20, IERC4626, Initializable, ITransfer
         string memory underlyingSymbol_
     ) external {
         require(msg.sender == NOTIONAL.owner());
-        (string memory namePrefix, string memory symbolPrefix) = _getPrefixes();
-        name = string(abi.encodePacked(namePrefix, " ", underlyingName_));
+        (string memory namePrefix, string memory nameSuffix, string memory symbolPrefix) = _getPrefixes();
+        name = string(abi.encodePacked(namePrefix, " ", underlyingName_, nameSuffix));
         symbol = string(abi.encodePacked(symbolPrefix, underlyingSymbol_));
         emit ProxyRenamed();
     }
@@ -362,7 +362,7 @@ abstract contract BaseERC4626Proxy is IERC20, IERC4626, Initializable, ITransfer
     function _transferFrom(address from, address to, uint256 amount) internal virtual returns (bool);
 
     /// @notice Hardcoded prefixes for the token name
-    function _getPrefixes() internal pure virtual returns (string memory namePrefix, string memory symbolPrefix);
+    function _getPrefixes() internal pure virtual returns (string memory namePrefix, string memory nameSuffix, string memory symbolPrefix);
     function _getTotalValueExternal() internal view virtual returns (uint256 totalValueExternal);
     function _mint(uint256 assets, uint256 msgValue, address receiver) internal virtual returns (uint256 tokensMinted);
     function _redeem(uint256 shares, address receiver, address owner) internal virtual returns (uint256 assets);
