@@ -1,10 +1,7 @@
 # flake8: noqa
 import json
-
-from brownie import GovernorAlpha, NoteERC20, Router, network
+from brownie import NoteERC20, Router, network, interface
 from brownie.network.contract import Contract
-from brownie.project import ContractsV2Project
-from tests.constants import DEPOSIT_ACTION_TYPE, TRADE_ACTION_TYPE
 
 
 def get_router_args(router):
@@ -39,8 +36,7 @@ def get_addresses():
     with open(output_file, "r") as f:
         addresses = json.load(f)
 
-    notionalInterfaceABI = ContractsV2Project._build.get("NotionalProxy")["abi"]
-    notional = Contract.from_abi("Notional", addresses["notional"], abi=notionalInterfaceABI)
+    notional = Contract.from_abi("Notional", addresses["notional"], abi=interface.NotionalProxy.abi)
     note = NoteERC20.at(addresses["note"])
     router = Contract.from_abi("Router", addresses["notional"], abi=Router.abi)
 

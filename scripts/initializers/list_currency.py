@@ -3,6 +3,7 @@ from scripts.arbitrum.arb_config import ListedTokens
 from scripts.arbitrum.arb_deploy import _deploy_chainlink_oracle, _deploy_pcash_oracle, _to_interest_rate_curve
 from scripts.common import TokenType
 from scripts.inspect import get_addresses
+import json
 
 def donate_initial(symbol, notional, fundingAccount):
     token = ListedTokens[symbol]
@@ -41,7 +42,9 @@ def list_currency(notional, symbol):
         symbol,
         {"from": notional.owner()}
     )
-    currencyId = txn.events["ListCurrency"]["newCurrencyId"]
+    # currencyId = txn.events["ListCurrency"]["newCurrencyId"]
+    currencyId = 7 if symbol == 'rETH' else 8
+    callData.append(txn.input)
 
     txn = notional.enableCashGroup(
         currencyId,
@@ -61,19 +64,23 @@ def list_currency(notional, symbol):
         symbol,
         {"from": notional.owner()}
     )
+    callData.append(txn.input)
 
-    notional.updateInterestRateCurve(
+    txn = notional.updateInterestRateCurve(
         currencyId,
         [1, 2],
         [_to_interest_rate_curve(c) for c in token['fCashCurves']],
         {"from": notional.owner()}
     )
+    callData.append(txn.input)
 
-    notional.updateDepositParameters(currencyId, token['depositShare'], token['leverageThreshold'], {"from": notional.owner()})
+    txn = notional.updateDepositParameters(currencyId, token['depositShare'], token['leverageThreshold'], {"from": notional.owner()})
+    callData.append(txn.input)
 
-    notional.updateInitializationParameters(currencyId, [0, 0], token['proportion'], {"from": notional.owner()})
+    txn = notional.updateInitializationParameters(currencyId, [0, 0], token['proportion'], {"from": notional.owner()})
+    callData.append(txn.input)
 
-    notional.updateTokenCollateralParameters(
+    txn = notional.updateTokenCollateralParameters(
         currencyId,
         token["residualPurchaseIncentive"],
         token["pvHaircutPercentage"],
@@ -82,18 +89,54 @@ def list_currency(notional, symbol):
         token["liquidationHaircutPercentage"],
         {"from": notional.owner()}
     )
+    callData.append(txn.input)
 
-    notional.setMaxUnderlyingSupply(currencyId, token['maxUnderlyingSupply'], {"from": notional.owner()})
+    txn = notional.setMaxUnderlyingSupply(currencyId, token['maxUnderlyingSupply'], {"from": notional.owner()})
+    callData.append(txn.input)
+
+    return callData
 
 def main():
     fundingAccount = accounts.at("0x7d7935EDd4b6cDB5f34B0E1cCEAF85a3C4A11254", force=True)
     (addresses, notional, note, router, networkName) = get_addresses()
-    donate_initial(notional, fundingAccount)
+    donate_initial('rETH', notional, fundingAccount)
+    donate_initial('USDT', notional, fundingAccount)
 
     # deployer = accounts.load(networkName.upper() + "_DEPLOYER")
     # _deploy_pcash_oracle('rETH', notional, deployer)
     # _deploy_pcash_oracle('USDT', notional, deployer)
     # _deploy_chainlink_oracle('USDT', deployer)
+    batchBase = {
+        "version": "1.0",
+        "chainId": "42161",
+        "createdAt": 1692567274357,
+        "meta": {
+            "name": "Transactions Batch",
+            "description": "",
+            "txBuilderVersion": "1.16.1"
+        },
+        "transactions": []
+    }
 
-    print("NETWORK NAME", networkName)
-    # list_currency(notional, 'rETH')
+    callData = list_currency(notional, 'rETH')
+    for data in callData:
+        batchBase['transactions'].append({
+            "to": notional.address,
+            "value": "0",
+            "data": data,
+            "contractMethod": { "inputs": [], "name": "fallback", "payable": True },
+            "contractInputsValues": None
+        })
+    json.dump(batchBase, open("batch-reth.json", 'w'))
+
+    batchBase['transactions'] = []
+    callData = list_currency(notional, 'USDT')
+    for data in callData:
+        batchBase['transactions'].append({
+            "to": notional.address,
+            "value": "0",
+            "data": data,
+            "contractMethod": { "inputs": [], "name": "fallback", "payable": True },
+            "contractInputsValues": None
+        })
+    json.dump(batchBase, open("batch-usdt.json", 'w'))
