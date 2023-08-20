@@ -7,7 +7,9 @@ ChainlinkOracles = {
     "WBTC/USD": "0xd0c7101eacbb49f3decccc166d238410d6d46d57",
     "FRAX/USD": "0x0809e3d38d1b4214958faf06d8b1b1a2b73f2ab8",
     "stETH/ETH": "0xded2c52b75b24732e9107377b7ba93ec1ffa4baf",
-    "wstETH/stETH": "0xb1552c5e96b312d0bf8b554186f846c40614a540"
+    "wstETH/stETH": "0xb1552c5e96b312d0bf8b554186f846c40614a540",
+    "rETH/ETH": "0xf3272cafe65b190e76caaf483db13424a3e23dd2",
+    "USDT/USD": "0x3f3f5df88dc9f13eac63df89ec16ef6e7e25dde7"
 }
 
 CurrencyDefaults = {
@@ -15,7 +17,6 @@ CurrencyDefaults = {
 
     # Cash Group
     "maxMarketIndex": 2,
-    "rateOracleTimeWindow": 72,
     "primeRateOracleTimeWindow5Min": 72,
     "maxDiscountFactor": 40,
     "reserveFeeShare": 80,
@@ -28,10 +29,12 @@ CurrencyDefaults = {
 
     # nToken
     "residualPurchaseIncentive": 20,
-    "residualPurchaseTimeBufferHours": 24,
     "pvHaircutPercentage": 90,
+    "residualPurchaseTimeBufferHours": 24,
     'cashWithholdingBuffer10BPS': 20,
     "liquidationHaircutPercentage": 98,
+
+    "rateOracleTimeWindow": 72,
 }
 
 ListedTokens = {
@@ -341,7 +344,111 @@ ListedTokens = {
         "proportion": [0.5e9, 0.5e9],
         "depositShare": [0.55e8, 0.45e8],
         "leverageThreshold": [0.8e9, 0.8e9],
+    },
+    "rETH": CurrencyDefaults | {
+        "address": "0xEC70Dcb4A1EFa46b8F2D97C310C9c4790ba5ffA8",
+        "name": "Rocket Pool ETH",
+        "decimals": 18,
+        "ethOracle": ChainlinkOracles["rETH/ETH"],
+        "pCashOracle": "0x164DF1D4C0dfE877e5C75f2A7b0dCC3d83190E19",
+
+        "maxOracleRate25BPS": 12,
+
+        "buffer": 129,
+        "haircut": 76,
+        "liquidationDiscount": 107,
+        "maxUnderlyingSupply": 10e8,
+
+        # Prime Cash Curve
+        "primeCashCurve": {
+            "kinkUtilization1": 50,
+            "kinkUtilization2": 75,
+            "kinkRate1": 1,
+            "kinkRate2": 4,
+            "maxRate25BPS": 255,
+            "feeRatePercent": 20,
+            "minFeeRate5BPS": 10,
+            "maxFeeRate25BPS": 160
+        },
+
+        # fCash Curve
+        "fCashCurves" : [{
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 75,
+            "kinkRate1": 5,
+            "kinkRate2": 15,
+            "maxRate25BPS": 120,
+            "feeRatePercent": 8,
+            "minFeeRate5BPS": 2,
+            "maxFeeRate25BPS": 8
+        }, {
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 75,
+            "kinkRate1": 6,
+            "kinkRate2": 18,
+            "maxRate25BPS": 100,
+            "feeRatePercent": 8,
+            "minFeeRate5BPS": 2,
+            "maxFeeRate25BPS": 8
+        }],
+
+        "proportion": [0.5e9, 0.5e9],
+        "depositShare": [0.5e8, 0.5e8],
+        "leverageThreshold": [0.75e9, 0.75e9],
+    },
+    "USDT": CurrencyDefaults | {
+        "address": "0xFd086bC7CD5C481DCC9C85ebE478A1C0b69FCbb9",
+        "name": "Tether USD",
+        "decimals": 6,
+        "baseOracle": ChainlinkOracles["USDT/USD"],
+        "quoteOracle": ChainlinkOracles["ETH/USD"],
+        "invertBase": False,
+        "invertQuote": False,
+        "pCashOracle": "0x7c8488771e60e07ef222213E1cc620582fC9fe67",
+        "ethOracle": "0x24fa92Cd21Bd3eBa1C07877593D0a75326bD35D6",
+
+        "buffer": 109,
+        "haircut": 86,
+        "liquidationDiscount": 104,
+        "maxUnderlyingSupply": 10_000e8,
+
+        # Prime Cash Curve
+        "primeCashCurve": {
+            "kinkUtilization1": 10,
+            "kinkUtilization2": 80,
+            "kinkRate1": 5,
+            "kinkRate2": 12,
+            "maxRate25BPS": 192,
+            "feeRatePercent": 20,
+            "minFeeRate5BPS": 10,
+            "maxFeeRate25BPS": 80
+        },
+
+        # fCash Curve
+        "fCashCurves" : [{
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 80,
+            "kinkRate1": 17,
+            "kinkRate2": 51,
+            "maxRate25BPS": 120,
+            "feeRatePercent": 8,
+            "minFeeRate5BPS": 3,
+            "maxFeeRate25BPS": 8
+        }, {
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 80,
+            "kinkRate1": 20,
+            "kinkRate2": 61,
+            "maxRate25BPS": 100,
+            "feeRatePercent": 8,
+            "minFeeRate5BPS": 3,
+            "maxFeeRate25BPS": 8
+        }],
+
+        "proportion": [0.5e9, 0.5e9],
+        "depositShare": [0.55e8, 0.45e8],
+        "leverageThreshold": [0.8e9, 0.8e9],
     }
 }
 
-ListedOrder = ['ETH', 'DAI', 'USDC', 'WBTC', 'wstETH', 'FRAX']
+ListedOrder = ['ETH', 'DAI', 'USDC', 'WBTC', 'wstETH', 'FRAX', 'rETH', 'USDT']

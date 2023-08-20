@@ -26,8 +26,7 @@ def get_router_args(router):
         router.VAULT_ACCOUNT_HEALTH(),
     ]
 
-
-def main():
+def get_addresses():
     networkName = network.show_active()
     if networkName == "mainnet-fork" or networkName == "mainnet-current":
         networkName = "mainnet"
@@ -44,3 +43,8 @@ def main():
     notional = Contract.from_abi("Notional", addresses["notional"], abi=notionalInterfaceABI)
     note = NoteERC20.at(addresses["note"])
     router = Contract.from_abi("Router", addresses["notional"], abi=Router.abi)
+
+    return (addresses, notional, note, router, networkName)
+
+def main():
+    (addresses, notional, note, router) = get_addresses()
