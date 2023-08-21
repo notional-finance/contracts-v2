@@ -222,7 +222,6 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 def test_redeem_tokens_and_save_assets_settle(environment, accounts):
     currencyId = 2
 
@@ -241,7 +240,11 @@ def test_redeem_tokens_and_save_assets_settle(environment, accounts):
 
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
+    environment.notional.initializeMarkets(1, False)
+    environment.notional.initializeMarkets(2, False)
+    environment.notional.initializeMarkets(3, False)
+    # Check invariants here to ensure that the account gets settled
+    check_system_invariants(environment, accounts)
 
     with EventChecker(environment, 'Redeem nToken', nTokensRedeemed=1e8) as c:
         txn = environment.notional.nTokenRedeem(
@@ -249,7 +252,6 @@ def test_redeem_tokens_and_save_assets_settle(environment, accounts):
         )
         c['txn'] = txn
 
-    assert txn.events["AccountSettled"]
     context = environment.notional.getAccountContext(accounts[1])
     assert context[1] == "0x02"
 
@@ -439,7 +441,6 @@ def test_redeem_ntoken_keep_assets_no_residuals(
     check_system_invariants(environment, accounts)
 
 
-@pytest.mark.only
 @given(
     residualType=strategy("uint8", min_value=0, max_value=2),
     marketResiduals=strategy("bool"),
@@ -584,7 +585,6 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
 
     check_system_invariants(environment, accounts)
 
-@pytest.mark.only
 def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
     # This unit test is here to test a bug where markets were skipped during the sellfCash portion
     # of redeeming nTokens
@@ -659,7 +659,12 @@ def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
 
     # Need to ensure that no residual assets are left behind
     assert len(environment.notional.getAccountPortfolio(accounts[0])) == 0
-    with EventChecker(environment, 'Redeem nToken', nTokensRedeemed=1e8, residuals=lambda x: len(x) > 0) as c:
+    with EventChecker(
+        environment, 'Redeem nToken',
+        nTokensRedeemed=1e8, 
+        residuals=lambda x: len(x) > 0,
+        maturities=[get_tref(chain.time()) + 8 * SECONDS_IN_QUARTER]
+    ) as c:
         c['txn'] = environment.notional.nTokenRedeem(
             accounts[0].address, currencyId, 1e8, True, False, {"from": accounts[0]}
         )

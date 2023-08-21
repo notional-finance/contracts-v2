@@ -76,9 +76,11 @@ def extract_redeem_ntoken(transfers, _):
     #   - amount withdrawn
     #   - per market [ net fcash liquidity, net cash liquidity ]
     #   - per fcash asset [ residual transfer, net cash from sale ]
+    redeemed = [t for t in transfers if t['bundleName'] == 'Redeem nToken' and t['assetType'] == 'nToken']
     withdrawAmount = transfers[-2]['value']
-    redeemer = transfers[-1]['from']
-    nTokensRedeemed = transfers[-1]['value']
+    redeemer = redeemed[0]['from']
+    nTokensRedeemed = redeemed[0]['value']
+
     liquidity = sortByMaturity([
         {
             'netfCash':  t['value'] if t['bundleName'] == 'nToken Add Liquidity' else -t['value'],
@@ -263,9 +265,9 @@ typeMatchers = [
     ], 'extractor': extract_mint_ntoken},
     { 'transactionType': 'Redeem nToken', 'pattern': [
         {'op': '+', 'exp': ['nToken Remove Liquidity']},
+        {'op': '.', 'exp': ['Redeem nToken']},
         {'op': '*', 'exp': ['Buy fCash', 'Sell fCash', 'nToken Residual Transfer', 'Borrow fCash', 'Transfer Incentive',
                             'Repay Prime Cash', 'Repay fCash']},
-        {'op': '.', 'exp': ['Redeem nToken']},
     ], 'extractor': extract_redeem_ntoken},
     { 'transactionType': 'Initialize Markets', 'endMarkers': ['MarketsInitialized'], 'pattern': [
         {'op': '.', 'exp': ['Global Settlement']},
