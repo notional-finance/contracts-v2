@@ -10,6 +10,7 @@ from tests.helpers import (
     get_balance_action,
     get_balance_trade_action,
     get_interest_rate_curve,
+    get_tref,
     initialize_environment,
     setup_residual_environment,
 )
@@ -585,7 +586,8 @@ def test_purchase_ntoken_residual_and_sweep_cash(environment, accounts):
     ) = environment.notional.getNTokenAccount(nTokenAddress)
 
     with EventChecker(environment, 'Sweep Cash into Markets',
-        newLiquidity=lambda x: len(x) == 4
+        newLiquidity=lambda x: len(x) == 4,
+        maturities=[get_tref(blockTime) + 8 * SECONDS_IN_QUARTER]
     ) as c:
         txn = environment.notional.sweepCashIntoMarkets(2)
         c['txn'] = txn

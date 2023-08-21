@@ -222,6 +222,7 @@ def test_redeem_tokens_and_save_assets_portfolio(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.only
 def test_redeem_tokens_and_save_assets_settle(environment, accounts):
     currencyId = 2
 
@@ -242,7 +243,6 @@ def test_redeem_tokens_and_save_assets_settle(environment, accounts):
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(currencyId, False)
 
-    # This account has a matured borrow fCash
     with EventChecker(environment, 'Redeem nToken', nTokensRedeemed=1e8) as c:
         txn = environment.notional.nTokenRedeem(
             accounts[1].address, currencyId, 1e8, False, True, {"from": accounts[1]}
@@ -439,6 +439,7 @@ def test_redeem_ntoken_keep_assets_no_residuals(
     check_system_invariants(environment, accounts)
 
 
+@pytest.mark.only
 @given(
     residualType=strategy("uint8", min_value=0, max_value=2),
     marketResiduals=strategy("bool"),
@@ -583,6 +584,7 @@ def test_redeem_ntoken_sell_assets_accept_residuals(
 
     check_system_invariants(environment, accounts)
 
+@pytest.mark.only
 def test_redeem_tokens_and_sell_fcash_zero_notional(environment, accounts):
     # This unit test is here to test a bug where markets were skipped during the sellfCash portion
     # of redeeming nTokens

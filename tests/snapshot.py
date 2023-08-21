@@ -62,7 +62,7 @@ def get_snapshot(environment, accounts, additionalMaturities=[]):
             assert pytest.approx(snapshot[proxy]['totalSupply'], abs=1_000) == sum(snapshot[proxy]['balanceOf'].values())
 
     tref = get_tref(chain.time())
-    maturities = [tref + i * SECONDS_IN_QUARTER for i in range(-1, 4)] + additionalMaturities
+    maturities = [tref + i * SECONDS_IN_QUARTER for i in range(-1, 5)] + additionalMaturities
     fCashIds = [ 
         environment.notional.encode(c, m, 1, ZERO_ADDRESS, isDebt)
         for (c, m, isDebt) in product(range(1, 5), maturities, [True, False])

@@ -54,7 +54,6 @@ library nTokenRedeemAction {
         );
 
         require(newifCashAssets.length == 0, "Cannot redeem via batch, residual");
-        Emitter.emitNTokenBurn(account, currencyId, totalPrimeCash, tokensToRedeem);
         return totalPrimeCash;
     }
 
@@ -136,6 +135,9 @@ library nTokenRedeemAction {
             block.timestamp
         );
 
+        // Emits the nToken burn before selling or transferring any fCash assets. This ensures that the prime cash
+        // transfer events do not double count the transfers between the account and the nToken.
+        Emitter.emitNTokenBurn(account, currencyId, totalPrimeCash, tokensToRedeem);
         (totalPrimeCash, newifCashAssets) = _resolveResidualAssets(
             nToken, account, sellTokenAssets, acceptResidualAssets, totalPrimeCash, netfCash, newifCashAssets
         );

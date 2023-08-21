@@ -268,10 +268,6 @@ contract AccountAction is ActionGuards {
             FreeCollateralExternal.checkFreeCollateralAndRevert(redeemer);
         }
 
-        // Do not check supply caps during nToken redemption, no deposits are taken during 
-        // redemption so the supply should not change.
-        Emitter.emitNTokenBurn(redeemer, currencyId, totalPrimeCash, tokensToRedeem);
-
         return (totalPrimeCash, assets.length > 0);
     }
 
