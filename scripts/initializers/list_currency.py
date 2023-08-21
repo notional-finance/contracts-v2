@@ -4,6 +4,7 @@ from scripts.arbitrum.arb_deploy import _deploy_chainlink_oracle, _deploy_pcash_
 from scripts.common import TokenType
 from scripts.inspect import get_addresses
 import json
+from tests.helpers import get_balance_action
 
 def donate_initial(symbol, notional, fundingAccount):
     token = ListedTokens[symbol]
@@ -99,8 +100,8 @@ def list_currency(notional, symbol):
 def main():
     fundingAccount = accounts.at("0x7d7935EDd4b6cDB5f34B0E1cCEAF85a3C4A11254", force=True)
     (addresses, notional, note, router, networkName) = get_addresses()
-    donate_initial('rETH', notional, fundingAccount)
-    donate_initial('USDT', notional, fundingAccount)
+    # donate_initial('rETH', notional, fundingAccount)
+    # donate_initial('USDT', notional, fundingAccount)
 
     # deployer = accounts.load(networkName.upper() + "_DEPLOYER")
     # _deploy_pcash_oracle('rETH', notional, deployer)
@@ -140,3 +141,23 @@ def main():
             "contractInputsValues": None
         })
     json.dump(batchBase, open("batch-usdt.json", 'w'))
+
+    # Mint nTokens and Init Markets
+    token = ListedTokens['rETH']
+    erc20 = Contract.from_abi("token", token['address'], interface.IERC20.abi)
+    erc20.approve(notional, 2 ** 255, {"from": fundingAccount})
+
+    token = ListedTokens['USDT']
+    erc20 = Contract.from_abi("token", token['address'], interface.IERC20.abi)
+    erc20.approve(notional, 2 ** 255, {"from": fundingAccount})
+
+    notional.batchBalanceAction(fundingAccount, [
+        get_balance_action(
+            7, "DepositUnderlyingAndMintNToken", depositActionAmount=0.01e18
+        ),
+        get_balance_action(
+            8, "DepositUnderlyingAndMintNToken", depositActionAmount=100e6
+        )
+    ], {'from': fundingAccount})
+    notional.initializeMarkets(7, True, {'from': fundingAccount})
+    notional.initializeMarkets(8, True, {'from': fundingAccount})
