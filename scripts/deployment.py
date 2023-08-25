@@ -547,7 +547,7 @@ class TestEnvironment:
             abs=abs
         )
 
-    def approxInternal(self, symbol, primeCash, underlyingInternal, abs=150):
+    def approxInternal(self, symbol, primeCash, underlyingInternal, abs=150, rel=None):
         currencyId = self.currencyId[symbol]
         decimals = 18 if symbol == "ETH" else self.token[symbol].decimals()
         expectedInternal = (
@@ -555,7 +555,7 @@ class TestEnvironment:
             * 1e8
             / (10 ** decimals)
         )
-        return pytest.approx(expectedInternal, abs=abs) == underlyingInternal
+        return pytest.approx(expectedInternal, abs=abs, rel=rel) == underlyingInternal
 
     def approxExternal(self, symbol, primeCash, underlyingExternal):
         currencyId = self.currencyId[symbol]

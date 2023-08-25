@@ -44,6 +44,16 @@ def setup_multiple_asset_settlement(environment, account):
         account, [daiAction, usdcAction], {"from": account}
     )
 
+def settle_all_other_accounts(environment, accounts, acct):
+    for account in accounts:
+        if account == acct:
+            continue
+
+        try:
+            environment.notional.settleAccount(account)
+        except:
+            pass
+
 def test_settle_on_batch_action(environment, accounts):
     account = accounts[1]
     setup_multiple_asset_settlement(environment, account)
@@ -57,6 +67,7 @@ def test_settle_on_batch_action(environment, accounts):
     environment.notional.initializeMarkets(2, False)
     environment.notional.initializeMarkets(3, False)
 
+    settle_all_other_accounts(environment, accounts, account)
     ethAction = get_balance_action(1, "DepositUnderlying", depositActionAmount=1e18)
 
     with EventChecker(environment, "Settle Account") as e:
@@ -81,6 +92,7 @@ def test_settle_on_batch_trade_action(environment, accounts):
     environment.notional.initializeMarkets(2, False)
     environment.notional.initializeMarkets(3, False)
 
+    settle_all_other_accounts(environment, accounts, account)
     ethAction = get_balance_trade_action(
         1,
         "None",
@@ -120,8 +132,11 @@ def test_settle_bitmap_to_cash(environment, accounts):
 
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
-
+    environment.notional.initializeMarkets(1, False)
+    environment.notional.initializeMarkets(2, False)
+    environment.notional.initializeMarkets(3, False)
+    settle_all_other_accounts(environment, accounts, accounts[1])
+ 
     with EventChecker(environment, "Settle Account") as e:
         txn = environment.notional.batchBalanceAndTradeAction(
             accounts[1], [collateral], {"from": accounts[1]}
@@ -209,7 +224,10 @@ def test_settle_array_to_cash(environment, accounts):
 
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
-    environment.notional.initializeMarkets(currencyId, False)
+    environment.notional.initializeMarkets(1, False)
+    environment.notional.initializeMarkets(2, False)
+    environment.notional.initializeMarkets(3, False)
+    settle_all_other_accounts(environment, accounts, accounts[1])
 
     with EventChecker(environment, "Settle Account") as e:
         txn = environment.notional.batchBalanceAndTradeAction(
@@ -240,6 +258,7 @@ def test_settle_on_withdraw(environment, accounts):
     environment.notional.initializeMarkets(1, False)
     environment.notional.initializeMarkets(2, False)
     environment.notional.initializeMarkets(3, False)
+    settle_all_other_accounts(environment, accounts, accounts[1])
 
     with EventChecker(environment, "Settle Account") as e:
         txn = environment.notional.withdraw(1, 1e8, True, {"from": account})
@@ -267,6 +286,9 @@ def test_transfer_fcash_requires_settlement(environment, accounts):
     blockTime = chain.time()
     chain.mine(1, timestamp=blockTime + SECONDS_IN_QUARTER)
     environment.notional.initializeMarkets(1, False)
+    environment.notional.initializeMarkets(2, False)
+    environment.notional.initializeMarkets(3, False)
+    settle_all_other_accounts(environment, accounts, accounts[1])
 
     markets = environment.notional.getActiveMarkets(1)
     erc1155id = environment.notional.encodeToId(1, markets[0][1], 1)

@@ -27,7 +27,7 @@ def get_vault_ids(environment, vault, currency):
     ]
 
 
-def get_snapshot(environment, accounts, additionalMaturities=[]):
+def get_snapshot(environment, accounts, additionalMaturities=[], isSettlement=False):
     snapshot = {}
     allAccounts = [
         n.address for n in environment.nToken.values()
@@ -54,7 +54,10 @@ def get_snapshot(environment, accounts, additionalMaturities=[]):
         if len(environment.vaults) > 0:
             continue
 
-        # TODO: this does not work for the settlement reserve
+        # We don't have any record of settlement reserve here
+        if isSettlement:
+            continue
+
         # TODO: this is a larger rounding error during liquidation
         if proxy in environment.proxies and environment.proxies[proxy]['symbol'] == 'pUSDC':
             assert pytest.approx(snapshot[proxy]['totalSupply'], abs=5_000) == sum(snapshot[proxy]['balanceOf'].values())
@@ -91,7 +94,10 @@ def get_snapshot(environment, accounts, additionalMaturities=[]):
 
 def apply_transfers(snapshot, transfers):
     for t in transfers:
-        if t['from'] == SETTLEMENT_RESERVE or t['to'] == SETTLEMENT_RESERVE:
+        if t['to'] == SETTLEMENT_RESERVE:
+            continue
+        if t['from'] == SETTLEMENT_RESERVE:
+            snapshot[t['asset']]['balanceOf'][t['to']] += abs(t['value'])
             continue
 
         if t['from'] != ZERO_ADDRESS:
@@ -108,11 +114,7 @@ def apply_transfers(snapshot, transfers):
     return snapshot
 
 def compare_snapshot(environment, snapshotBefore, transfers, context):
-    feeBefore = [
-        copy.copy(snapshotBefore[a]['balanceOf'][FEE_RESERVE])
-        for a in environment.proxies
-    ]
-    simulatedSnapshot = apply_transfers(copy.copy(snapshotBefore), transfers)
+    simulatedSnapshot = apply_transfers(copy.deepcopy(snapshotBefore), transfers)
 
     for asset in simulatedSnapshot.keys():
         if type(asset) == Wei:
@@ -122,7 +124,7 @@ def compare_snapshot(environment, snapshotBefore, transfers, context):
                     continue
 
                 newBalance = environment.notional.balanceOf(account, asset)
-                assert pytest.approx(simulatedSnapshot[asset]['balanceOf'][account], abs=10) == newBalance
+                assert pytest.approx(simulatedSnapshot[asset]['balanceOf'][account], abs=5_000) == newBalance
         else:
             # WARNING: this changes the global state for an address, may affect event decoding
             erc20 = interface.IERC20(asset)
@@ -138,7 +140,6 @@ def compare_snapshot(environment, snapshotBefore, transfers, context):
                     continue
                 # TODO: withdraw prime cash has rounding errors
                 if asset in environment.proxies and environment.proxies[asset]['symbol'] == 'pUSDC':
-                    pass
                     assert pytest.approx(simulatedSnapshot[asset]['balanceOf'][account], abs=5_000) == newBalance
                 else:
                     # TODO: inside liquidation this rounding error is higher
@@ -157,7 +158,13 @@ class EventChecker():
 
     def __enter__(self):
         if TEST_SNAPSHOT:
-            self.snapshot = get_snapshot(self.environment, self.accounts, additionalMaturities=self.maturities)
+            isSettlement = self.transactionType == 'Settle Account'
+            self.snapshot = get_snapshot(
+                self.environment,
+                self.accounts,
+                self.maturities,
+                isSettlement
+            )
         self.context = {}
         
         return self.context

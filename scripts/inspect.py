@@ -2,7 +2,7 @@
 import json
 from brownie import NoteERC20, Router, network, interface
 from brownie.network.contract import Contract
-
+from tests.helpers import get_balance_action, get_balance_trade_action
 
 def get_router_args(router):
     return [
@@ -43,4 +43,4 @@ def get_addresses():
     return (addresses, notional, note, router, networkName)
 
 def main():
-    (addresses, notional, note, router) = get_addresses()
+    (addresses, notional, note, router, networkName) = get_addresses()

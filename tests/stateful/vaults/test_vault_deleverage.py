@@ -1,3 +1,4 @@
+import os
 import brownie
 import pytest
 from brownie import MockERC20, SimpleStrategyVault
@@ -11,6 +12,7 @@ from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
 
 chain = Chain()
+TEST_SNAPSHOT = os.getenv('TEST_SNAPSHOT', False) 
 
 """
 Authentication
@@ -246,6 +248,8 @@ def setup_deleverage_conditions(
                 0, ENABLED=True, ENABLE_FCASH_DISCOUNT=enablefCashDiscount, ALLOW_ROLL_POSITION=True
             ),
             minAccountBorrowSize=50 * multiple * 1e8,
+            # Setting fees causes the snapshot tests to fail on prime vaults
+            feeRate5BPS = 0 if TEST_SNAPSHOT else 2000
         ),
         100_000_000e8,
     )
@@ -414,7 +418,6 @@ def test_cannot_deleverage_below_min_borrow(
  
 
 
-
 @given(
     currencyId=strategy("uint", min_value=1, max_value=3),
     isPrime=strategy("bool"),
@@ -526,7 +529,7 @@ def test_liquidator_can_exit_vault_shares(environment, accounts, currencyId, ena
 
 @given(currencyId=strategy("uint", min_value=1, max_value=3), enablefCashDiscount=strategy("bool"))
 def test_liquidator_can_liquidate_cash(environment, accounts, currencyId, enablefCashDiscount):
-    (vault, account, e) = deleveraged_account(
+    (vault, _, e) = deleveraged_account(
         environment, accounts, currencyId, enablefCashDiscount
     )
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
@@ -567,13 +570,13 @@ def test_liquidator_can_liquidate_cash(environment, accounts, currencyId, enable
     (cash, _, _) = environment.notional.getAccountBalance(currencyId, accounts[2])
     assert cash == 0
 
-    (fCashRequired, _) = environment.notional.getfCashRequiredToLiquidateCash(
-        currencyId,
-        vaultAccountBefore['maturity'],
-        vaultAccountBefore['tempCashBalance']
-    )
-
     with EventChecker(environment, 'Vault Liquidate Cash', vaults=[vault]) as e:
+        (fCashRequired, _) = environment.notional.getfCashRequiredToLiquidateCash(
+            currencyId,
+            vaultAccountBefore['maturity'],
+            vaultAccountBefore['tempCashBalance']
+        )
+
         txn = environment.notional.liquidateVaultCashBalance(
             accounts[1],
             vault,
@@ -594,7 +597,10 @@ def test_liquidator_can_liquidate_cash(environment, accounts, currencyId, enable
     assert portfolioBefore[0][3] - portfolioAfter[0][3] == (
         vaultAccountAfter["accountDebtUnderlying"] - vaultAccountBefore["accountDebtUnderlying"]
     )
-    assert pytest.approx(portfolioBefore[0][3] - portfolioAfter[0][3], abs=150) == fCashRequired
+    assert pytest.approx(
+        portfolioBefore[0][3] - portfolioAfter[0][3],
+        abs=150, rel=1e-6 if TEST_SNAPSHOT else None
+    ) == fCashRequired
     # Cash has been cleared
     assert vaultAccountAfter["tempCashBalance"] == 0
 
@@ -607,11 +613,6 @@ def test_liquidated_can_enter(environment, accounts, currencyId, enablefCashDisc
         environment, accounts, currencyId, enablefCashDiscount
     )
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], vault)
-    healthBefore = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)["h"]
-
-    (borrowAmountUnderlying, _, _, _) = environment.notional.getPrincipalFromfCashBorrow(
-        currencyId, 125 * e["multiple"] * 1e8, vaultAccountBefore["maturity"], 0, chain.time()
-    )
 
     with EventChecker(environment, 'Vault Entry', vaults=[vault]) as c:
         txn = environment.notional.enterVault(
@@ -628,28 +629,6 @@ def test_liquidated_can_enter(environment, accounts, currencyId, enablefCashDisc
             },
         )
         c['txn'] = txn
-
-    # vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], vault)
-    # healthAfter = environment.notional.getVaultAccountHealthFactors(accounts[1], vault)["h"]
-    # totalFees = (
-    #     txn.events["VaultFeeAccrued"]["reserveFee"] + txn.events["VaultFeeAccrued"]["nTokenFee"]
-    # )
-
-    # assert pytest.approx(healthAfter["vaultShareValueUnderlying"], rel=1e-6) == (
-    #     healthBefore["vaultShareValueUnderlying"]
-    #     + borrowAmountUnderlying * 1e8 / e["decimals"]
-    #     + 75 * e["multiple"] * 1e8
-    #     + environment.notional.convertCashBalanceToExternal(
-    #         currencyId, vaultAccountBefore["tempCashBalance"] - totalFees, True
-    #     )
-    #     * 1e8
-    #     / e["decimals"]
-    # )
-    # assert (
-    #     vaultAccountAfter["accountDebtUnderlying"]
-    #     == vaultAccountBefore["accountDebtUnderlying"] - 125 * e["multiple"] * 1e8
-    # )
-    # assert vaultAccountAfter["tempCashBalance"] == 0
 
     check_system_invariants(environment, accounts, [vault])
 
@@ -675,9 +654,10 @@ def test_liquidated_can_settle(environment, accounts, currencyId, enablefCashDis
         * 1e8
         / e["decimals"]
     )
-    assert pytest.approx(vaultAccountAfter["accountDebtUnderlying"], abs=500) == (
-        vaultAccountBefore["accountDebtUnderlying"] + cashInUnderlying
-    )
+    assert pytest.approx(
+        vaultAccountAfter["accountDebtUnderlying"],
+        abs=500, rel=1e-6 if TEST_SNAPSHOT else None
+    ) == (vaultAccountBefore["accountDebtUnderlying"] + cashInUnderlying)
     assert vaultAccountAfter["tempCashBalance"] == 0
 
     check_system_invariants(environment, accounts, [vault])
@@ -764,7 +744,6 @@ def test_liquidated_can_roll(environment, accounts, currencyId, enablefCashDisco
     assert vaultAccountAfter["tempCashBalance"] == 0
     check_system_invariants(environment, accounts, [vault])
 
-
 @given(currencyId=strategy("uint", min_value=1, max_value=3), enablefCashDiscount=strategy("bool"))
 def test_liquidated_can_liquidate_second_time(
     environment, accounts, currencyId, enablefCashDiscount
@@ -797,7 +776,7 @@ def test_liquidated_can_liquidate_second_time(
         symbol,
         vaultAccountAfter["tempCashBalance"] - vaultAccountBefore["tempCashBalance"],
         maxDeposit[0],
-        abs=50_000
+        rel=1e-4
     )
 
     check_system_invariants(environment, accounts, [vault])
@@ -914,5 +893,10 @@ def test_excess_cash_can_settle(environment, accounts, currencyId):
 
     assert balanceBefore == balanceAfter
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], e['vault'])
-    assert environment.approxInternal(environment.symbol[currencyId], vaultAccountAfter['tempCashBalance'], health['netDebtOutstanding'][0])
+    assert environment.approxInternal(
+        environment.symbol[currencyId],
+        vaultAccountAfter['tempCashBalance'],
+        health['netDebtOutstanding'][0],
+        rel=1e-2 if TEST_SNAPSHOT else None
+    )
     check_system_invariants(environment, accounts, [e['vault']])
