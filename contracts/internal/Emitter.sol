@@ -444,9 +444,9 @@ library Emitter {
         if (vaultAccount.maturity != 0 && prior.maturity != vaultAccount.maturity) {
             // Need to mint the shares for the new vault maturity, this may be a new entrant into
             // the vault or the vault account rolling to a new maturity
-            baseId = _encodeVaultId(vaultConfig.vault, vaultConfig.borrowCurrencyId, vaultAccount.maturity, 0);
-            ids[0] = baseId | Constants.VAULT_DEBT_ASSET_TYPE;
-            ids[1] = baseId | Constants.VAULT_SHARE_ASSET_TYPE;
+            uint256 newBaseId = _encodeVaultId(vaultConfig.vault, vaultConfig.borrowCurrencyId, vaultAccount.maturity, 0);
+            ids[0] = newBaseId | Constants.VAULT_DEBT_ASSET_TYPE;
+            ids[1] = newBaseId | Constants.VAULT_SHARE_ASSET_TYPE;
             values[0] = newDebtStorageValue;
             values[1] = vaultAccount.vaultShares;
             emit TransferBatch(msg.sender, address(0), vaultAccount.account, ids, values);
