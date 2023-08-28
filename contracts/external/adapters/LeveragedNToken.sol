@@ -23,14 +23,6 @@ contract LeveragedNTokenAdapter is NotionalCallback {
      * borrow cash, and then convert some amount of cash to nTokens in a single transaction. These
      * methods use the `WithCallback` method that allows for Notional to perform ERC20 transfers
      * to take advantage of any existing token approvals.
-     * 
-     * test cases:
-     * fails on multiple borrow action
-     * cannot call callback function directly
-     * works for ETH
-     * works for ERC20
-     * fails on free collateral check
-     * note incentives are transferred properly
      */
     function doLeveragedNToken(
         BalanceActionWithTrades[] calldata borrowAction,
