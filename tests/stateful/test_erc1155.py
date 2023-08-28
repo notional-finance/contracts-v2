@@ -551,7 +551,7 @@ def test_transfer_borrow_fcash_redeem_ntoken(environment, accounts):
     )
 
     with EventChecker(environment, 'Redeem nToken',
-        # maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
+        maturities=[markets[0][1] + SECONDS_IN_DAY * 6],
         redeemer=accounts[0],
         # netfCashAssets=lambda x: list(x.values())[0] == -50e8
     ) as e:

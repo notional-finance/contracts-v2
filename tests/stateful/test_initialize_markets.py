@@ -290,11 +290,11 @@ def test_first_initialization(environment, accounts):
 def test_settle_and_initialize(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
-    blockTime = chain.time()
-    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
     # No trading has occured
     with EventChecker(environment, "Initialize Markets") as e:
+        blockTime = chain.time()
+        chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
         txn = environment.notional.initializeMarkets(currencyId, False)
         e['txn'] = txn
 
@@ -302,7 +302,6 @@ def test_settle_and_initialize(environment, accounts):
     assert 'SetPrimeSettlementRate' in txn.events
 
     ntoken_asserts(environment, currencyId, False, accounts)
-
 
 def test_settle_and_extend(environment, accounts):
     initialize_markets(environment, accounts)
@@ -324,19 +323,22 @@ def test_settle_and_extend(environment, accounts):
     )
 
     blockTime = chain.time()
-    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
-
-    with EventChecker(environment, "Initialize Markets", newLiquidity=lambda x: len(x) == 3) as e:
+    with EventChecker(environment, "Initialize Markets", 
+                      maturities=[get_tref(blockTime) + 5 * SECONDS_IN_QUARTER],
+                      newLiquidity=lambda x: len(x) == 3) as e:
+        chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
         txn = environment.notional.initializeMarkets(currencyId, False)
         e['txn'] = txn
 
     ntoken_asserts(environment, currencyId, False, accounts)
 
-    # Test re-initialization the second time
     blockTime = chain.time()
-    chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
+    with EventChecker(environment, "Initialize Markets",
+                      maturities=[get_tref(blockTime) + 5 * SECONDS_IN_QUARTER],
+                      newLiquidity=lambda x: len(x) == 3) as e:
+        # Test re-initialization the second time
+        chain.mine(1, timestamp=(blockTime + SECONDS_IN_QUARTER))
 
-    with EventChecker(environment, "Initialize Markets", newLiquidity=lambda x: len(x) == 3) as e:
         txn = environment.notional.initializeMarkets(currencyId, False)
         e['txn'] = txn
 

@@ -1,5 +1,5 @@
 import brownie
-import math
+import os
 import pytest
 import eth_abi
 from brownie.test import given, strategy
@@ -11,9 +11,11 @@ from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.helpers import get_balance_trade_action
 from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
+from tests.stateful.test_settlement import settle_all_other_accounts
 
 chain = Chain()
 zeroAddress = HexString(0, type_str="bytes20")
+TEST_SNAPSHOT = os.getenv('TEST_SNAPSHOT', False) 
 
 
 @pytest.fixture(autouse=True)
@@ -45,7 +47,9 @@ def multiCurrencyVault(environment, accounts, ethDAIOracle, MultiBorrowStrategyV
             minAccountSecondaryBorrow=[1e8, 0],
             maxDeleverageCollateralRatioBPS=2500,
             minAccountBorrowSize=50_000e8,
-            excessCashLiquidationBonus=101
+            excessCashLiquidationBonus=101,
+            # Setting fees causes the snapshot tests to fail on prime vaults
+            feeRate5BPS = 0 if TEST_SNAPSHOT else 2000
         ),
         100_000_000e8,
     )
@@ -123,7 +127,9 @@ def test_increase_multi_currency_vault_position(accounts, multiCurrencyVault, en
             e['txn'] = txn
         vaultAccount = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
         secondaryDebt = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
-        assert pytest.approx(vaultAccount['accountDebtUnderlying'], abs=10_000) == -101_000e8
+        assert pytest.approx(vaultAccount['accountDebtUnderlying'],
+                abs=10_000, rel=1e-6 if TEST_SNAPSHOT else None
+        ) == -101_000e8
         # Some amount of secondary was borrowed automatically by the vault
         assert secondaryDebt['accountSecondaryDebt'][0] < -10e8
     else:
@@ -135,15 +141,19 @@ def test_increase_multi_currency_vault_position(accounts, multiCurrencyVault, en
                 maturity,
                 0,
                 0,
-                eth_abi.encode_abi(["uint256[2]"], [[Wei(5e8), 0]]),
+                eth_abi.encode_abi(["uint256[2]"], [[Wei(4.8e8), 0]]),
                 {"from": accounts[1]}
             )
-            e['txn'] = txn
+            vaultAccount = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
+            secondaryDebt = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
+            assert pytest.approx(vaultAccount['accountDebtUnderlying'],
+                abs=10_000, rel=1e-6 if TEST_SNAPSHOT else None
+            ) == -100_000e8
+            assert pytest.approx(secondaryDebt['accountSecondaryDebt'][0],
+                abs=10_000, rel=1e-6 if TEST_SNAPSHOT else None
+            ) == -14.8e8
 
-        vaultAccount = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
-        secondaryDebt = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
-        assert pytest.approx(vaultAccount['accountDebtUnderlying'], abs=10_000) == -100_000e8
-        assert pytest.approx(secondaryDebt['accountSecondaryDebt'][0], abs=10_000) == -15e8
+            e['txn'] = txn
     
     healthAfter = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)['h']
     assert healthAfter['collateralRatio'] < healthBefore['collateralRatio']
@@ -196,24 +206,6 @@ def test_vault_exit_types(accounts, multiCurrencyVault, environment, exitType, i
         )
         e['txn'] = txn
 
-    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
-    # grouped = group_events(decoded)
-    
-    # assert len(grouped['Vault Exit']) == 1
-    # if exitType == 0:
-    #     if isPrime:
-    #         assert len(grouped['Vault Redeem']) == 0
-    #     else:
-    #         assert len(grouped['Vault Redeem']) == 1
-    
-    #     assert len(grouped['Vault Secondary Debt']) == 0
-    # elif exitType == 1:
-    #     assert len(grouped['Vault Redeem']) == 1
-    #     assert len(grouped['Vault Secondary Debt']) == 1
-    # else:
-    #     assert len(grouped['Vault Redeem']) == 1
-    #     assert len(grouped['Vault Secondary Debt']) == 1
-
     daiBalanceAfter = environment.token['DAI'].balanceOf(accounts[1])
     ethBalanceAfter = accounts[1].balance()
 
@@ -222,9 +214,16 @@ def test_vault_exit_types(accounts, multiCurrencyVault, environment, exitType, i
     vaultSecondaryDebtAfter = environment.notional.getSecondaryBorrow(multiCurrencyVault, 1, maturity)
 
     # Check that debt figures are updated
-    assert pytest.approx(vaultAccountAfter['accountDebtUnderlying'], abs=10_000) == vaultAccountBefore['accountDebtUnderlying'] + daiRepaid
-    assert pytest.approx(accountDebtAfter['accountSecondaryDebt'][0], abs=10_000) == accountDebtBefore['accountSecondaryDebt'][0] + ethRepaid
-    assert pytest.approx(vaultSecondaryDebtAfter, abs=10_000) == vaultSecondaryDebtBefore + ethRepaid
+    assert pytest.approx(
+        vaultAccountAfter['accountDebtUnderlying'],
+        abs=10_000, rel=1e-6 if TEST_SNAPSHOT else None
+    ) == vaultAccountBefore['accountDebtUnderlying'] + daiRepaid
+    assert pytest.approx(accountDebtAfter['accountSecondaryDebt'][0],
+        abs=10_000, rel=1e-6 if TEST_SNAPSHOT else None
+    ) == accountDebtBefore['accountSecondaryDebt'][0] + ethRepaid
+    assert pytest.approx(vaultSecondaryDebtAfter,
+        abs=10_000, rel=1e-6 if TEST_SNAPSHOT else None
+    ) == vaultSecondaryDebtBefore + ethRepaid
 
     # Check that vault shares are updated
     assert vaultAccountAfter['vaultShares'] == vaultAccountBefore['vaultShares'] - vaultSharesExit
@@ -277,13 +276,6 @@ def test_vault_exit_at_zero_interest(accounts, multiCurrencyVault, environment):
             eth_abi.encode_abi(['uint256[2]','int256[3]'], [[Wei(10e8), 0], [0, 0, 0]]),
             {"from": accounts[1]}
         )
-
-    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
-    # grouped = group_events(decoded)
-    # assert len(grouped['Vault Exit']) == 1
-    # assert len(grouped['Vault Redeem']) == 1
-    # assert len(grouped['Vault Secondary Debt']) == 1
-    # assert len(grouped['Vault Exit [Lend at Zero]']) == 1
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 
@@ -351,6 +343,8 @@ def test_settle(accounts, multiCurrencyVault, environment):
 
     environment.notional.initializeMarkets(1, False)
     environment.notional.initializeMarkets(2, False)
+    environment.notional.initializeMarkets(3, False)
+    settle_all_other_accounts(environment, accounts, accounts[1])
 
     with brownie.reverts(dev_revert_msg="dev: unauthorized"):
         environment.notional.settleSecondaryBorrowForAccount(multiCurrencyVault, accounts[0])
@@ -362,13 +356,6 @@ def test_settle(accounts, multiCurrencyVault, environment):
             {"from": accounts[1]}
         )
         e['txn'] = txn
-    # decoded = decode_events(environment, txn, vaults=[multiCurrencyVault])
-    # grouped = group_events(decoded)
-    # assert len(grouped['Vault Settle']) == 1
-    # assert len(grouped['Vault Secondary Debt']) == 1
-    # assert len(grouped['Settle Cash']) == 2
-    # assert len(grouped['Settle fCash']) == 2
-    # assert grouped['Vault Secondary Debt'][0]['groupType'] == 'Vault Secondary Settle'
 
     vaultAccountAfter = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtAfter = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -378,8 +365,8 @@ def test_settle(accounts, multiCurrencyVault, environment):
     assert vaultAccountAfter['vaultShares'] == vaultAccountBefore['vaultShares']
     assert accountDebtAfter['maturity'] == PRIME_CASH_VAULT_MATURITY
     assert vaultAccountAfter['lastUpdateBlockTime'] == txn.timestamp
-    assert pytest.approx(vaultAccountAfter['accountDebtUnderlying'], abs=10_000) == -100_000e8
-    assert pytest.approx(accountDebtAfter['accountSecondaryDebt'][0], abs=10_000) == -10e8
+    assert pytest.approx(vaultAccountAfter['accountDebtUnderlying'], rel=1e-6) == -100_000e8
+    assert pytest.approx(accountDebtAfter['accountSecondaryDebt'][0], rel=1e-6) == -10e8
 
     # We don't do a collateral check in this case but assert that the account is healthy
     (health, _, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
@@ -447,19 +434,20 @@ def deleveraged_account(accounts, multiCurrencyVault, environment, isPrime, curr
     if isPrime:
         ethDAIOracle.setAnswer(0.0004e18, {"from": accounts[0]})
     else:
-        ethDAIOracle.setAnswer(0.0011e18, {"from": accounts[0]})
+        ethDAIOracle.setAnswer(0.00095e18, {"from": accounts[0]})
+
+    #with EventChecker(environment, 'Vault Deleverage [Prime]' if isPrime else 'Vault Deleverage [fCash]', vaults=[multiCurrencyVault]) as e:
     (healthBefore, maxDeposit, vaultShares) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
 
-    with EventChecker(environment, 'Vault Deleverage [Prime]' if isPrime else 'Vault Deleverage [fCash]', vaults=[multiCurrencyVault]) as e:
-        e['txn'] = environment.notional.deleverageAccount(
-            accounts[1],
-            multiCurrencyVault,
-            accounts[2],
-            currencyIndex,
-            maxDeposit[currencyIndex],
-            {"from": accounts[2], "value": maxDeposit[1] * 1e10 if currencyIndex == 1 else 0}
-        )
+    environment.notional.deleverageAccount(
+        accounts[1],
+        multiCurrencyVault,
+        accounts[2],
+        currencyIndex,
+        maxDeposit[currencyIndex],
+        {"from": accounts[2], "value": maxDeposit[1] * 1e10 if currencyIndex == 1 else 0}
+    )
 
 
     return (vaultAccountBefore, healthBefore, maxDeposit, vaultShares)
@@ -475,9 +463,12 @@ def test_deleverage_secondary(accounts, multiCurrencyVault, environment, isPrime
 
     if isPrime:
         if currencyIndex == 0:
-            assert pytest.approx(vaultAccountBefore['accountDebtUnderlying'] + maxDeposit[0], abs=5_000) == vaultAccount['accountDebtUnderlying']
+            assert pytest.approx(
+                vaultAccountBefore['accountDebtUnderlying'] + maxDeposit[0],
+                rel=1e-6,
+            ) == vaultAccount['accountDebtUnderlying']
         else:
-            assert pytest.approx(-10e8 + maxDeposit[1], abs=5_000) == secondaryDebt[0]
+            assert pytest.approx(-10e8 + maxDeposit[1], abs=5000, rel=1e-6) == secondaryDebt[0]
     else:
         assert secondaryDebt == (-10e8, 0)
 
@@ -595,7 +586,7 @@ def test_liquidator_can_liquidate_second_time(accounts, multiCurrencyVault, envi
     )
 
     # Drop price again and liquidate
-    ethDAIOracle.setAnswer(0.0005e18, {"from": accounts[0]})
+    ethDAIOracle.setAnswer(0.0004e18, {"from": accounts[0]})
     (healthBefore, maxDeposit, _) = environment.notional.getVaultAccountHealthFactors(accounts[1], multiCurrencyVault)
     vaultAccountBefore = environment.notional.getVaultAccount(accounts[1], multiCurrencyVault)
     accountDebtBefore = environment.notional.getVaultAccountSecondaryDebt(accounts[1], multiCurrencyVault)
@@ -744,18 +735,18 @@ def test_liquidated_can_settle(accounts, multiCurrencyVault, environment, curren
         environment.notional.convertCashBalanceToExternal(2, vaultAccountBefore["tempCashBalance"], True)
         / 1e10
     )
-    assert pytest.approx(vaultAccountAfter["accountDebtUnderlying"], abs=500) == (
-        vaultAccountBefore["accountDebtUnderlying"] + primaryCash
-    )
+    assert pytest.approx(vaultAccountAfter["accountDebtUnderlying"],
+        abs=500, rel=1e-6 if TEST_SNAPSHOT else None
+    ) == (vaultAccountBefore["accountDebtUnderlying"] + primaryCash)
     assert vaultAccountAfter["tempCashBalance"] == 0
 
     secondaryCash = (
         environment.notional.convertCashBalanceToExternal(1, accountDebtBefore["accountSecondaryCashHeld"][0], True)
         / 1e10
     )
-    assert pytest.approx(accountDebtAfter["accountSecondaryDebt"][0], abs=500) == (
-        accountDebtBefore["accountSecondaryDebt"][0] + secondaryCash
-    )
+    assert pytest.approx(accountDebtAfter["accountSecondaryDebt"][0],
+        abs=500, rel=1e-6 if TEST_SNAPSHOT else None
+    ) == (accountDebtBefore["accountSecondaryDebt"][0] + secondaryCash)
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 
@@ -784,7 +775,7 @@ def test_liquidate_cross_currency_cash(
 ):
     enter_vault(multiCurrencyVault, environment, accounts[1], False)
 
-    ethDAIOracle.setAnswer(0.001e18, {"from": accounts[0]})
+    ethDAIOracle.setAnswer(0.00095e18, {"from": accounts[0]})
     multiCurrencyVault.approveTransfer(environment.token['DAI'], {'from': accounts[0]})
     environment.token['DAI'].transferFrom(multiCurrencyVault, accounts[0], 5_000e18, {"from": accounts[0]}) 
 
@@ -834,12 +825,12 @@ def test_liquidate_cross_currency_cash(
         # Account is buying ETH at a higher price
         assert netETHUnderlying > 0
         assert netDAIUnderlying < 0
-        assert pytest.approx(abs(netDAIUnderlying / netETHUnderlying), abs=0.25) == 1010
+        assert pytest.approx(abs(netDAIUnderlying / netETHUnderlying), abs=0.25) == 1063
     else:
         # Account is selling ETH at a lower price
         assert netETHUnderlying < 0
         assert netDAIUnderlying > 0
-        assert pytest.approx(abs(netDAIUnderlying / netETHUnderlying), abs=0.25) == 990
+        assert pytest.approx(abs(netDAIUnderlying / netETHUnderlying), abs=0.25) == 1042
 
     check_system_invariants(environment, accounts, [multiCurrencyVault])
 

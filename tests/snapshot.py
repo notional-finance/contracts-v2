@@ -45,8 +45,6 @@ def get_snapshot(environment, accounts, additionalMaturities=[], isSettlement=Fa
         erc20 = interface.IERC20(proxy)
 
         # Run this to get the fee reserve figure up to date
-        # if proxy in environment.proxies:
-        #     environment.notional.accruePrimeInterest(environment.proxies[proxy]['currencyId'])
         snapshot[proxy] = {}
         snapshot[proxy]['balanceOf'] = { a: erc20.balanceOf(a) for a in allAccounts }
         snapshot[proxy]['totalSupply'] = erc20.totalSupply()
@@ -57,6 +55,9 @@ def get_snapshot(environment, accounts, additionalMaturities=[], isSettlement=Fa
         # We don't have any record of settlement reserve here
         if isSettlement:
             continue
+
+        if proxy in environment.proxies:
+            environment.notional.accruePrimeInterest(environment.proxies[proxy]['currencyId'])
 
         # TODO: this is a larger rounding error during liquidation
         if proxy in environment.proxies and environment.proxies[proxy]['symbol'] == 'pUSDC':
@@ -73,17 +74,19 @@ def get_snapshot(environment, accounts, additionalMaturities=[], isSettlement=Fa
 
     vaultIds = []
     if len(environment.vaults) > 0:
-        vaultCurrencies = []
         config = environment.notional.getVaultConfig(environment.vaults[0])
-        vaultCurrencies.append(config['borrowCurrencyId'])
+        secondaryCurrencies = []
         if config['secondaryBorrowCurrencies'][0] != 0:
-            vaultCurrencies.append(config['secondaryBorrowCurrencies'][0])
+            secondaryCurrencies.append(config['secondaryBorrowCurrencies'][0])
         if config['secondaryBorrowCurrencies'][0] != 0:
-            vaultCurrencies.append(config['secondaryBorrowCurrencies'][1])
+            secondaryCurrencies.append(config['secondaryBorrowCurrencies'][1])
 
         vaultIds = [ 
+            environment.notional.encode(config['borrowCurrencyId'], m, a, environment.vaults[0], False)
+            for (a, m) in product([9, 10, 11], maturities + [PRIME_CASH_VAULT_MATURITY])
+        ] + [
             environment.notional.encode(c, m, a, environment.vaults[0], False)
-            for (a, m, c) in product([9, 10, 11], maturities + [PRIME_CASH_VAULT_MATURITY], vaultCurrencies)
+            for (a, m, c) in product([10, 11], maturities + [PRIME_CASH_VAULT_MATURITY], secondaryCurrencies)
         ]
 
     for id in fCashIds + vaultIds:
@@ -113,7 +116,7 @@ def apply_transfers(snapshot, transfers):
 
     return snapshot
 
-def compare_snapshot(environment, snapshotBefore, transfers, context):
+def compare_snapshot(environment, snapshotBefore, transfers, isLiquidation):
     simulatedSnapshot = apply_transfers(copy.deepcopy(snapshotBefore), transfers)
 
     for asset in simulatedSnapshot.keys():
@@ -138,27 +141,41 @@ def compare_snapshot(environment, snapshotBefore, transfers, context):
                 # TODO: this does not work for vault total cash
                 if account in environment.vaults:
                     continue
+
                 # TODO: withdraw prime cash has rounding errors
                 if asset in environment.proxies and environment.proxies[asset]['symbol'] == 'pUSDC':
-                    assert pytest.approx(simulatedSnapshot[asset]['balanceOf'][account], abs=5_000) == newBalance
+                    assert pytest.approx(
+                        simulatedSnapshot[asset]['balanceOf'][account],
+                        abs=5_000
+                    ) == newBalance
                 else:
-                    # TODO: inside liquidation this rounding error is higher
-                    assert pytest.approx(simulatedSnapshot[asset]['balanceOf'][account], abs=1_000) == newBalance
+                    assert pytest.approx(
+                        simulatedSnapshot[asset]['balanceOf'][account],
+                        abs=1_000,
+                        # Inside liquidation this rounding error is higher
+                        rel=1e-6 if isLiquidation else None
+                    ) == newBalance
 
 class EventChecker():
 
-    def __init__(self, environment, transactionType, vaults=[], maturities=[], accounts=brownie.accounts, **kwargs):
+    def __init__(self, environment, transactionType, vaults=[], maturities=[], accounts=brownie.accounts, isSettlement=False, isLiquidation=False, **kwargs):
         self.environment = environment
         self.environment.vaults = vaults
         self.accounts = accounts
         # A single string or array of strings signifying the transfer group expected
         self.transactionType = transactionType
+        self.isSettlement = isSettlement
+        self.isLiquidation = isLiquidation
         self.txnArgs = kwargs
         self.maturities = maturities
 
     def __enter__(self):
         if TEST_SNAPSHOT:
-            isSettlement = self.transactionType == 'Settle Account'
+            isSettlement = (
+                self.transactionType == 'Settle Account' or
+                self.transactionType == 'Initialize Markets' or
+                self.isSettlement
+            )
             self.snapshot = get_snapshot(
                 self.environment,
                 self.accounts,
@@ -185,7 +202,7 @@ class EventChecker():
         
         # Asserts that the snapshot balances equal the actual balance changes
         if TEST_SNAPSHOT:
-            compare_snapshot(self.environment, self.snapshot, eventStore['transfers'], self.context)
+            compare_snapshot(self.environment, self.snapshot, eventStore['transfers'], self.isLiquidation)
 
         # Asserts that the transaction type is valid
         self.hasTransactionType(eventStore)

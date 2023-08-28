@@ -284,6 +284,7 @@ def test_get_liquidity_token_withdraw_with_residual(
             assert pytest.approx((netfCash[i] / totalNetfCash[i]) * 1e18, rel=1e-9) == t
         assert pytest.approx(t * scalar, rel=1e-9) == nTokensToRedeem
 
+@pytest.mark.only
 @given(
     tokensToRedeem=strategy("uint256", min_value=1000e8, max_value=90_000e8),
     setResidual=strategy("bool"),
@@ -314,6 +315,7 @@ def test_redeem_sell_assets(nTokenRedeem, tokensToRedeem, setResidual):
     assert assets == ()
 
 
+@pytest.mark.only
 @given(setResidual=strategy("bool"))
 def test_redeem_sell_assets_fail(nTokenRedeem, setResidual):
     tokensToRedeem = 99_000e8
@@ -353,7 +355,7 @@ def test_redeem_sell_assets_fail(nTokenRedeem, setResidual):
         assert len(assets) == 1
         assert assets[0][1] == marketStates[1][1]
 
-
+@pytest.mark.only
 @given(setResidual=strategy("bool"))
 def test_redeem_keep_assets(nTokenRedeem, accounts, setResidual):
     tokensToRedeem = 50_000e8

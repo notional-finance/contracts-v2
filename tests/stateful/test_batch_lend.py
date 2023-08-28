@@ -14,6 +14,7 @@ from tests.helpers import (
 )
 from tests.snapshot import EventChecker
 from tests.stateful.invariants import check_system_invariants
+from tests.stateful.test_settlement import settle_all_other_accounts
 
 chain = Chain()
 
@@ -187,7 +188,6 @@ def test_lend_sufficient_cash_transfer(environment, useUnderlying, useBitmap, ac
     assert portfolio[0][3] == 100e8
     check_system_invariants(environment, accounts)
 
-@pytest.mark.only
 @given(useUnderlying=strategy("bool"), useBitmap=strategy("bool"))
 def test_lend_insufficient_free_collateral(environment, useUnderlying, useBitmap, accounts):
     if useBitmap:
@@ -336,11 +336,14 @@ def test_settle_and_lend_using_cash(environment, accounts, useBitmap):
     blockTime = chain.time()
     newTime = get_tref(blockTime) + SECONDS_IN_QUARTER + 1
     chain.mine(1, timestamp=newTime)
-
+    environment.notional.initializeMarkets(1, False)
     environment.notional.initializeMarkets(2, False)
+    environment.notional.initializeMarkets(3, False)
+
+    settle_all_other_accounts(environment, accounts, accounts[1])
 
     balanceBefore = environment.token["DAI"].balanceOf(accounts[1])
-    with EventChecker(environment, "Account Action", account=accounts[1]) as c:
+    with EventChecker(environment, "Account Action", account=accounts[1], isSettlement=True) as c:
         txn = environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
         c['txn'] = txn
     balanceAfter = environment.token["DAI"].balanceOf(accounts[1])
