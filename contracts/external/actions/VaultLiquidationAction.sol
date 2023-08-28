@@ -93,9 +93,13 @@ contract VaultLiquidationAction is ActionGuards, IVaultLiquidationAction {
             liquidator, currencyId, token.convertToExternal(depositUnderlyingInternal), pr, false 
         );
 
-        Emitter.emitVaultDeleverage(
-            liquidator, account, vault, currencyId, vaultState.maturity,
-            currencyIndex == 0 ? depositAmountPrimeCash : 0, vaultSharesToLiquidator, pr
+        Emitter.emitVaultDeleverageDebt(
+            liquidator, account, vault, currencyId, vaultState.maturity, depositAmountPrimeCash, pr
+        );
+
+        Emitter.emitTransferVaultShares(
+            liquidator, account, vault, vaultConfig.borrowCurrencyId, vaultState.maturity,
+            vaultSharesToLiquidator
         );
 
         // Do not skip the min borrow check here

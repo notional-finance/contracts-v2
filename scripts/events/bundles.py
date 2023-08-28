@@ -698,6 +698,12 @@ def vault_secondary_repay(window):
     ) and (
         # Secondary borrows are not followed by burning vault shares
         window[3]['assetType'] != 'Vault Share'
+    ) and not (
+        # Secondary repay is not followed by minting prime debt, this is
+        # a vault settle with cash repayment
+        window[3]['transferType'] == 'Mint' and
+        window[3]['assetType'] == 'Vault Debt' and
+        window[3]['maturity'] == PRIME_CASH_VAULT_MATURITY
     )
 
 def vault_secondary_deposit(window):

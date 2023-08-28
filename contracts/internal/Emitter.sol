@@ -467,14 +467,13 @@ library Emitter {
 
     /// @notice Emits events during a vault deleverage, where a vault account receives cash and loses
     /// vault shares as a result.
-    function emitVaultDeleverage(
+    function emitVaultDeleverageDebt(
         address liquidator,
         address account,
         address vault,
         uint16 currencyId,
         uint256 maturity,
         int256 depositAmountPrimeCash,
-        uint256 vaultSharesToLiquidator,
         PrimeRate memory pr
     ) internal {
         // Liquidator transfer prime cash to vault
@@ -504,10 +503,22 @@ library Emitter {
                 depositAmountPrimeCash.toUint()
             );
         }
+    }
 
+    function emitTransferVaultShares(
+        address liquidator,
+        address account,
+        address vault,
+        uint16 vaultSharesCurrencyId,
+        uint256 maturity,
+        uint256 vaultSharesToLiquidator
+    ) internal {
         // Transfer vault shares to the liquidator
+        uint256 vaultSharesId = _encodeVaultId(
+            vault, vaultSharesCurrencyId, maturity, Constants.VAULT_SHARE_ASSET_TYPE
+        );
         emit TransferSingle(
-            msg.sender, account, liquidator, baseId | Constants.VAULT_SHARE_ASSET_TYPE, vaultSharesToLiquidator
+            msg.sender, account, liquidator, vaultSharesId, vaultSharesToLiquidator
         );
     }
 
