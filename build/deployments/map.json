@@ -262,6 +262,9 @@
       "0x4b11797d31547bB742d3d5962a0753429e7Ce3A0",
       "0x422A2e95009f11e9E144FE7fd1a7c7A9C759Bb6A"
     ],
+    "LeveragedNTokenAdapter": [
+      "0xc8de46b3035cc723549892016D2449eA9f7fA0A5"
+    ],
     "LiquidateCurrencyAction": [
       "0x3ad8A8C4f53f51CEbbFc4eCb91D5B66AB044247B",
       "0xdfb618098fC858F43fe0E5Fb906AdFE96786832f"

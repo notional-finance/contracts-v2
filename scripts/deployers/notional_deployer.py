@@ -29,7 +29,8 @@ from brownie import (
     nTokenMintAction,
     nTokenRedeemAction,
     VaultLiquidationAction,
-    VaultAccountHealth
+    VaultAccountHealth,
+    LeveragedNTokenAdapter
 )
 from brownie.network import web3
 from scripts.common import loadContractFromABI
@@ -75,6 +76,8 @@ class NotionalDeployer:
             self.routers = self.config["routers"]
         if "beacons" in self.config:
             self.beacons = self.config["beacons"]
+        if "callbacks" in self.config:
+            self.callbacks = self.config["callbacks"]
         if "notional" in self.config:
             self.notional = self.config["notional"]
             self.proxy = loadContractFromABI(
@@ -86,6 +89,7 @@ class NotionalDeployer:
         self.config["actions"] = self.actions
         self.config["routers"] = self.routers
         self.config["beacons"] = self.beacons
+        self.config["callbacks"] = self.callbacks
         if self.notional is not None:
             self.config["notional"] = self.notional
         if self.persist:
@@ -252,6 +256,25 @@ class NotionalDeployer:
         self._deployBeaconImplementation(deployer, nTokenERC20Proxy)
         self._deployBeaconImplementation(deployer, PrimeCashProxy)
         self._deployBeaconImplementation(deployer, PrimeDebtProxy)
+
+    def _deployCallback(self, deployer, contract, args):
+        if contract._name in self.beacons:
+            print("{} deployed at {}".format(contract._name, self.beacons[contract._name]))
+            return
+
+        if self.dryRun:
+            print("Will deploy {} with args {}".format(contract._name, args))
+        else:
+            deployed = deployer.deploy(contract, args, "", True)
+            print("Deployed callback {} with args:".format(contract._name))
+
+            self.callbacks[contract._name] = deployed.address
+            self._save()
+            self.verify(contract, deployed, args)
+
+    def deployAuthorizedCallbacks(self):
+        deployer = ContractDeployer(self.deployer, self.callbacks)
+        self._deployCallback(deployer, LeveragedNTokenAdapter, [self.notional])
 
     def upgradeProxy(self, oldRouter):
         print("Upgrading router from {} to {}".format(oldRouter, self.routers["Router"]))

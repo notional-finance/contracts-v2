@@ -19,3 +19,7 @@ def main():
     PrimeCashHoldingsOracle = ContractsV2Project._build.get("IPrimeCashHoldingsOracle")["abi"]
     with open("abi/PrimeCashHoldingsOracle.json", "w") as f:
         json.dump(PrimeCashHoldingsOracle, f, sort_keys=True, indent=4)
+
+    LeveragedNTokenAdapater = ContractsV2Project._build.get("LeveragedNTokenAdapter")["abi"]
+    with open("abi/LeveragedNTokenAdapter.json", "w") as f:
+        json.dump(LeveragedNTokenAdapater, f, sort_keys=True, indent=4)

@@ -1,0 +1,118 @@
+[
+    {
+        "inputs": [
+            {
+                "internalType": "contract NotionalProxy",
+                "name": "notional",
+                "type": "address"
+            }
+        ],
+        "name": "constructor",
+        "stateMutability": "nonpayable",
+        "type": "constructor"
+    },
+    {
+        "inputs": [],
+        "name": "Notional",
+        "outputs": [
+            {
+                "internalType": "contract NotionalProxy",
+                "name": "",
+                "type": "address"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "components": [
+                    {
+                        "internalType": "enum DepositActionType",
+                        "name": "actionType",
+                        "type": "uint8"
+                    },
+                    {
+                        "internalType": "uint16",
+                        "name": "currencyId",
+                        "type": "uint16"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "depositActionAmount",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "uint256",
+                        "name": "withdrawAmountInternalPrecision",
+                        "type": "uint256"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "withdrawEntireCashBalance",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "bool",
+                        "name": "redeemToUnderlying",
+                        "type": "bool"
+                    },
+                    {
+                        "internalType": "bytes32[]",
+                        "name": "trades",
+                        "type": "bytes32[]"
+                    }
+                ],
+                "internalType": "struct BalanceActionWithTrades[]",
+                "name": "borrowAction",
+                "type": "tuple[]"
+            },
+            {
+                "internalType": "uint256",
+                "name": "convertCashAmount",
+                "type": "uint256"
+            }
+        ],
+        "name": "doLeveragedNToken",
+        "outputs": [],
+        "stateMutability": "payable",
+        "type": "function"
+    },
+    {
+        "inputs": [],
+        "name": "name",
+        "outputs": [
+            {
+                "internalType": "string",
+                "name": "",
+                "type": "string"
+            }
+        ],
+        "stateMutability": "view",
+        "type": "function"
+    },
+    {
+        "inputs": [
+            {
+                "internalType": "address",
+                "name": "sender",
+                "type": "address"
+            },
+            {
+                "internalType": "address",
+                "name": "account",
+                "type": "address"
+            },
+            {
+                "internalType": "bytes",
+                "name": "callbackData",
+                "type": "bytes"
+            }
+        ],
+        "name": "notionalCallback",
+        "outputs": [],
+        "stateMutability": "nonpayable",
+        "type": "function"
+    }
+]

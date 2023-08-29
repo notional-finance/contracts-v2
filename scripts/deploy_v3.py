@@ -10,6 +10,7 @@ def deployNotional(deployer, networkName, dryRun):
     notional.deployPauseRouter()
     notional.deployRouter()
     notional.deployBeaconImplementation()
+    notional.deployAuthorizedCallbacks()
 
 
 def deployLiquidator(deployer, networkName):
@@ -23,7 +24,7 @@ def deployLiquidator(deployer, networkName):
     liq.deployManualLiquidator(4)
 
 
-def main(dryRun="LFG"):
+def main(dryRun=True):
     networkName = network.show_active()
     if networkName in ["mainnet-fork", "mainnet-current"]:
         networkName = "mainnet"

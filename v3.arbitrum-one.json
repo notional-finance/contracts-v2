@@ -24,6 +24,9 @@
         "pCashBeacon": "0x1F681977aF5392d9Ca5572FB394BC4D12939A6A9",
         "pDebtBeacon": "0xDF08039c0af34E34660aC7c2705C0Da953247640"
     },
+    "callbacks": {
+        "LeveragedNTokenAdapter": "0xc8de46b3035cc723549892016D2449eA9f7fA0A5"
+    },
     "chainId": 42161,
     "deployer": "0x8B64fA5Fd129df9c755eB82dB1e16D6D0Bdf5Bc3",
     "guardian": "",
