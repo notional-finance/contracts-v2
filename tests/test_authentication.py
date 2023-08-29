@@ -1,5 +1,6 @@
 import brownie
 import pytest
+from brownie.test import given, strategy
 from brownie.convert.datatypes import HexString
 from brownie.network.contract import Contract
 from brownie.network.state import Chain
@@ -154,3 +155,46 @@ def test_prevent_duplicate_token_listing(environment, accounts):
             'Tether USD',
             {"from": accounts[0]},
         )
+
+@given(useBitmap=strategy("bool"))
+def test_max_tokens_revert(environment, accounts, useBitmap, MockERC20, UnderlyingHoldingsOracle):
+    if useBitmap:
+        environment.notional.enableBitmapCurrency(1, {"from": accounts[1]})
+
+    for i in range(0, 10):
+        erc20 = MockERC20.deploy("mock", "mock", 18, 0, {"from": accounts[1]})
+        pCashOracle = UnderlyingHoldingsOracle.deploy(environment.notional.address, erc20.address, {"from": accounts[1]})
+
+        erc20.transfer(environment.notional.address, 0.05e18, {"from": accounts[1]})
+        txn = environment.notional.listCurrency(
+            (
+                erc20.address,
+                False,
+                TokenType["UnderlyingToken"],
+                18,
+                0,
+            ),
+            (
+                environment.ethOracle['DAI'].address,
+                0,
+                False,
+                109,
+                92,
+                108
+            ),
+            PrimeCashCurve,
+            pCashOracle,
+            True,
+            12,
+            'mock',
+            'mock',
+            {"from": accounts[0]},
+        )
+        currencyId = txn.events['ListCurrency']['newCurrencyId']
+
+        erc20.approve(environment.notional.address, 2 ** 255, {"from": accounts[1]})
+        if i == 9:
+            with brownie.reverts():
+                environment.notional.depositUnderlyingToken(accounts[1], currencyId, 1e18, {"from": accounts[1]})
+        else:
+            environment.notional.depositUnderlyingToken(accounts[1], currencyId, 1e18, {"from": accounts[1]})
