@@ -22,7 +22,7 @@ from brownie import (
 )
 
 ETHERSCAN_TOKEN = os.environ["ARBISCAN_TOKEN"]
-ROUTER = "0x99d6fA3e7675B92c72Fb7dD860578624f143a093"
+ROUTER = "0x762F2e0743bce7bb55C622504D88D471B230A84a"
 
 ETHERSCAN_API = (
     # "https://api.etherscan.io/api?module=contract&action=getsourcecode&address={}&apikey={}"
