@@ -1,6 +1,7 @@
 import hashlib
 import json
 import os
+import time
 
 import requests
 from brownie import (
@@ -15,15 +16,17 @@ from brownie import (
     Router,
     VaultAccountAction,
     VaultAction,
+    VaultLiquidationAction,
     Views,
     nTokenAction,
 )
 
-ETHERSCAN_TOKEN = os.environ["ETHERSCAN_TOKEN"]
-ROUTER = "0xD7c3Dc1C36d19cF4e8cea4eA143a2f4458Dd1937"
+ETHERSCAN_TOKEN = os.environ["ARBISCAN_TOKEN"]
+ROUTER = "0x99d6fA3e7675B92c72Fb7dD860578624f143a093"
 
 ETHERSCAN_API = (
-    "https://api.etherscan.io/api?module=contract&action=getsourcecode&address={}&apikey={}"
+    # "https://api.etherscan.io/api?module=contract&action=getsourcecode&address={}&apikey={}"
+    "https://api.arbiscan.io/api?module=contract&action=getsourcecode&address={}&apikey={}"
 )
 
 
@@ -44,6 +47,8 @@ def get_contracts(router):
     contracts["CalculationViews"] = finalRouter.CALCULATION_VIEWS()
     contracts["VaultAction"] = finalRouter.VAULT_ACTION()
     contracts["VaultAccountAction"] = finalRouter.VAULT_ACCOUNT_ACTION()
+    contracts["VaultLiquidationAction"] = finalRouter.VAULT_LIQUIDATION_ACTION()
+    contracts["VaultAccountHealth"] = finalRouter.VAULT_ACCOUNT_HEALTH()
 
     batchAction = Contract.from_abi("BatchAction", contracts["BatchAction"], BatchAction.abi)
     (
@@ -54,12 +59,6 @@ def get_contracts(router):
         contracts["nTokenMint"],
         contracts["nTokenRedeem"],
     ) = batchAction.getLibInfo()
-
-    accountAction = Contract.from_abi("", contracts["AccountAction"], AccountAction.abi)
-    (_, _, _, contracts["nTokenRedeem2"]) = accountAction.getLibInfo()
-
-    vaultAction = Contract.from_abi("", contracts["VaultAction"], VaultAction.abi)
-    (contracts["TradingActionVault"]) = vaultAction.getLibInfo()
 
     return contracts
 
@@ -87,9 +86,10 @@ def get_contract_hashes(address, name, existing_hashes):
             elif c not in existing_hashes:
                 print("😔 {} not found".format(c))
             elif existing_hashes[c] == hash_output:
-                print("✅ {} matches".format(c))
+                pass
+                # print("✅ {} matches".format(c))
             else:
-                print("💀 {} error".format(c))
+                print("💀 {} mismatch".format(c, name, address))
 
         full_output[r["ContractName"]] = {
             "SourceCode": source_code,
@@ -149,7 +149,7 @@ def validate_libs(contracts):
         contracts["FreeCollateral"],
         contracts["MigrateIncentives"],
         contracts["SettleAssets"],
-        contracts["nTokenRedeem2"],
+        contracts["nTokenRedeem"],
     ) == c.getLibInfo()
 
     c = Contract.from_abi("", contracts["ERC1155"], ERC1155Action.abi)
@@ -159,16 +159,19 @@ def validate_libs(contracts):
     assert (contracts["FreeCollateral"], contracts["MigrateIncentives"]) == c.getLibInfo()
 
     c = Contract.from_abi("", contracts["LiquidatefCash"], LiquidatefCashAction.abi)
-    assert (contracts["FreeCollateral"]) == c.getLibInfo()
+    assert (contracts["FreeCollateral"], contracts['SettleAssets']) == c.getLibInfo()
 
     c = Contract.from_abi("", contracts["CalculationViews"], CalculationViews.abi)
     assert (contracts["MigrateIncentives"]) == c.getLibInfo()
 
     c = Contract.from_abi("", contracts["VaultAccountAction"], VaultAccountAction.abi)
-    assert (contracts["TradingActionVault"]) == c.getLibInfo()
+    assert (contracts["TradingAction"]) == c.getLibInfo()
 
     c = Contract.from_abi("", contracts["VaultAction"], VaultAction.abi)
-    assert (contracts["TradingActionVault"]) == c.getLibInfo()
+    assert (contracts["TradingAction"]) == c.getLibInfo()
+
+    c = Contract.from_abi("", contracts["VaultLiquidationAction"], VaultLiquidationAction.abi)
+    assert (contracts["FreeCollateral"], contracts["SettleAssets"]) == c.getLibInfo()
 
 
 def main():
@@ -185,7 +188,5 @@ def main():
     get_contract_hashes(ROUTER, "new_router", existing_hashes)
 
     for (name, address) in contracts.items():
-        if name in ["VaultAction", "VaultAccountAction", "AccountAction"]:
-            get_contract_hashes(address, name, existing_hashes)
-        else:
-            pass
+        get_contract_hashes(address, name, existing_hashes)
+        time.sleep(0.5)
