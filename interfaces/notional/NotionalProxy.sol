@@ -31,6 +31,8 @@ interface NotionalProxy is
         uint256 finalIntegralTotalSupply,
         uint256 migrationTime
     );
+    /// @notice Emitted if a token address is migrated
+    event TokenMigrated(uint16 currencyId) ;
     /// @notice Emitted whenever an account context has updated
     event AccountContextUpdate(address indexed account);
     /// @notice Emitted when an account has assets that are settled

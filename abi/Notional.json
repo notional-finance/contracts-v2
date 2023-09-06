@@ -592,6 +592,19 @@
         "anonymous": false,
         "inputs": [
             {
+                "indexed": false,
+                "internalType": "uint16",
+                "name": "currencyId",
+                "type": "uint16"
+            }
+        ],
+        "name": "TokenMigrated",
+        "type": "event"
+    },
+    {
+        "anonymous": false,
+        "inputs": [
+            {
                 "indexed": true,
                 "internalType": "address",
                 "name": "from",
