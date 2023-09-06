@@ -3,22 +3,28 @@ pragma solidity =0.7.6;
 pragma abicoder v2;
 
 import "../../global/LibStorage.sol";
+import "../../proxy/nProxy.sol";
 import "../../../interfaces/IERC20.sol";
 import "./BasePatchFixRouter.sol";
+import "../../internal/pCash/PrimeCashExchangeRate.sol";
 
 contract MigrateUSDC is BasePatchFixRouter {
-    IERC20 constant USDC = IERC20(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
-    IERC20 constant USDC_E = IERC20(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    IERC20 public constant USDC = IERC20(0xaf88d065e77c8cC2239327C5EDb3A432268e5831);
+    IERC20 public constant USDC_E = IERC20(0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8);
+    address payable constant proxy = 0x1344A36A1B56144C3Bc62E7757377D288fDE0369;
     uint16 constant USDC_CURRENCY_ID = 3;
-    address constant FUNDING = address(0);
+    address public constant FUNDING = 0x25F45C5Bf1E703667B1B2319c770d96fdC9b9Cd8;
+    IPrimeCashHoldingsOracle immutable holdingsOracle;
 
     event TokenMigrated(uint16 currencyId) ;
 
-    constructor(
-        address currentRouter,
-        address finalRouter,
-        NotionalProxy proxy
-    ) BasePatchFixRouter(currentRouter, finalRouter, proxy) {}
+    constructor(IPrimeCashHoldingsOracle _holdingsOracle) BasePatchFixRouter(
+        nProxy(proxy).getImplementation(),
+        nProxy(proxy).getImplementation(),
+        NotionalProxy(proxy)
+    ) {
+        holdingsOracle = _holdingsOracle;
+    }
 
     function _patchFix() internal override {
         mapping(address => uint256) storage store = LibStorage.getStoredTokenBalances();
@@ -41,5 +47,7 @@ contract MigrateUSDC is BasePatchFixRouter {
         tokens[USDC_CURRENCY_ID][true].tokenAddress = address(USDC);
 
         emit TokenMigrated(USDC_CURRENCY_ID);
+
+        PrimeCashExchangeRate.updatePrimeCashHoldingsOracle(USDC_CURRENCY_ID, holdingsOracle);
     }
 }
