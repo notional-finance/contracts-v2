@@ -26,18 +26,13 @@ def v3env(accounts):
     proxy = Contract.from_abi("Proxy", addresses["notional"], abi=nProxy.abi)
     return (notional, router, proxy)
 
-def test_migrate_usdc(v3env, MigrateUSDC, UnderlyingHoldingsOracle, accounts):
+def test_migrate_usdc(v3env, MigrateUSDC, accounts):
     (notional, _, proxy) = v3env
-    oracle = UnderlyingHoldingsOracle.deploy(notional.address, "0xaf88d065e77c8cC2239327C5EDb3A432268e5831", {"from": accounts[0]})
-    migrate = MigrateUSDC.deploy(oracle, {"from": accounts[0]})
+    migrate = MigrateUSDC.at("0xD314feBE286b84368c64b2b81e21A40d86D3C1C8")
 
-    nativeUSDCWhale = "0x3DD1D15b3c78d6aCFD75a254e857Cbe5b9fF0aF2"
     funding = migrate.FUNDING()
     usdc = MockERC20.at(migrate.USDC())
     usdc_e = MockERC20.at(migrate.USDC_E())
-    usdc.transfer(funding, usdc_e.balanceOf(notional.address), {"from": nativeUSDCWhale})
-
-    usdc.approve(notional, 2 ** 255, {"from": migrate.FUNDING()})
     routerBefore = proxy.getImplementation()
 
     balanceBefore = usdc_e.balanceOf(notional.address)
@@ -55,7 +50,6 @@ def test_migrate_usdc(v3env, MigrateUSDC, UnderlyingHoldingsOracle, accounts):
     assert usdc_e.balanceOf(notional.address) == 0
     assert usdc_e.balanceOf(funding) == balanceBefore
 
-    usdc.transfer(funding, 100e6, {"from": nativeUSDCWhale})
-    notional.depositUnderlyingToken(funding, 3, 100e6, {"from": funding})
-    assert pytest.approx(notional.getAccountBalance(3, funding)[0], rel=0.01) == 99.1e8
+    notional.depositUnderlyingToken(funding, 3, 10e6, {"from": funding})
+    assert pytest.approx(notional.getAccountBalance(3, funding)[0], rel=0.01) == 9.9e8
 
