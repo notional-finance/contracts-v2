@@ -1,0 +1,11 @@
+[profile.default]
+src = "src"
+out = "artifacts"
+libs = ["node_modules"]
+remappings = [
+    "@openzeppelin-4.6/=node_modules/@openzeppelin-4.6/",
+    "@openzeppelin/=node_modules/@openzeppelin/",
+    "hardhat/=node_modules/hardhat/",
+]
+
+# See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
