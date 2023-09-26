@@ -2,6 +2,8 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
+import "forge-std/console.sol";
+
 import {
     BalanceState,
     CashGroupParameters,
@@ -261,6 +263,19 @@ library nTokenRedeemAction {
                 // netfCash = fCashClaim + fCashShare
                 netfCash[i] = fCashClaim.add(fCashShare);
                 fCashToNToken = fCashShare.neg();
+                // TODO: is there a more elegant way to handle this? The nToken is
+                // left with the negative one fCash rather than the user...
+                if (netfCash[i] == -1) {
+                    netfCash[i] = 0;
+                    fCashToNToken = fCashToNToken - 1;
+                }
+
+                console.log("fCash Claim");
+                console.logInt(fCashClaim);
+                console.log("fCash Share");
+                console.logInt(fCashShare);
+                console.log("fCash to NToken");
+                console.logInt(fCashToNToken);
             } else {
                 // Account will receive netfCash amount. Deduct that from the fCash claim and add the
                 // remaining back to the nToken to net off the nToken's position

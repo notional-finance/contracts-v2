@@ -5,6 +5,7 @@ pragma abicoder v2;
 import "forge-std/Test.sol";
 
 import { Router } from "../contracts/external/Router.sol";
+import { BatchAction } from "../contracts/external/actions/BatchAction.sol";
 import "../interfaces/notional/NotionalProxy.sol";
 
 contract RedeemNToken is Test {
@@ -39,6 +40,7 @@ contract RedeemNToken is Test {
     function setUp() public {
         vm.createSelectFork(ARBITRUM_RPC_URL, ARBITRUM_FORK_BLOCK);
         Router.DeployedContracts memory c = getDeployedContracts();
+        c.batchAction = address(new BatchAction());
 
         upgradeTo(c);
     }
@@ -46,7 +48,7 @@ contract RedeemNToken is Test {
     function test_RedeemResiduals() public {
         address acct = 0xd74e7325dFab7D7D1ecbf22e6E6874061C50f243;
         uint16 USDC = 3;
-        vm.prank(acct);
+        vm.startPrank(acct);
         (/* */, int256 nTokenBalance, /* */) = NOTIONAL.getAccountBalance(USDC, acct);
 
         BalanceAction[] memory t = new BalanceAction[](1);
@@ -59,5 +61,8 @@ contract RedeemNToken is Test {
             redeemToUnderlying: true
         });
         NOTIONAL.batchBalanceAction(acct, t);
+
+
+        // NOTE: the nToken's fCash position should be unchanged
     }
 }
