@@ -31,8 +31,8 @@ contract RedeemNToken is Test {
         c.vaultAccountHealth = r.VAULT_ACCOUNT_HEALTH();
     }
 
-    function upgradeTo(Router.DeployedContracts memory c) internal returns (Router) {
-        address r = address(new Router(c));
+    function upgradeTo(Router.DeployedContracts memory c) internal returns (Router r) {
+        r = new Router(c);
         vm.prank(NOTIONAL.owner());
         NOTIONAL.upgradeTo(address(r));
     }
@@ -50,7 +50,10 @@ contract RedeemNToken is Test {
         uint16 USDC = 3;
         vm.startPrank(acct);
         (/* */, int256 nTokenBalance, /* */) = NOTIONAL.getAccountBalance(USDC, acct);
+        address nToken = NOTIONAL.nTokenAddress(USDC);
 
+        (/* */, PortfolioAsset[] memory netfCashAssetsBefore) = NOTIONAL.getNTokenPortfolio(nToken);
+        MarketParameters[] memory marketsBefore = NOTIONAL.getActiveMarkets(USDC);
         BalanceAction[] memory t = new BalanceAction[](1);
         t[0] = BalanceAction({
             actionType: DepositActionType.RedeemNToken,
@@ -62,7 +65,15 @@ contract RedeemNToken is Test {
         });
         NOTIONAL.batchBalanceAction(acct, t);
 
+        (/* */, PortfolioAsset[] memory netfCashAssetsAfter) = NOTIONAL.getNTokenPortfolio(nToken);
+        MarketParameters[] memory marketsAfter = NOTIONAL.getActiveMarkets(USDC);
 
         // NOTE: the nToken's fCash position should be unchanged
+        for (uint256 i; i < netfCashAssetsBefore.length; i++) {
+            assertEq(
+                netfCashAssetsBefore[i].notional + marketsBefore[i].totalfCash,
+                netfCashAssetsAfter[i].notional + marketsAfter[i].totalfCash
+            );
+        }
     }
 }

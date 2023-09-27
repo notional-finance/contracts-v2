@@ -2,8 +2,6 @@
 pragma solidity =0.7.6;
 pragma abicoder v2;
 
-import "forge-std/console.sol";
-
 import {
     BalanceState,
     CashGroupParameters,
@@ -254,28 +252,42 @@ library nTokenRedeemAction {
             int256 fCashToNToken;
             if (mustCalculatefCash) {
                 // Do this calculation if net ifCash is not set, will happen if there are no residuals
-                int256 fCashShare = BitmapAssetsHandler.getifCashNotional(
+                int256 fCashBalance = BitmapAssetsHandler.getifCashNotional(
                     nToken.tokenAddress,
                     nToken.cashGroup.currencyId,
                     asset.maturity
                 );
-                fCashShare = fCashShare.mul(nTokensToRedeem).div(nToken.totalSupply);
+                int256 fCashShare = fCashBalance.mul(nTokensToRedeem).div(nToken.totalSupply);
                 // netfCash = fCashClaim + fCashShare
                 netfCash[i] = fCashClaim.add(fCashShare);
                 fCashToNToken = fCashShare.neg();
-                // TODO: is there a more elegant way to handle this? The nToken is
-                // left with the negative one fCash rather than the user...
-                if (netfCash[i] == -1) {
-                    netfCash[i] = 0;
-                    fCashToNToken = fCashToNToken - 1;
-                }
 
-                console.log("fCash Claim");
-                console.logInt(fCashClaim);
-                console.log("fCash Share");
-                console.logInt(fCashShare);
-                console.log("fCash to NToken");
-                console.logInt(fCashToNToken);
+                // Rounding errors occur due to a division before multiplication issue in the
+                // code path. To calculate the fCash claim the calculations are:
+                //   nTokenCalculations._getProportionalLiquidityTokens:
+                //      tokensToWithdraw = totalLiquidity * nTokensToRedeem / nToken.totalSupply
+                //   Market.removeLiquidity:
+                //      fCashClaim = tokensToWithdraw * totalfCash / totalLiquidity
+                //
+                //   `totalLiquidity` is multiplied and divided which may cause an off by one error
+                //   when compared to the more direct fCashShare math:
+                //      fCashShare = fCashBalance * nTokensToRedeem / nToken.totalSupply
+                //
+                // Since all division rounds down, fCashClaim will be less than to fCashShare by
+                // exactly one unit. A netfCash of -1 will cause a failure to sell the fCash position. This
+                // condition can only present itself when the netfCash position of the nToken is exactly in
+                // balance, which occurs for the longest dated fCash market after every initialize markets.
+                // Users could "exit" this position by holding the -1 fCash balance but that is a poor UX and
+                // not very gas efficient.
+                if (
+                    fCashBalance.add(fCashClaim).add(market.totalfCash) == 0 &&
+                    netfCash[i] == -1
+                ) {
+                    // Transfers the -1 fCash back to the nToken, this ensures that the total sum of fCash
+                    // does not change.
+                    netfCash[i] = 0;
+                    fCashToNToken = fCashToNToken.sub(1);
+                }
             } else {
                 // Account will receive netfCash amount. Deduct that from the fCash claim and add the
                 // remaining back to the nToken to net off the nToken's position
