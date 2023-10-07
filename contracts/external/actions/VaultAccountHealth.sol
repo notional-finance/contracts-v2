@@ -317,20 +317,4 @@ contract VaultAccountHealth is IVaultAccountHealth {
         
         return 0;
     }
-
-    function getLiquidateCashBalanceDepositAmount(
-        address account,
-        address vault,
-        uint16 currencyId,
-        uint256 maturity,
-        uint256 blockTime
-    ) external view override returns (int256) {
-        (PrimeRate memory pr, /* factors */) = PrimeCashExchangeRate.getPrimeCashRateView(currencyId, blockTime);
-        int256 discountFactor = VaultValuation.getLiquidateCashDiscountFactor(
-            pr, currencyId, maturity
-        );
-        VaultConfig memory vaultConfig = VaultConfiguration.getVaultConfigView(vault);
-        VaultAccount memory vaultAccount = VaultAccountLib.getVaultAccount(account, vaultConfig);
-        return pr.convertToUnderlying(vaultAccount.tempCashBalance).divInRatePrecision(discountFactor);
-    }
 }
