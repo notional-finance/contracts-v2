@@ -9,7 +9,11 @@ ChainlinkOracles = {
     "stETH/ETH": "0xded2c52b75b24732e9107377b7ba93ec1ffa4baf",
     "wstETH/stETH": "0xb1552c5e96b312d0bf8b554186f846c40614a540",
     "rETH/ETH": "0xf3272cafe65b190e76caaf483db13424a3e23dd2",
-    "USDT/USD": "0x3f3f5df88dc9f13eac63df89ec16ef6e7e25dde7"
+    "USDT/USD": "0x3f3f5df88dc9f13eac63df89ec16ef6e7e25dde7",
+    "cbETH/ETH": "0xa668682974e3f121185a3cd94f00322bec674275",
+    "GMX/USD": "0xdb98056fecfff59d032ab628337a4887110df3db",
+    "ARB/USD": "0xb2a824043730fe05f3da2efafa1cbbe83fa548d6",
+    "RDNT/USD": "0x20d0fcab0ecfd078b036b6caf1fac69a6453b352"
 }
 
 CurrencyDefaults = {
@@ -35,6 +39,12 @@ CurrencyDefaults = {
     "liquidationHaircutPercentage": 98,
 
     "rateOracleTimeWindow": 72,
+    "allowDebt": True
+}
+
+PrimeOnlyDefaults = {
+    "sequencerUptimeOracle": "0xfdb631f5ee196f0ed6faa767959853a9f217697d",
+    "primeRateOracleTimeWindow5Min": 72,
 }
 
 ListedTokens = {
@@ -448,7 +458,150 @@ ListedTokens = {
         "proportion": [0.5e9, 0.5e9],
         "depositShare": [0.55e8, 0.45e8],
         "leverageThreshold": [0.8e9, 0.8e9],
+    },
+    'cbETH': CurrencyDefaults | {
+        "address": "0x1DEBd73E752bEaF79865Fd6446b0c970EaE7732f",
+        "name": "Coinbase Wrapped Staked ETH",
+        "decimals": 18,
+        "ethOracle": ChainlinkOracles["cbETH/ETH"],
+        "pCashOracle": "",
+
+        "buffer": 129,
+        "haircut": 78,
+        "liquidationDiscount": 107,
+        "maxUnderlyingSupply": 650e8,
+
+        # Prime Cash Curve
+        "primeCashCurve": {
+            "kinkUtilization1": 50,
+            "kinkUtilization2": 70,
+            "kinkRate1": 1,
+            "kinkRate2": 2,
+            "maxRate25BPS": 225,
+            "feeRatePercent": 20,
+            "minFeeRate5BPS": 10,
+            "maxFeeRate25BPS": 160
+        },
+
+        # fCash Curve
+        "fCashCurves" : [{
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 70,
+            "kinkRate1": 5,
+            "kinkRate2": 15,
+            "maxRate25BPS": 120,
+            "feeRatePercent": 8,
+            "minFeeRate5BPS": 2,
+            "maxFeeRate25BPS": 8
+        }, {
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 70,
+            "kinkRate1": 5,
+            "kinkRate2": 15,
+            "maxRate25BPS": 100,
+            "feeRatePercent": 8,
+            "minFeeRate5BPS": 2,
+            "maxFeeRate25BPS": 8
+        }],
+
+        "proportion": [0.5e9, 0.5e9],
+        "depositShare": [0.5e8, 0.5e8],
+        "leverageThreshold": [0.7e9, 0.7e9],
+    },
+    'GMX': PrimeOnlyDefaults | {
+        "address": "0xfc5A1A6EB076a2C7aD06eD22C90d7E710E35ad0a",
+        "name": "GMX",
+        "decimals": 18,
+        "baseOracle": ChainlinkOracles["GMX/USD"],
+        "quoteOracle": ChainlinkOracles["ETH/USD"],
+        "invertBase": False,
+        "invertQuote": False,
+        "pCashOracle": "",
+        "ethOracle": "",
+
+        "allowDebt": True,
+        "buffer": 156,
+        "haircut": 64,
+        "liquidationDiscount": 108,
+        "maxUnderlyingSupply": 14_000e8,
+
+        # Prime Cash Curve
+        "primeCashCurve": {
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 70,
+            "kinkRate1": 1,
+            "kinkRate2": 3,
+            "maxRate25BPS": 225,
+            "feeRatePercent": 20,
+            "minFeeRate5BPS": 10,
+            "maxFeeRate25BPS": 160
+        },
+    },
+    'ARB': PrimeOnlyDefaults | {
+        "address": "0x912CE59144191C1204E64559FE8253a0e49E6548",
+        "name": "Arbitrum",
+        "decimals": 18,
+        "baseOracle": ChainlinkOracles["ARB/USD"],
+        "quoteOracle": ChainlinkOracles["ETH/USD"],
+        "invertBase": False,
+        "invertQuote": False,
+        "pCashOracle": "",
+        "ethOracle": "",
+
+        "allowDebt": True,
+        "buffer": 147,
+        "haircut": 68,
+        "liquidationDiscount": 108,
+        "maxUnderlyingSupply": 1_200_000e8,
+
+        # Prime Cash Curve
+        "primeCashCurve": {
+            "kinkUtilization1": 15,
+            "kinkUtilization2": 70,
+            "kinkRate1": 1,
+            "kinkRate2": 3,
+            "maxRate25BPS": 225,
+            "feeRatePercent": 20,
+            "minFeeRate5BPS": 10,
+            "maxFeeRate25BPS": 160
+        },
+    },
+    'RDNT': PrimeOnlyDefaults | {
+        "address": "0x3082CC23568eA640225c2467653dB90e9250AaA0",
+        "name": "RDNT",
+        "decimals": 18,
+        "baseOracle": ChainlinkOracles["RDNT/USD"],
+        "quoteOracle": ChainlinkOracles["ETH/USD"],
+        "invertBase": False,
+        "invertQuote": False,
+        "pCashOracle": "",
+        "ethOracle": "",
+
+        "allowDebt": True,
+        "buffer": 156,
+        "haircut": 64,
+        "liquidationDiscount": 108,
+        "maxUnderlyingSupply": 1_250_000e8,
+
+        # Prime Cash Curve
+        "primeCashCurve": {
+            "kinkUtilization1": 50,
+            "kinkUtilization2": 70,
+            "kinkRate1": 1,
+            "kinkRate2": 10,
+            "maxRate25BPS": 225,
+            "feeRatePercent": 20,
+            "minFeeRate5BPS": 10,
+            "maxFeeRate25BPS": 160
+        },
     }
 }
 
-ListedOrder = ['ETH', 'DAI', 'USDC', 'WBTC', 'wstETH', 'FRAX', 'rETH', 'USDT']
+ListedOrder = [
+    # 1-4
+    'ETH', 'DAI', 'USDC', 'WBTC',
+    # 5-8
+    'wstETH', 'FRAX', 'rETH', 'USDT',
+    # 9-12
+    'cbETH', 'GMX', 'ARB', 'RDNT'
+]
