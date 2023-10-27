@@ -464,7 +464,7 @@ ListedTokens = {
         "name": "Coinbase Wrapped Staked ETH",
         "decimals": 18,
         "ethOracle": ChainlinkOracles["cbETH/ETH"],
-        "pCashOracle": "",
+        "pCashOracle": "0x07F035160f0cE5158fcDe86C7F028B25c84D15c8",
 
         "buffer": 129,
         "haircut": 78,
@@ -516,8 +516,8 @@ ListedTokens = {
         "quoteOracle": ChainlinkOracles["ETH/USD"],
         "invertBase": False,
         "invertQuote": False,
-        "pCashOracle": "",
-        "ethOracle": "",
+        "pCashOracle": "0x4fc0f4badfbE8107E810f42E0D5BAC20D6A0294E",
+        "ethOracle": "0x4d761abc3178fd94965a3Aecfc007FFD1b82b6fb",
 
         "allowDebt": True,
         "buffer": 156,
@@ -545,8 +545,8 @@ ListedTokens = {
         "quoteOracle": ChainlinkOracles["ETH/USD"],
         "invertBase": False,
         "invertQuote": False,
-        "pCashOracle": "",
-        "ethOracle": "",
+        "pCashOracle": "0x764739A9C951795FAa2DFeFF5B2bbb8e85025980",
+        "ethOracle": "0x432D8B634a80e03568276190bB859f2E5Aa38003",
 
         "allowDebt": True,
         "buffer": 147,
@@ -574,8 +574,8 @@ ListedTokens = {
         "quoteOracle": ChainlinkOracles["ETH/USD"],
         "invertBase": False,
         "invertQuote": False,
-        "pCashOracle": "",
-        "ethOracle": "",
+        "pCashOracle": "0x6Ebf8521a0691703DA4157c5C9eF3baD9D80534E",
+        "ethOracle": "0x676F3AA7d085B44ecDB41d11B56d9F90145848CE",
 
         "allowDebt": True,
         "buffer": 156,

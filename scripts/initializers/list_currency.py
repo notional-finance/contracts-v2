@@ -110,15 +110,19 @@ def list_currency(notional, symbol):
 def main():
     listTokens = ['cbETH', 'GMX', 'ARB', 'RDNT']
     fundingAccount = accounts.at("0x7d7935EDd4b6cDB5f34B0E1cCEAF85a3C4A11254", force=True)
-    # deployer = accounts.load(networkName.upper() + "_DEPLOYER")
-    deployer = accounts.at("0x8F5ea3CDe898B208280c0e93F3aDaaf1F5c35a7e", force=True)
     (addresses, notional, note, router, networkName) = get_addresses()
+    deployer = accounts.at("0x8F5ea3CDe898B208280c0e93F3aDaaf1F5c35a7e", force=True)
+    # deployer = accounts.load(networkName.upper() + "_DEPLOYER")
+    print("DEPLOYER ADDRESS", deployer.address)
 
     for t in listTokens:
         donate_initial(t, notional, fundingAccount)
-        pCash = _deploy_pcash_oracle(t, notional, deployer)
-        ListedTokens[t]["pCashOracle"] = pCash.address
-        if "baseOracle" in ListedTokens[t]:
+        if ListedTokens[t]["pCashOracle"] == "":
+            print("DEPLOYING PCASH ORACLE FOR: ", t)
+            pCash = _deploy_pcash_oracle(t, notional, deployer)
+            ListedTokens[t]["pCashOracle"] = pCash.address
+        if "baseOracle" in ListedTokens[t] and ListedTokens[t]["ethOracle"] == "":
+            print("DEPLOYING ETH ORACLE FOR: ", t)
             ethOracle = _deploy_chainlink_oracle(t, deployer)
             ListedTokens[t]["ethOracle"] = ethOracle.address
 
