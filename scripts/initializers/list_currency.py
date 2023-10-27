@@ -18,9 +18,9 @@ def donate_initial(symbol, notional, fundingAccount):
     if symbol == 'ETH':
         fundingAccount.transfer(notional, 0.01e18)
     else:
-        whale = WHALES[symbol]
         erc20 = Contract.from_abi("token", token['address'], interface.IERC20.abi)
-        erc20.transfer(fundingAccount, 10 * 10 ** erc20.decimals(), {"from": whale})
+        # whale = WHALES[symbol]
+        # erc20.transfer(fundingAccount, 10 * 10 ** erc20.decimals(), {"from": whale})
         # Donate the initial balance
         erc20.transfer(notional, 0.05 * 10 ** erc20.decimals(), {"from": fundingAccount})
 
