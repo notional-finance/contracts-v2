@@ -244,7 +244,7 @@ abstract contract BaseLiquidator is LiquidatorStorageLayoutV1 {
             liquidation.fCashMaturities,
             fCashNotionalTransfers,
             localAssetCashFromLiquidator < 0 ? uint256(localAssetCashFromLiquidator.abs()) : 0,
-            false // No need to redeem to underlying here
+            true
         );
 
         // NOTE: no withdraw if _hasTransferFees, _sellfCashAssets with withdraw everything

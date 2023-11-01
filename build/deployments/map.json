@@ -251,6 +251,9 @@
     "EmptyProxy": [
       "0x90c3c405716B8fF965dc905C91eee82A0b41A4fF"
     ],
+    "FlashLiquidator": [
+      "0xCeF77C74C88B6deCeAF2E954038e7789A0F1bB33"
+    ],
     "FreeCollateralExternal": [
       "0xf09915D4B20E5B2B08b3aB18Daf15A5F0703585E"
     ],
