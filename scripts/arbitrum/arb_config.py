@@ -147,7 +147,7 @@ ListedTokens = {
         "leverageThreshold": [0.8e9, 0.8e9],
     },
     "USDC": CurrencyDefaults | {
-        "address": "0xFF970A61A04b1cA14834A43f5dE4533eBDDB5CC8",
+        "address": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
         "name": "USD Coin",
         "decimals": 6,
         "baseOracle": ChainlinkOracles["USDC/USD"],
@@ -568,7 +568,7 @@ ListedTokens = {
     },
     'RDNT': PrimeOnlyDefaults | {
         "address": "0x3082CC23568eA640225c2467653dB90e9250AaA0",
-        "name": "RDNT",
+        "name": "Radiant",
         "decimals": 18,
         "baseOracle": ChainlinkOracles["RDNT/USD"],
         "quoteOracle": ChainlinkOracles["ETH/USD"],
