@@ -252,6 +252,7 @@ nTokenCryptoAssetConfig = {
         24,  # time buffer hours
         80,  # cash withholding
         94,  # liquidation haircut percentage
+        5, # Oracle deviation percentage
     ],
 }
 
@@ -274,6 +275,7 @@ nTokenStablecoinConfig = {
         24,  # time buffer hours
         100,  # cash withholding
         94,  # liquidation haircut percentage
+        5, # Oracle deviation percentage
     ],
 }
 

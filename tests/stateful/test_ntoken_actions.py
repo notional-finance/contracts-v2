@@ -36,6 +36,112 @@ def get_market_proportion(currencyId, environment):
 
     return proportions
 
+def test_mint_ntokens_above_deviation(environment, accounts):
+    currencyId = 2
+    lendAction = get_balance_trade_action(
+        2,
+        "DepositUnderlying",
+        [
+            {
+                "tradeActionType": "Lend",
+                "marketIndex": 1,
+                "notional": 450_000e8,
+                "minSlippage": 0,
+            },
+            {
+                "tradeActionType": "Lend",
+                "marketIndex": 2,
+                "notional": 450_000e8,
+                "minSlippage": 0,
+            }
+        ],
+        depositActionAmount=1_000_000e18,
+        withdrawEntireCashBalance=False,
+        redeemToUnderlying=True,
+    )
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[0],
+        [ lendAction ],
+        {"from": accounts[0]},
+    )
+
+    chain.mine(blocks=1, timedelta=21600)
+
+    # Borrow a bunch to move the last implied PV
+    borrowAction = get_balance_trade_action(
+        2,
+        "None",
+        [
+            {
+                "tradeActionType": "Borrow",
+                "marketIndex": 1,
+                "notional": 900_000e8,
+                "maxSlippage": 0,
+            },
+            {
+                "tradeActionType": "Borrow",
+                "marketIndex": 2,
+                "notional": 900_000e8,
+                "maxSlippage": 0,
+            }
+        ],
+        withdrawEntireCashBalance=False,
+        redeemToUnderlying=True,
+    )
+
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[0],
+        [ borrowAction ],
+        {"from": accounts[0]},
+    )
+
+    # Spot rate and oracle rate should differ by about 8.5% here
+    with brownie.reverts("Over Deviation Limit"):
+        environment.notional.batchBalanceAction(
+            accounts[0],
+            [
+                get_balance_action(
+                    currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=1_000e18
+                )
+            ],
+            {"from": accounts[0]},
+        )
+
+    with brownie.reverts("Over Deviation Limit"):
+        environment.notional.calculateNTokensToMint(
+            currencyId, 1000e18
+        )
+
+    # Ensure that the nToken valuation is done at the oracle rate here, the oracle rate will
+    # converge over 100 min. Free collateral will decrease as a result because the borrowing
+    # has pushed cash into fCash and the fCash has a large discount
+    (fc1, (_, dai1, *_)) = environment.notional.getFreeCollateral(accounts[0])
+
+    chain.mine(timedelta=3000) # 50 min
+
+    (fc2, (_, dai2, *_)) = environment.notional.getFreeCollateral(accounts[0])
+    assert fc2 < fc1
+    assert dai2 < dai1
+
+    chain.mine(timedelta=3000) # 50 min
+
+    (fc3, (_, dai3, *_)) = environment.notional.getFreeCollateral(accounts[0])
+    assert pytest.approx(fc2, rel=1e-3) != fc3
+    assert pytest.approx(dai2, rel=1e-3) != dai3
+
+    # Should be converged now and can mint tokens again
+    chain.mine(timedelta=600) # 10 min
+
+    (fc4, (_, dai4, *_)) = environment.notional.getFreeCollateral(accounts[0])
+    assert pytest.approx(fc3, rel=1e-6) == fc4
+    assert pytest.approx(dai3, rel=1e-6) == dai4
+
+    # Can mint nTokens again
+    environment.notional.calculateNTokensToMint(
+        currencyId, 1000e18
+    )
+
+    check_system_invariants(environment, accounts)
 
 def test_deleverage_markets_no_lend(environment, accounts):
     # Lending does not succeed when markets are over levered, cash goes into cash balance

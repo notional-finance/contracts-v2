@@ -366,9 +366,9 @@ struct nTokenContext {
     // currently holds
     uint8 assetArrayLength;
     // Each byte is a specific nToken parameter
-    bytes5 nTokenParameters;
+    bytes6 nTokenParameters;
     // Reserved bytes for future usage
-    bytes15 _unused;
+    bytes14 _unused;
     // Set to true if a secondary rewarder is set
     bool hasSecondaryRewarder;
 }

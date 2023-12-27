@@ -132,6 +132,7 @@ nTokenDefaults = {
         24,  # time buffer hours
         80,  # cash withholding
         92,  # liquidation haircut percentage
+        4, # Max Mint Deviation Percentage
     ],
 }
 
@@ -154,6 +155,7 @@ nTokenCryptoAssetConfig = {
         24,  # time buffer hours
         80,  # cash withholding
         94,  # liquidation haircut percentage
+        4, # Max Mint Deviation Percentage
     ],
 }
 
@@ -176,6 +178,7 @@ nTokenStablecoinConfig = {
         24,  # time buffer hours
         100,  # cash withholding
         94,  # liquidation haircut percentage
+        4, # Max Mint Deviation Percentage
     ],
 }
 

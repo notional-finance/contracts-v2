@@ -516,7 +516,7 @@ library TradingAction {
             /* incentiveRate */,
             uint256 lastInitializedTime,
             /* assetArrayLength */,
-            bytes5 parameters
+            bytes6 parameters
         ) = nTokenHandler.getNTokenContext(nTokenAddress);
 
         // Restrict purchasing until some amount of time after the last initialized time to ensure that arbitrage

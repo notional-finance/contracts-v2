@@ -36,7 +36,7 @@ library nTokenMintAction {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioStateful(currencyId);
 
-        int256 tokensToMint = calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
+        int256 tokensToMint = nTokenCalculations.calculateTokensToMint(nToken, amountToDepositInternal, blockTime);
         require(tokensToMint >= 0, "Invalid token amount");
 
         if (nToken.portfolioState.storedAssets.length == 0) {
@@ -56,41 +56,6 @@ library nTokenMintAction {
         return tokensToMint;
     }
 
-    /// @notice Calculates the tokens to mint to the account as a ratio of the nToken
-    /// present value denominated in asset cash terms.
-    /// @return the amount of tokens to mint, the ifCash bitmap
-    function calculateTokensToMint(
-        nTokenPortfolio memory nToken,
-        int256 amountToDepositInternal,
-        uint256 blockTime
-    ) internal view returns (int256) {
-        require(amountToDepositInternal >= 0); // dev: deposit amount negative
-        if (amountToDepositInternal == 0) return 0;
-
-        if (nToken.lastInitializedTime != 0) {
-            // For the sake of simplicity, nTokens cannot be minted if they have assets
-            // that need to be settled. This is only done during market initialization.
-            uint256 nextSettleTime = nToken.getNextSettleTime();
-            // If next settle time <= blockTime then the token can be settled
-            require(nextSettleTime > blockTime, "Requires settlement");
-        }
-
-        int256 assetCashPV = nTokenCalculations.getNTokenAssetPV(nToken, blockTime);
-        // Defensive check to ensure PV remains positive
-        require(assetCashPV >= 0);
-
-        // Allow for the first deposit
-        if (nToken.totalSupply == 0) {
-            return amountToDepositInternal;
-        } else {
-            // assetCashPVPost = assetCashPV + amountToDeposit
-            // (tokenSupply + tokensToMint) / tokenSupply == (assetCashPV + amountToDeposit) / assetCashPV
-            // (tokenSupply + tokensToMint) == (assetCashPV + amountToDeposit) * tokenSupply / assetCashPV
-            // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / assetCashPV
-            // tokensToMint == (amountToDeposit * tokenSupply) / assetCashPV
-            return amountToDepositInternal.mul(nToken.totalSupply).div(assetCashPV);
-        }
-    }
 
     /// @notice Portions out assetCashDeposit into amounts to deposit into individual markets. When
     /// entering this method we know that assetCashDeposit is positive and the nToken has been

@@ -61,7 +61,8 @@ library MockValuationLib {
             pvHaircutPercentage,
             0,
             0,
-            liquidationHaircutPercentage
+            liquidationHaircutPercentage,
+            liquidationHaircutPercentage - pvHaircutPercentage
         );
         nTokenHandler.setArrayLengthAndInitializedTime(nTokenAddress, 0, lastInitializedTime);
         nTokenSupply.changeNTokenSupply(nTokenAddress, totalSupply, block.timestamp);

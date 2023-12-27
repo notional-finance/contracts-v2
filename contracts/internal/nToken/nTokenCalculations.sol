@@ -13,6 +13,72 @@ library nTokenCalculations {
     using AssetRate for AssetRateParameters;
     using CashGroup for CashGroupParameters;
 
+    /// @notice Calculates the tokens to mint to the account as a ratio of the nToken
+    /// present value denominated in asset cash terms.
+    /// @return the amount of tokens to mint, the ifCash bitmap
+    function calculateTokensToMint(
+        nTokenPortfolio memory nToken,
+        int256 primeCashToDeposit,
+        uint256 blockTime
+    ) internal view returns (int256) {
+        require(primeCashToDeposit >= 0); // dev: deposit amount negative
+        if (primeCashToDeposit == 0) return 0;
+
+        if (nToken.lastInitializedTime != 0) {
+            // For the sake of simplicity, nTokens cannot be minted if they have assets
+            // that need to be settled. This is only done during market initialization.
+            uint256 nextSettleTime = nTokenHandler.getNextSettleTime(nToken);
+            // If next settle time <= blockTime then the token can be settled
+            require(nextSettleTime > blockTime, "Requires settlement");
+        }
+
+        if (nToken.totalSupply == 0) {
+            // Allow for the first deposit and bypass all the PV valuation
+            return primeCashToDeposit;
+        } else {
+            (int256 nTokenOracleValue, int256 nTokenSpotValue) = nTokenCalculations.getNTokenPrimePVForMinting(
+                nToken, blockTime
+            );
+
+            // Defensive check to ensure PV remains positive
+            require(nTokenOracleValue >= 0);
+            require(nTokenSpotValue >= 0);
+
+            int256 maxValueDeviationPercent = int256(
+                uint256(uint8(nToken.parameters[Constants.MAX_MINT_DEVIATION_LIMIT]))
+            );
+            // Check deviation limit here
+            int256 deviationInPercentage = nTokenOracleValue.sub(nTokenSpotValue).abs()
+                .mul(Constants.PERCENTAGE_DECIMALS).div(nTokenOracleValue);
+            require(deviationInPercentage <= maxValueDeviationPercent, "Over Deviation Limit");
+
+            // nTokenSpotValuePost = nTokenOracleValue + amountToDeposit
+            // (tokenSupply + tokensToMint) / tokenSupply == (nTokenSpotValue + amountToDeposit) / nTokenOracleValue
+            // (tokenSupply + tokensToMint) == (nTokenSpotValue + amountToDeposit) * tokenSupply / nTokenOracleValue
+            // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / nTokenSpotValue
+            // tokensToMint == (amountToDeposit * tokenSupply) / nTokenSpotValue
+            return primeCashToDeposit.mul(nToken.totalSupply).div(nTokenSpotValue);
+        }
+    }
+
+    function getNTokenPrimePVForMinting(nTokenPortfolio memory nToken, uint256 blockTime)
+        internal view returns (int256 nTokenOracleValue, int256 nTokenSpotValue) {
+        // Skip the "nextSettleTime" check in this method. nTokens are not mintable when markets
+        // are not yet initialized.
+
+        (int256 totalOracleValueInMarkets, /* int256[] memory netfCash */) = getNTokenMarketValue(
+            {nToken: nToken, blockTime: blockTime, useOracleRate: true}
+        );
+        (int256 totalSpotValueInMarkets, /* int256[] memory netfCash */) = getNTokenMarketValue(
+            {nToken: nToken, blockTime: blockTime, useOracleRate: false}
+        );
+        int256 ifCashResidualPrimePV = _getIfCashResidualPrimePV(nToken, blockTime);
+
+        // Return the total present value denominated in asset terms
+        nTokenOracleValue = totalOracleValueInMarkets.add(ifCashResidualPrimePV).add(nToken.cashBalance);
+        nTokenSpotValue = totalSpotValueInMarkets.add(ifCashResidualPrimePV).add(nToken.cashBalance);
+    }
+
     /// @notice Returns the nToken present value denominated in asset terms.
     function getNTokenAssetPV(nTokenPortfolio memory nToken, uint256 blockTime)
         internal
@@ -36,8 +102,19 @@ library nTokenCalculations {
         }
 
         // This is the total value in liquid assets
-        (int256 totalAssetValueInMarkets, /* int256[] memory netfCash */) = getNTokenMarketValue(nToken, blockTime);
+        (int256 totalOracleValueInMarkets, /* int256[] memory netfCash */) = getNTokenMarketValue(
+            {nToken: nToken, blockTime: blockTime, useOracleRate: true}
+        );
 
+        int256 ifCashResidualPrimePV = _getIfCashResidualPrimePV(nToken, blockTime);
+
+        // Return the total present value denominated in prime cash terms
+        return totalOracleValueInMarkets.add(ifCashResidualPrimePV).add(nToken.cashBalance);
+    }
+
+    function _getIfCashResidualPrimePV(
+        nTokenPortfolio memory nToken, uint256 blockTime
+    ) private view returns (int256) {
         // Then get the total value in any idiosyncratic fCash residuals (if they exist)
         bytes32 ifCashBits = getNTokenifCashBits(
             nToken.tokenAddress,
@@ -47,10 +124,9 @@ library nTokenCalculations {
             nToken.cashGroup.maxMarketIndex
         );
 
-        int256 ifCashResidualUnderlyingPV = 0;
         if (ifCashBits != 0) {
             // Non idiosyncratic residuals have already been accounted for
-            (ifCashResidualUnderlyingPV, /* hasDebt */) = BitmapAssetsHandler.getNetPresentValueFromBitmap(
+            (int256 ifCashResidualUnderlyingPV, /* hasDebt */) = BitmapAssetsHandler.getNetPresentValueFromBitmap(
                 nToken.tokenAddress,
                 nToken.cashGroup.currencyId,
                 nToken.lastInitializedTime,
@@ -59,12 +135,10 @@ library nTokenCalculations {
                 false, // nToken present value calculation does not use risk adjusted values
                 ifCashBits
             );
+            return nToken.cashGroup.assetRate.convertFromUnderlying(ifCashResidualUnderlyingPV);
+        } else {
+            return 0;
         }
-
-        // Return the total present value denominated in asset terms
-        return totalAssetValueInMarkets
-            .add(nToken.cashGroup.assetRate.convertFromUnderlying(ifCashResidualUnderlyingPV))
-            .add(nToken.cashBalance);
     }
 
     /**
@@ -115,7 +189,7 @@ library nTokenCalculations {
         (
             int256 totalAssetValueInMarkets,
             int256[] memory netfCash
-        ) = getNTokenMarketValue(nToken, blockTime);
+        ) = getNTokenMarketValue({nToken: nToken, blockTime: blockTime, useOracleRate: true});
         int256[] memory tokensToWithdraw = new int256[](netfCash.length);
 
         // NOTE: this total portfolio asset value does not include any cash balance the nToken may hold.
@@ -177,7 +251,7 @@ library nTokenCalculations {
     /// totalAssetValue = sum_per_liquidity_token(cashClaim + presentValue(netfCash))
     ///     where netfCash = fCashClaim + fCash
     ///     and fCash refers the the fCash position at the corresponding maturity
-    function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime)
+    function getNTokenMarketValue(nTokenPortfolio memory nToken, uint256 blockTime, bool useOracleRate)
         internal
         view
         returns (int256 totalAssetValue, int256[] memory netfCash)
@@ -190,7 +264,6 @@ library nTokenCalculations {
             // Load the corresponding market into memory
             nToken.cashGroup.loadMarket(market, i + 1, true, blockTime);
             PortfolioAsset memory liquidityToken = nToken.portfolioState.storedAssets[i];
-            uint256 maturity = liquidityToken.maturity;
 
             // Get the fCash claims and fCash assets. We do not use haircut versions here because
             // nTokenRedeem does not require it and getNTokenPV does not use it (a haircut is applied
@@ -202,7 +275,7 @@ library nTokenCalculations {
                 BitmapAssetsHandler.getifCashNotional(
                     nToken.tokenAddress,
                     nToken.cashGroup.currencyId,
-                    maturity
+                    liquidityToken.maturity
                 )
             );
 
@@ -212,11 +285,11 @@ library nTokenCalculations {
                 nToken.cashGroup.assetRate.convertFromUnderlying(
                     AssetHandler.getPresentfCashValue(
                         netfCash[i],
-                        maturity,
+                        liquidityToken.maturity,
                         blockTime,
                         // No need to call cash group for oracle rate, it is up to date here
                         // and we are assured to be referring to this market.
-                        market.oracleRate
+                        useOracleRate ? market.oracleRate : market.lastImpliedRate
                     )
                 )
             );

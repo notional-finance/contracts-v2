@@ -22,7 +22,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
             uint256,
             uint256,
             uint8,
-            bytes5
+            bytes6
         )
     {
         (
@@ -30,7 +30,7 @@ contract MockNTokenHandler is StorageLayoutV1 {
             uint256 incentiveRate,
             uint256 lastInitializedTime,
             uint8 assetArrayLength,
-            bytes5 parameters
+            bytes6 parameters
         ) = nTokenHandler.getNTokenContext(tokenAddress);
         assert(nTokenHandler.nTokenAddress(currencyId) == tokenAddress);
 
@@ -141,7 +141,8 @@ contract MockNTokenHandler is StorageLayoutV1 {
         uint8 pvHaircutPercentage,
         uint8 residualPurchaseTimeBufferHours,
         uint8 cashWithholdingBuffer10BPS,
-        uint8 liquidationHaircutPercentage
+        uint8 liquidationHaircutPercentage,
+        uint8 maxMintDeviationPercentage
     ) external {
         address tokenAddress = nTokenHandler.nTokenAddress(currencyId);
         require(tokenAddress != address(0), "Invalid currency");
@@ -152,7 +153,8 @@ contract MockNTokenHandler is StorageLayoutV1 {
             pvHaircutPercentage,
             residualPurchaseTimeBufferHours,
             cashWithholdingBuffer10BPS,
-            liquidationHaircutPercentage
+            liquidationHaircutPercentage,
+            maxMintDeviationPercentage
         );
     }
 }

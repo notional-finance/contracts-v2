@@ -47,7 +47,7 @@ contract CalculationViews is StorageLayoutV1, NotionalCalculations {
         nTokenPortfolio memory nToken;
         nToken.loadNTokenPortfolioView(currencyId);
 
-        int256 tokensToMint = nTokenMintAction.calculateTokensToMint(
+        int256 tokensToMint = nTokenCalculations.calculateTokensToMint(
             nToken,
             amountToDepositInternal,
             block.timestamp
