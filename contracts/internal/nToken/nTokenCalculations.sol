@@ -18,11 +18,11 @@ library nTokenCalculations {
     /// @return the amount of tokens to mint, the ifCash bitmap
     function calculateTokensToMint(
         nTokenPortfolio memory nToken,
-        int256 primeCashToDeposit,
+        int256 assetCashToDeposit,
         uint256 blockTime
     ) internal view returns (int256) {
-        require(primeCashToDeposit >= 0); // dev: deposit amount negative
-        if (primeCashToDeposit == 0) return 0;
+        require(assetCashToDeposit >= 0); // dev: deposit amount negative
+        if (assetCashToDeposit == 0) return 0;
 
         if (nToken.lastInitializedTime != 0) {
             // For the sake of simplicity, nTokens cannot be minted if they have assets
@@ -34,9 +34,9 @@ library nTokenCalculations {
 
         if (nToken.totalSupply == 0) {
             // Allow for the first deposit and bypass all the PV valuation
-            return primeCashToDeposit;
+            return assetCashToDeposit;
         } else {
-            (int256 nTokenOracleValue, int256 nTokenSpotValue) = nTokenCalculations.getNTokenPrimePVForMinting(
+            (int256 nTokenOracleValue, int256 nTokenSpotValue) = nTokenCalculations.getNTokenAssetPVForMinting(
                 nToken, blockTime
             );
 
@@ -57,11 +57,11 @@ library nTokenCalculations {
             // (tokenSupply + tokensToMint) == (nTokenSpotValue + amountToDeposit) * tokenSupply / nTokenOracleValue
             // (tokenSupply + tokensToMint) == tokenSupply + (amountToDeposit * tokenSupply) / nTokenSpotValue
             // tokensToMint == (amountToDeposit * tokenSupply) / nTokenSpotValue
-            return primeCashToDeposit.mul(nToken.totalSupply).div(nTokenSpotValue);
+            return assetCashToDeposit.mul(nToken.totalSupply).div(nTokenSpotValue);
         }
     }
 
-    function getNTokenPrimePVForMinting(nTokenPortfolio memory nToken, uint256 blockTime)
+    function getNTokenAssetPVForMinting(nTokenPortfolio memory nToken, uint256 blockTime)
         internal view returns (int256 nTokenOracleValue, int256 nTokenSpotValue) {
         // Skip the "nextSettleTime" check in this method. nTokens are not mintable when markets
         // are not yet initialized.
@@ -72,11 +72,11 @@ library nTokenCalculations {
         (int256 totalSpotValueInMarkets, /* int256[] memory netfCash */) = getNTokenMarketValue(
             {nToken: nToken, blockTime: blockTime, useOracleRate: false}
         );
-        int256 ifCashResidualPrimePV = _getIfCashResidualPrimePV(nToken, blockTime);
+        int256 ifCashResidualAssetPV = _getIfCashResidualAssetPV(nToken, blockTime);
 
         // Return the total present value denominated in asset terms
-        nTokenOracleValue = totalOracleValueInMarkets.add(ifCashResidualPrimePV).add(nToken.cashBalance);
-        nTokenSpotValue = totalSpotValueInMarkets.add(ifCashResidualPrimePV).add(nToken.cashBalance);
+        nTokenOracleValue = totalOracleValueInMarkets.add(ifCashResidualAssetPV).add(nToken.cashBalance);
+        nTokenSpotValue = totalSpotValueInMarkets.add(ifCashResidualAssetPV).add(nToken.cashBalance);
     }
 
     /// @notice Returns the nToken present value denominated in asset terms.
@@ -106,13 +106,13 @@ library nTokenCalculations {
             {nToken: nToken, blockTime: blockTime, useOracleRate: true}
         );
 
-        int256 ifCashResidualPrimePV = _getIfCashResidualPrimePV(nToken, blockTime);
+        int256 ifCashResidualAssetPV = _getIfCashResidualAssetPV(nToken, blockTime);
 
-        // Return the total present value denominated in prime cash terms
-        return totalOracleValueInMarkets.add(ifCashResidualPrimePV).add(nToken.cashBalance);
+        // Return the total present value denominated in asset cash terms
+        return totalOracleValueInMarkets.add(ifCashResidualAssetPV).add(nToken.cashBalance);
     }
 
-    function _getIfCashResidualPrimePV(
+    function _getIfCashResidualAssetPV(
         nTokenPortfolio memory nToken, uint256 blockTime
     ) private view returns (int256) {
         // Then get the total value in any idiosyncratic fCash residuals (if they exist)
