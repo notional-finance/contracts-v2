@@ -38,6 +38,10 @@ def get_market_proportion(currencyId, environment):
 
 def test_mint_ntokens_above_deviation(environment, accounts):
     currencyId = 2
+    environment.notional.updateTokenCollateralParameters(
+        2, 20, 80, 24, 100, 94, 3,
+        {"from": environment.notional.owner()}
+    )
     lendAction = get_balance_trade_action(
         2,
         "DepositUnderlying",
@@ -45,17 +49,17 @@ def test_mint_ntokens_above_deviation(environment, accounts):
             {
                 "tradeActionType": "Lend",
                 "marketIndex": 1,
-                "notional": 450_000e8,
+                "notional": 75_000e8,
                 "minSlippage": 0,
             },
             {
                 "tradeActionType": "Lend",
                 "marketIndex": 2,
-                "notional": 450_000e8,
+                "notional": 75_000e8,
                 "minSlippage": 0,
             }
         ],
-        depositActionAmount=1_000_000e18,
+        depositActionAmount=200_000e18,
         withdrawEntireCashBalance=False,
         redeemToUnderlying=True,
     )
@@ -75,13 +79,13 @@ def test_mint_ntokens_above_deviation(environment, accounts):
             {
                 "tradeActionType": "Borrow",
                 "marketIndex": 1,
-                "notional": 900_000e8,
+                "notional": 560_000e8,
                 "maxSlippage": 0,
             },
             {
                 "tradeActionType": "Borrow",
                 "marketIndex": 2,
-                "notional": 900_000e8,
+                "notional": 560_000e8,
                 "maxSlippage": 0,
             }
         ],
