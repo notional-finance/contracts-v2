@@ -27,6 +27,7 @@ from brownie import (
 from brownie.network import web3
 from scripts.common import loadContractFromABI
 from scripts.deployers.contract_deployer import ContractDeployer
+from scripts.deployment import deployArtifact
 
 
 class NotionalDeployer:
@@ -117,8 +118,8 @@ class NotionalDeployer:
         # deployment. Therefore, when we deploy to mainnet we actually deploy the artifact generated
         # by the hardhat deployment here. NOTE: this artifact must be generated, the artifact here
         # will not be correct for future upgrades.
-        # contracts["Governance"] = deployArtifact("./scripts/mainnet/GovernanceAction.json", [],
-        #   deployer, "Governance")
+        # self._actions["Governance"] = deployArtifact("./scripts/mainnet/GovernanceAction.json", [],
+        #   deployer, "Governance").address
         self._deployAction(deployer, Views)
         self._deployAction(deployer, CalculationViews)
         self._deployAction(deployer, InitializeMarketsAction)

@@ -81,7 +81,8 @@ def main(dryRun=True):
         networkName = "mainnet"
     if networkName == "goerli-fork":
         networkName = "goerli"
-    deployer = accounts.load(networkName.upper() + "_DEPLOYER")
+    deployer = accounts.load(networkName.upper() + "_OTHER_DEPLOYER")
+    print("Deployer Address: ", deployer.address)
     if networkName not in ["kovan", "mainnet", "goerli"]:
         deployTokens(deployer)
         deployCompound(deployer)
