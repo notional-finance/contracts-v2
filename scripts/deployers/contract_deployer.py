@@ -1,6 +1,7 @@
 import json
 import os
-from brownie import Contract, network, project, convert
+import math
+from brownie import Contract, network, project, convert, web3
 from scripts.common import getDependencies
 
 class ContractDeployer:
@@ -43,7 +44,7 @@ class ContractDeployer:
 
             # Deploy contract
             print("Deploying {}".format(name))
-            c = contract.deploy(*args, {"from": self.deployer}, publish_source=False)
+            c = contract.deploy(*args, {"from": self.deployer, "gas_price": math.floor(web3.eth.gas_price * 1.1)}, publish_source=False)
             if isLib:
                 self.libs[name] = c.address
             else:
