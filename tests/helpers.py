@@ -6,7 +6,7 @@ from brownie.network.state import Chain
 from brownie.test import strategy
 from eth_abi.packed import encode_abi_packed
 from scripts.config import CurrencyDefaults, nTokenDefaults
-from scripts.deployment import TestEnvironment
+# from scripts.deployment import TestEnvironment
 from tests.constants import (
     BALANCE_FLAG_INT,
     CASH_GROUP_PARAMETERS,

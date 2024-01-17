@@ -75,13 +75,13 @@ def deployLiquidator(deployer, networkName):
     liq.deployManualLiquidator(4)
 
 
-def main(dryRun=True):
+def main(dryRun="LFG"):
     networkName = network.show_active()
     if networkName == "mainnet-fork":
         networkName = "mainnet"
     if networkName == "goerli-fork":
         networkName = "goerli"
-    deployer = accounts.load(networkName.upper() + "_OTHER_DEPLOYER")
+    deployer = accounts.load("DEPLOY_3")
     print("Deployer Address: ", deployer.address)
     if networkName not in ["kovan", "mainnet", "goerli"]:
         deployTokens(deployer)
