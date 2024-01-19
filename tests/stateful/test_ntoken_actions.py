@@ -1,5 +1,8 @@
+import math
+
 import brownie
 import pytest
+from brownie.test import given, strategy
 from brownie.convert.datatypes import Wei
 from brownie.network.state import Chain
 from scripts.config import CurrencyDefaults
@@ -147,118 +150,98 @@ def test_mint_ntokens_above_deviation(environment, accounts):
 
     check_system_invariants(environment, accounts)
 
-def test_deleverage_markets_no_lend(environment, accounts):
+"""
+Test deleverage:
+    - Put market above the leverage threshold
+    - Lend fails if slippage > deleverage buffer
+    - Lend succeeds if slippage < deleverage buffer
+"""
+
+DELEVERAGE_BUFFER = 0.03e9
+
+def get_leverage_ratio(environment, currencyId, marketIndex):
+    market = environment.notional.getActiveMarkets(currencyId)[marketIndex - 1]
+    cashUnderlying = environment.notional.convertCashBalanceToExternal(
+        currencyId, market[3], True
+    ) * 1e8 / 1e18
+
+    return market[2] / (market[2] + cashUnderlying)
+
+def get_lend_slippage(environment, currencyId, marketIndex, depositAmount):
+    market = environment.notional.getActiveMarkets(currencyId)[marketIndex - 1]
+    (fCashAmount, *_) = environment.notional.getfCashLendFromDeposit(
+        currencyId, depositAmount, market[1], 0, chain.time(), True
+    )
+    exchangeRate = fCashAmount / (depositAmount * 1e8 / 1e18)
+    impliedRate = math.floor((math.log(exchangeRate) * SECONDS_IN_YEAR) / (market[1] - chain.time()) * 1e9)
+    return market[5] - impliedRate
+
+
+@pytest.mark.only
+@given(
+    marketDeposit=strategy("uint256", min_value=100e18, max_value=100_000e18),
+)
+def test_deleverage_markets_lend_fails_too_large(environment, accounts, marketDeposit):
     # Lending does not succeed when markets are over levered, cash goes into cash balance
     currencyId = 2
-    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9])
+    (depositShare, leverageThresholds) = environment.notional.getDepositParameters(currencyId)
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
     (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    marketsBefore = environment.notional.getActiveMarkets(currencyId)
-    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
+    assert environment.notional.getNTokenAccount(nTokenAddress)['cashBalance'] == 0
 
-    environment.notional.batchBalanceAction(
+    # Put it slightly over the leverage threshold (~0.814)
+    environment.notional.batchBalanceAndTradeAction(
         accounts[0],
-        [
-            get_balance_action(
-                currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000000e8
+        [get_balance_trade_action(
+            currencyId, "DepositUnderlying",
+            [{ "tradeActionType": "Borrow", "marketIndex": 1, "notional": 325_000e8, "maxSlippage": 0 }],
+            redeemToUnderlying=True
+        )],
+        {"from": accounts[0]}
+    )
+
+    leverageRatioBefore = get_leverage_ratio(environment, currencyId, 1)
+    slippage = get_lend_slippage(environment, currencyId, 1, marketDeposit)
+    depositAmount = math.floor(marketDeposit * 1e8 / depositShare[0])
+
+    # Now check that the lend amount will trigger the deleverage buffer
+    if slippage > DELEVERAGE_BUFFER:
+        # Will trip and cause the txn to fail
+        with brownie.reverts("Deleverage Buffer"):
+            environment.notional.batchBalanceAction(
+                accounts[0],
+                [
+                    get_balance_action(
+                        currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=depositAmount
+                    )
+                ],
+                {"from": accounts[0]},
             )
-        ],
-        {"from": accounts[0]},
-    )
+    else:
+        environment.notional.batchBalanceAction(
+            accounts[0],
+            [
+                get_balance_action(
+                    currencyId, "DepositUnderlyingAndMintNToken", depositActionAmount=depositAmount
+                )
+            ],
+            {"from": accounts[0]},
+        )
 
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
-    marketsAfter = environment.notional.getActiveMarkets(currencyId)
-    reserveBalance = environment.notional.getReserveBalance(currencyId)
-    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
+        leverageRatioAfter = get_leverage_ratio(environment, currencyId, 1)
+        assert leverageRatioAfter < leverageRatioBefore
 
-    assert portfolioBefore == portfolioAfter
-    assert ifCashAssetsBefore == ifCashAssetsAfter
-    assert balanceAfter[0] == 50000000e8
-    assert marketsBefore == marketsAfter
-    assert reserveBalance == 0
-    assert totalSupplyBefore + 50000000e8 == totalSupplyAfter
-
-    check_system_invariants(environment, accounts)
-
-
-def test_deleverage_markets_lend(environment, accounts):
-    # Lending does succeed with a smaller balance
-    currencyId = 2
-    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.4e9, 0.4e9])
-
-    nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
-    marketProportionsBefore = get_market_proportion(currencyId, environment)
-
-    environment.notional.batchBalanceAction(
-        accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=50000e8)],
-        {"from": accounts[0]},
-    )
-
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
-    reserveBalance = environment.notional.getReserveBalance(currencyId)
-    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
-    marketProportionsAfter = get_market_proportion(currencyId, environment)
-
-    assert portfolioBefore == portfolioAfter
-
-    for (assetBefore, assetAfter) in zip(ifCashAssetsBefore, ifCashAssetsAfter):
-        assert assetBefore[3] < assetAfter[3]
-
-    for (proportionBefore, proportionAfter) in zip(marketProportionsBefore, marketProportionsAfter):
-        assert proportionBefore > proportionAfter
-
-    # Minimum residual left
-    assert balanceAfter[0] < 500e8
-    assert reserveBalance > 0
-    assert totalSupplyBefore + 50000e8 == totalSupplyAfter
+        (portfolioAfter, _) = environment.notional.getNTokenPortfolio(nTokenAddress)
+        if leverageRatioAfter < (leverageThresholds[0] / 1e9):
+            # Should have provided liquidity here with the remaining cash
+            # under the leverage threshold
+            assert portfolioBefore[0][3] < portfolioAfter[0][3]
+        else: 
+            # No liquidity provision here while still above the leverage threshold
+            assert portfolioBefore[0][3] == portfolioAfter[0][3]
 
     check_system_invariants(environment, accounts)
-
-
-def test_deleverage_markets_lend_and_provide(environment, accounts):
-    # Lending does not succeed when markets are over levered, cash goes into cash balance
-    currencyId = 2
-    environment.notional.updateDepositParameters(currencyId, [0.4e8, 0.6e8], [0.49999e9, 0.49999e9])
-
-    nTokenAddress = environment.notional.nTokenAddress(currencyId)
-    (portfolioBefore, ifCashAssetsBefore) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    totalSupplyBefore = environment.nToken[currencyId].totalSupply()
-    marketProportionsBefore = get_market_proportion(currencyId, environment)
-
-    environment.notional.batchBalanceAction(
-        accounts[0],
-        [get_balance_action(currencyId, "DepositAssetAndMintNToken", depositActionAmount=500000e8)],
-        {"from": accounts[0]},
-    )
-
-    (portfolioAfter, ifCashAssetsAfter) = environment.notional.getNTokenPortfolio(nTokenAddress)
-    balanceAfter = environment.notional.getAccountBalance(currencyId, nTokenAddress)
-    reserveBalance = environment.notional.getReserveBalance(currencyId)
-    totalSupplyAfter = environment.nToken[currencyId].totalSupply()
-    marketProportionsAfter = get_market_proportion(currencyId, environment)
-
-    for (assetBefore, assetAfter) in zip(portfolioBefore, portfolioAfter):
-        assert assetBefore[3] < assetAfter[3]
-
-    for (assetBefore, assetAfter) in zip(ifCashAssetsBefore, ifCashAssetsAfter):
-        assert assetBefore[3] < assetAfter[3]
-
-    for (proportionBefore, proportionAfter) in zip(marketProportionsBefore, marketProportionsAfter):
-        assert proportionBefore > proportionAfter
-
-    # No residual left
-    assert balanceAfter[0] == 0
-    assert reserveBalance > 0
-    assert totalSupplyBefore + 500000e8 == totalSupplyAfter
-
-    check_system_invariants(environment, accounts)
-
 
 def test_purchase_ntoken_residual_negative(environment, accounts):
     currencyId = 2
