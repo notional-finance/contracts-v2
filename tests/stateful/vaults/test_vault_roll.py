@@ -5,6 +5,7 @@ from brownie.network.state import Chain
 from fixtures import *
 from tests.constants import SECONDS_IN_QUARTER
 from tests.helpers import get_lend_action
+from tests.helpers import get_balance_action, get_balance_trade_action, get_lend_action
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.stateful.invariants import check_system_invariants
 
@@ -58,7 +59,15 @@ def test_roll_vault_past_maturity(environment, vault, roll_account):
 
 def test_roll_vault_borrow_failure(environment, vault, roll_account, accounts):
     maturity = environment.notional.getActiveMarkets(2)[1][1]
-    environment.notional.nTokenRedeem(accounts[0], 2, 49000000e8, True, True, {"from": accounts[0]})
+    # Max borrow
+    maxBorrow = environment.notional.getActiveMarkets(2)[1][3] / environment.primeCashScalars["DAI"] * 0.98
+    environment.notional.batchBalanceAndTradeAction(
+        accounts[0], [get_balance_trade_action(
+            2, "None", 
+            [{"tradeActionType": "Borrow", "marketIndex": 2, "notional": maxBorrow, "maxSlippage": 0}],
+        )],
+        {"from": accounts[0]}
+    )
 
     with brownie.reverts("Borrow failed"):
         environment.notional.rollVaultPosition(

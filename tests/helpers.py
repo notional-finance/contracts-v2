@@ -1,3 +1,4 @@
+import math
 import random
 
 from brownie.convert import to_bytes, to_uint
@@ -538,6 +539,9 @@ def setup_residual_environment(
 
     if not canSellResiduals:
         # Redeem the vast majority of the nTokens
-        environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, 44_100_000e8, True, False, {"from": accounts[0]}
+        balance = environment.notional.getAccountBalance(currencyId, accounts[0])
+        environment.notional.batchBalanceAction(
+            accounts[0].address,
+            [ get_balance_action(currencyId, "RedeemNToken", depositActionAmount=math.floor(balance[1] * 0.9), redeemToUnderlying=True)],
+            {"from": accounts[0]},
         )

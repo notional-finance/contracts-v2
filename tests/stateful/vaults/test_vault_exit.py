@@ -5,6 +5,7 @@ from brownie.network.state import Chain
 from brownie.test import given, strategy
 from fixtures import *
 from tests.helpers import initialize_environment
+from tests.helpers import get_balance_action, get_lend_action
 from tests.internal.vaults.fixtures import get_vault_config, set_flags
 from tests.stateful.invariants import check_system_invariants
 
@@ -353,15 +354,24 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
         get_vault_config(flags=set_flags(0, ENABLED=True), currencyId=2),
         100_000_000e8,
     )
-    maturity = environment.notional.getActiveMarkets(1)[0][1]
+    maturity = environment.notional.getActiveMarkets(2)[0][1]
+
     receiver = accounts[2] if useReceiver else accounts[1]
 
     environment.notional.enterVault(
         accounts[1], vault.address, 50_000e18, maturity, 200_000e8, 0, "", {"from": accounts[1]}
     )
 
-    # Reduce liquidity in DAI
-    environment.notional.nTokenRedeem(accounts[0], 2, 49000000e8, True, True, {"from": accounts[0]})
+    # Buy all the fCash in market one to reduce the interest rate
+    totalfCash = environment.notional.getActiveMarkets(2)[0][2]
+    environment.notional.batchLend(
+        accounts[0], [get_lend_action(
+            2,
+            [{"tradeActionType": "Lend", "marketIndex": 1, "notional": totalfCash * 0.99, "minSlippage": 0}],
+            True
+        )],
+        {"from": accounts[0]}
+    )
     (amountAsset, _, _, _) = environment.notional.getDepositFromfCashLend(
         2, 100_000e8, maturity, 0, chain.time()
     )

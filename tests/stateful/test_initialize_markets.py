@@ -364,19 +364,27 @@ def test_redeem_to_zero_fails(environment, accounts):
     initialize_markets(environment, accounts)
     currencyId = 2
 
+    balance = environment.notional.getAccountBalance(currencyId, accounts[0])
     with brownie.reverts("Cannot redeem"):
-        environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, INITIAL_CASH_AMOUNT, True, False, {"from": accounts[0]}
+        environment.notional.batchBalanceAction(
+            accounts[0].address, 
+            [
+                get_balance_action(
+                    2, "RedeemNToken", depositActionAmount=balance[1], redeemToUnderlying=True
+                )
+            ],
+            {"from": accounts[0]}
         )
 
     # This can succeed
-    environment.notional.nTokenRedeem(
-        accounts[0].address,
-        currencyId,
-        INITIAL_CASH_AMOUNT - 1e8,
-        True,
-        False,
-        {"from": accounts[0]},
+    environment.notional.batchBalanceAction(
+        accounts[0].address, 
+        [
+            get_balance_action(
+                2, "RedeemNToken", depositActionAmount=balance[1] - 1e8, redeemToUnderlying=True
+            )
+        ],
+        {"from": accounts[0]}
     )
 
     nTokenAddress = environment.notional.nTokenAddress(currencyId)
@@ -421,8 +429,14 @@ def test_failing_initialize_time(environment, accounts):
         )
 
     with brownie.reverts("Requires settlement"):
-        environment.notional.nTokenRedeem(
-            accounts[0].address, currencyId, 100e8, True, False, {"from": accounts[0]}
+        environment.notional.batchBalanceAction(
+            accounts[0].address, 
+            [
+                get_balance_action(
+                    2, "RedeemNToken", depositActionAmount=1e8, redeemToUnderlying=True
+                )
+            ],
+            {"from": accounts[0]}
         )
 
 

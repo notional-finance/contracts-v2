@@ -556,20 +556,6 @@ def test_transfer_borrow_fcash_borrow_market(environment, accounts):
     check_system_invariants(environment, accounts)
 
 
-def test_transfer_borrow_fcash_redeem_ntoken(environment, accounts):
-    markets = environment.notional.getActiveMarkets(2)
-    erc1155id = environment.notional.encodeToId(2, markets[0][1] + SECONDS_IN_DAY * 6, 1)
-    data = web3.eth.contract(abi=environment.notional.abi).encodeABI(
-        fn_name="nTokenRedeem", args=[accounts[0].address, 2, int(10e8), True, False]
-    )
-
-    environment.notional.safeTransferFrom(
-        accounts[0], accounts[1], erc1155id, 50e8, data, {"from": accounts[0]}
-    )
-
-    check_system_invariants(environment, accounts)
-
-
 def test_transfer_borrow_fcash_deposit_collateral_via_transfer_operator(
     environment, accounts, MockTransferOperator
 ):
