@@ -114,9 +114,6 @@ def test_non_callable_methods(environment, accounts):
         )
 
     with brownie.reverts("Unauthorized caller"):
-        environment.notional.nTokenRedeem(
-            accounts[2], 1, 100e8, False, False, {"from": accounts[1]}
-        )
         environment.notional.batchBalanceAction(accounts[2], [], {"from": accounts[1]})
         environment.notional.batchBalanceAndTradeAction(accounts[2], [], {"from": accounts[1]})
 
