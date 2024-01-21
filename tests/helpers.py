@@ -7,7 +7,7 @@ from brownie.network.state import Chain
 from brownie.test import strategy
 from eth_abi.packed import encode_abi_packed
 from scripts.config import CurrencyDefaults, nTokenDefaults
-# from scripts.deployment import TestEnvironment
+from scripts.deployment import TestEnvironment
 from tests.constants import (
     BALANCE_FLAG_INT,
     CASH_GROUP_PARAMETERS,
@@ -542,6 +542,6 @@ def setup_residual_environment(
         balance = environment.notional.getAccountBalance(currencyId, accounts[0])
         environment.notional.batchBalanceAction(
             accounts[0].address,
-            [ get_balance_action(currencyId, "RedeemNToken", depositActionAmount=math.floor(balance[1] * 0.9), redeemToUnderlying=True)],
+            [ get_balance_action(currencyId, "RedeemNToken", depositActionAmount=math.floor(balance[1] * 0.88), redeemToUnderlying=True)],
             {"from": accounts[0]},
         )

@@ -367,7 +367,7 @@ def test_exit_vault_lending_fails(environment, accounts, vault, useReceiver):
     environment.notional.batchLend(
         accounts[0], [get_lend_action(
             2,
-            [{"tradeActionType": "Lend", "marketIndex": 1, "notional": totalfCash * 0.99, "minSlippage": 0}],
+            [{"tradeActionType": "Lend", "marketIndex": 1, "notional": totalfCash * 0.40, "minSlippage": 0}],
             True
         )],
         {"from": accounts[0]}

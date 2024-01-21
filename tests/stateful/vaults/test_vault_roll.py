@@ -60,7 +60,7 @@ def test_roll_vault_past_maturity(environment, vault, roll_account):
 def test_roll_vault_borrow_failure(environment, vault, roll_account, accounts):
     maturity = environment.notional.getActiveMarkets(2)[1][1]
     # Max borrow
-    maxBorrow = environment.notional.getActiveMarkets(2)[1][3] / environment.primeCashScalars["DAI"] * 0.98
+    maxBorrow = environment.notional.getActiveMarkets(2)[1][3] / 50 * 0.98
     environment.notional.batchBalanceAndTradeAction(
         accounts[0], [get_balance_trade_action(
             2, "None", 

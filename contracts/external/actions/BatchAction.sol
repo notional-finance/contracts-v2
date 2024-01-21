@@ -350,7 +350,6 @@ contract BatchAction is StorageLayoutV1, ActionGuards {
             // Will revert if trying to mint ntokens and results in a negative cash balance
             _checkSufficientCash(balanceState, assetInternalAmount);
             balanceState.netCashChange = balanceState.netCashChange.sub(assetInternalAmount);
-            revert("Disabled");
 
             // Converts a given amount of cash (denominated in internal precision) into nTokens
             int256 tokensMinted = nTokenMintAction.nTokenMint(

@@ -126,14 +126,15 @@ library nTokenMintAction {
         require(residualCash >= 0, "Negative residual cash");
         // This will occur if the three month market is over levered and we cannot lend into it
         if (residualCash > 0) {
-            // Any remaining residual cash will be put into the nToken balance and added as liquidity on the
-            // next market initialization
-            nToken.cashBalance = nToken.cashBalance.add(residualCash);
-            BalanceHandler.setBalanceStorageForNToken(
-                nToken.tokenAddress,
-                nToken.cashGroup.currencyId,
-                nToken.cashBalance
-            );
+            require(residualCash < assetCashDeposit.mulInRatePrecision(int256(75 * Constants.BASIS_POINT)), "Residual Cash");
+            // Any residual cash will be donated to the reserve.
+            BalanceHandler.incrementFeeToReserve(nToken.cashGroup.currencyId, residualCash);
+            // nToken.cashBalance = nToken.cashBalance.add(residualCash);
+            // BalanceHandler.setBalanceStorageForNToken(
+            //     nToken.tokenAddress,
+            //     nToken.cashGroup.currencyId,
+            //     nToken.cashBalance
+            // );
         }
     }
 
@@ -268,7 +269,7 @@ library nTokenMintAction {
         int256 residual = perMarketDeposit.add(netAssetCash);
 
         // Do not allow any residuals to pass out of this method.
-        require(residual == 0, "Deleverage Buffer");
+        require(0 < residual); // dev: insufficient cash
         return (residual, fCashAmount);
     }
 }
