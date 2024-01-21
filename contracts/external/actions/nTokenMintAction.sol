@@ -260,15 +260,15 @@ library nTokenMintAction {
         }
         int256 netAssetCash = market.executeTrade(cashGroup, fCashAmount, timeToMaturity, marketIndex);
 
-        // This means that the trade failed
-        if (netAssetCash == 0) {
-            return (perMarketDeposit, 0);
-        } else {
-            // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
-            // given how we've calculated the exchange rate but extra caution here
-            int256 residual = perMarketDeposit.add(netAssetCash);
-            require(residual >= 0); // dev: insufficient cash
-            return (residual, fCashAmount);
-        }
+        // This means that the trade failed and we revert on failed trades.
+        require(netAssetCash < 0, "Deleverage Buffer");
+
+        // Ensure that net the per market deposit figure does not drop below zero, this should not be possible
+        // given how we've calculated the exchange rate but extra caution here
+        int256 residual = perMarketDeposit.add(netAssetCash);
+
+        // Do not allow any residuals to pass out of this method.
+        require(residual == 0, "Deleverage Buffer");
+        return (residual, fCashAmount);
     }
 }

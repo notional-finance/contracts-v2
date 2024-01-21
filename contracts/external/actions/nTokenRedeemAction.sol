@@ -43,31 +43,6 @@ library nTokenRedeemAction {
         return totalAssetCash;
     }
 
-    /// @notice Redeems nTokens for asset cash and fCash
-    /// @param currencyId the currency associated the nToken
-    /// @param tokensToRedeem the amount of nTokens to convert to cash
-    /// @param sellTokenAssets attempt to sell residual fCash and convert to cash, if unsuccessful then place
-    /// back into the account's portfolio
-    /// @param acceptResidualAssets if true, then ifCash residuals will be placed into the account and there will
-    /// be no penalty assessed
-    /// @return assetCash positive amount of asset cash to the account
-    /// @return hasResidual true if there are fCash residuals left
-    /// @return assets an array of fCash asset residuals to place into the account
-    function redeem(
-        uint16 currencyId,
-        int256 tokensToRedeem,
-        bool sellTokenAssets,
-        bool acceptResidualAssets
-    ) external returns (int256, bool, PortfolioAsset[] memory) {
-        return _redeem(
-            currencyId,
-            tokensToRedeem,
-            sellTokenAssets,
-            acceptResidualAssets,
-            block.timestamp
-        );
-    }
-
     function _redeem(
         uint16 currencyId,
         int256 tokensToRedeem,
@@ -136,11 +111,7 @@ library nTokenRedeemAction {
             totalAssetCash = totalAssetCash.add(assetCash);
         }
 
-        if (netfCashRemaining) {
-            // If the account is unwilling to accept residuals then will fail here.
-            newifCashAssets = _addResidualsToAssets(nToken.portfolioState.storedAssets, newifCashAssets, netfCash);
-            require(acceptResidualAssets || newifCashAssets.length == 0, "Residuals");
-        }
+        require(netfCashRemaining == false, "Residuals");
 
         return (totalAssetCash, netfCashRemaining, newifCashAssets);
     }

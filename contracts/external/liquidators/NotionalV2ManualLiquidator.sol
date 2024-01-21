@@ -101,21 +101,6 @@ contract NotionalV2ManualLiquidator is NotionalV2FlashLiquidatorBase, AccessCont
         NotionalV2.batchBalanceAction(address(this), actions);
     }
 
-    function nTokenRedeem(
-        uint96 tokensToRedeem,
-        bool sellTokenAssets,
-        bool acceptResidualAssets
-    ) external ownerOrUser returns (int256) {
-        return
-            NotionalV2.nTokenRedeem(
-                address(this),
-                ifCashCurrencyId,
-                tokensToRedeem,
-                sellTokenAssets,
-                acceptResidualAssets
-            );
-    }
-
     function withdrawFromNotional(
         uint16 currencyId,
         uint88 amountInternalPrecision,
@@ -244,7 +229,8 @@ contract NotionalV2ManualLiquidator is NotionalV2FlashLiquidatorBase, AccessCont
         uint96 nTokenBalance,
         bool redeemToUnderlying
     ) internal override {
-        NotionalV2.nTokenRedeem(address(this), nTokenCurrencyId, nTokenBalance, true, true);
+        // NOTE: this will fail.
+        // NotionalV2.nTokenRedeem(address(this), nTokenCurrencyId, nTokenBalance, true, true);
 
         // prettier-ignore
         (

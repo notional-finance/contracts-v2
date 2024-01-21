@@ -126,15 +126,6 @@ interface NotionalProxy is
 
     function sweepCashIntoMarkets(uint16 currencyId) external;
 
-    /** Redeem nToken Action */
-    function nTokenRedeem(
-        address redeemer,
-        uint16 currencyId,
-        uint96 tokensToRedeem_,
-        bool sellTokenAssets,
-        bool acceptResidualAssets
-    ) external returns (int256);
-
     /** Account Action */
     function enableBitmapCurrency(uint16 currencyId) external;
 
