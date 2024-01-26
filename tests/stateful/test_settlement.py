@@ -239,21 +239,23 @@ def test_settle_on_withdraw(environment, accounts):
 
     check_system_invariants(environment, accounts)
 
-
 def test_transfer_fcash_requires_settlement(environment, accounts):
     lend = get_balance_trade_action(
         1,
         "DepositUnderlying",
-        [{"tradeActionType": "Lend", "marketIndex": 1, "notional": 1e8, "minSlippage": 0}],
-        depositActionAmount=1e18,
+        [
+            {"tradeActionType": "Lend", "marketIndex": 1, "notional": 1e8, "minSlippage": 0},
+            {"tradeActionType": "Lend", "marketIndex": 2, "notional": 1e8, "minSlippage": 0},
+        ],
+        depositActionAmount=2e18,
     )
 
     environment.notional.enableBitmapCurrency(1, {"from": accounts[0]})
     environment.notional.batchBalanceAndTradeAction(
-        accounts[0], [lend], {"from": accounts[0], "value": 1e18}
+        accounts[0], [lend], {"from": accounts[0], "value": 2e18}
     )
     environment.notional.batchBalanceAndTradeAction(
-        accounts[1], [lend], {"from": accounts[1], "value": 1e18}
+        accounts[1], [lend], {"from": accounts[1], "value": 2e18}
     )
 
     blockTime = chain.time()

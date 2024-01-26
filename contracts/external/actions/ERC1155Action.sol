@@ -164,6 +164,7 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
             (asset.currencyId, asset.maturity, asset.assetType) = TransferAssets.decodeAssetId(id);
             // This ensures that asset.notional is always a positive amount
             asset.notional = SafeInt256.toInt(amount);
+            require(signedBalanceOf(from, id) >= int256(amount), "Insufficient Balance");
             _requireValidMaturity(asset.currencyId, asset.maturity, block.timestamp);
 
             // prettier-ignore
@@ -207,6 +208,13 @@ contract ERC1155Action is nERC1155Interface, ActionGuards {
         // NOTE: there is no re-entrancy guard on this method because that would prevent a callback in 
         // _checkPostTransferEvent. The external call to the receiver is done at the very end.
         _validateAccounts(from, to);
+
+        for (uint256 i; i < ids.length; i++) {
+            int256 amount = int256(amounts[i]);
+            int256 balance = amount > 0 ? signedBalanceOf(from, ids[i]) : signedBalanceOf(to, ids[i]);
+            require(balance > 0, "Insufficient Balance");
+            require(balance >= amount.abs(), "Insufficient Balance");
+        }
 
         (PortfolioAsset[] memory assets, bool toTransferNegative) = _decodeToAssets(ids, amounts);
         // When doing a bidirectional transfer must ensure that the `to` account has given approval
