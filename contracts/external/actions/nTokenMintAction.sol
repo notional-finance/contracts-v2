@@ -126,15 +126,8 @@ library nTokenMintAction {
         require(residualCash >= 0, "Negative residual cash");
         // This will occur if the three month market is over levered and we cannot lend into it
         if (residualCash > 0) {
-            require(residualCash < assetCashDeposit.mulInRatePrecision(int256(75 * Constants.BASIS_POINT)), "Residual Cash");
             // Any residual cash will be donated to the reserve.
             BalanceHandler.incrementFeeToReserve(nToken.cashGroup.currencyId, residualCash);
-            // nToken.cashBalance = nToken.cashBalance.add(residualCash);
-            // BalanceHandler.setBalanceStorageForNToken(
-            //     nToken.tokenAddress,
-            //     nToken.cashGroup.currencyId,
-            //     nToken.cashBalance
-            // );
         }
     }
 
@@ -165,6 +158,7 @@ library nTokenMintAction {
             // we will not add liquidity and just exit.
             if (_isMarketOverLeveraged(nToken.cashGroup, market, leverageThreshold)) {
                 // Returns the residual cash amount
+                require(residualCash == 0, "Residual Cash");
                 return (fCashAmount, residualCash);
             }
         }

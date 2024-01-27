@@ -624,7 +624,7 @@ def test_bidirectional_fcash_transfer_to_account_will_trade(
     assert environment.notional.signedBalanceOf(accounts[0], erc1155ids[1]) == 50e8
     assert environment.notional.signedBalanceOf(accounts[1], erc1155ids[0]) == 50e8
     assert environment.notional.signedBalanceOf(accounts[1], erc1155ids[1]) == 0
-    assert environment.notional.getAccountBalance(2, accounts[1])['cashBalance'] == 24500e8
+    assert environment.notional.getAccountBalance(2, accounts[1])['cashBalance'] == 25000e8
     assert environment.notional.getAccountBalance(2, accounts[0])['cashBalance'] == 0
 
     check_system_invariants(environment, accounts)
@@ -643,7 +643,7 @@ def test_transfer_and_batch_lend(environment, accounts):
     # First lend 100 fDAI to ensure sufficient balance
     environment.notional.batchLend(accounts[1], [action], {"from": accounts[1]})
 
-    e['txn'] = environment.notional.safeTransferFrom(
+    environment.notional.safeTransferFrom(
         accounts[1], accounts[0], erc1155id, 100e8, data, {"from": accounts[1]}
     )
 
