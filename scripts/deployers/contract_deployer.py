@@ -44,7 +44,7 @@ class ContractDeployer:
 
             # Deploy contract
             print("Deploying {}".format(name))
-            c = contract.deploy(*args, {"from": self.deployer, "gas_price": math.floor(web3.eth.gas_price * 1.1)}, publish_source=False)
+            c = contract.deploy(*args, {"from": self.deployer, "gas_price": math.floor(web3.eth.gas_price * 1.05)}, publish_source=False)
             if isLib:
                 self.libs[name] = c.address
             else:

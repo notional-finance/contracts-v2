@@ -75,7 +75,7 @@ def deployLiquidator(deployer, networkName):
     liq.deployManualLiquidator(4)
 
 
-def main(dryRun="LFG"):
+def main(dryRun=True):
     networkName = network.show_active()
     if networkName == "mainnet-fork":
         networkName = "mainnet"
