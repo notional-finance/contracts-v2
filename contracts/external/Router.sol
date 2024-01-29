@@ -204,8 +204,8 @@ contract Router is StorageLayoutV1 {
         ) {
             return VAULT_ACTION;
         } else if (
-            sig == NotionalProxy.initializeMarkets.selector ||
-            sig == NotionalProxy.sweepCashIntoMarkets.selector
+            sig == NotionalProxy.initializeMarkets.selector
+            // sig == NotionalProxy.sweepCashIntoMarkets.selector
         ) {
             return INITIALIZE_MARKET;
         } else if (

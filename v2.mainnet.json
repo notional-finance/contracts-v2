@@ -58,7 +58,7 @@
     "notional": "0x1344A36A1B56144C3Bc62E7757377D288fDE0369",
     "routers": {
         "PauseRouter": "0x0f9e06C4180418B781d2816914834710360055f8",
-        "Router": "0xA323372EEC4aFF1ECd8E7ebB2f56BCE5eE70B3D9"
+        "Router": "0xcf030edf218e6c41d4F7055b5660D684911bD062"
     },
     "startBlock": 13094883,
     "tokens": {
