@@ -19,3 +19,9 @@ artifacts/*
 cache/*
 */.env
 .env
+# IDE
+.DS_Store
+.vscode/
+
+# Logs
+*.log
