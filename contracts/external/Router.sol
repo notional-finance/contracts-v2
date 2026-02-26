@@ -110,7 +110,7 @@ contract Router is StorageLayoutV1 {
         pauseRouter = pauseRouter_;
         pauseGuardian = pauseGuardian_;
 
-        hasInitialized == true;
+        hasInitialized = true;
     }
 
     /// @notice Returns the implementation contract for the method signature
