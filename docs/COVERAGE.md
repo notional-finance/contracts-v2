@@ -9,15 +9,13 @@
 
 ### Invariants
 
-- System wide cash balances should be accounted for in a market or a stored cash balance
-- Sum of capital deposit should equal currency balance
-- Sum of perpetual token balances should equal total supply
-
-- System wide fCash of same maturity should net off to zero
-- System wide liquidity tokens should be accounted for in markets
-
-- Account context hasDebt must reconcile
-- Account context active currencies must be set properly
-- Account context next maturing asset
-- Account context last mint time
-- If has bitmap, ifCash asset map must reconcile
+- System-wide cash balances should be accounted for in either a market or stored cash balances.
+- The sum of capital deposits should equal the currency balance.
+- The sum of perpetual token balances should equal total supply.
+- System-wide fCash at the same maturity should net to zero.
+- System-wide liquidity tokens should be accounted for in markets.
+- `AccountContext.hasDebt` must reconcile with balances and portfolio state.
+- `AccountContext.activeCurrencies` must be set consistently after each state transition.
+- `AccountContext.nextSettleTime` must remain consistent with portfolio maturities.
+- `AccountContext.lastClaimTime` must update correctly after incentive claims.
+- If an account has bitmap enabled, the ifCash asset bitmap must reconcile with stored assets.
