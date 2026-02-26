@@ -12,6 +12,14 @@ This project and everyone participating in it is governed by the [Contributor Co
 
 Critical security issues should be reported privately to security@notional.finance or via Immunefi. In both cases, reports are eligible for the Notional bug bounty program. Gas optimizations or feature enhancements can be reported via GitHub issues.
 
+When reporting security issues, include:
+
+- affected contracts and functions
+- threat model assumptions
+- concrete reproduction steps or proof-of-concept transactions
+- expected behavior vs. actual behavior
+- potential impact and mitigations
+
 ### Improve Test Coverage and Documentation
 
 Writing additional unit tests or helping improve documentation is a great way to get started in any open source project. Feel free to reach out in the "Development" channel on [Discord](https://discord.notional.finance) if you want help getting started.
