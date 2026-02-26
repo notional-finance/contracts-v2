@@ -16,6 +16,20 @@ Critical security issues should be reported privately to security@notional.finan
 
 Writing additional unit tests or helping improve documentation is a great way to get started in any open source project. Feel free to reach out in the "Development" channel on [Discord](https://discord.notional.finance) if you want help getting started.
 
+### Run Tests Locally
+
+After running setup (`./bin/setup.sh`), use the test helper script:
+
+```bash
+./bin/runTests.sh
+```
+
+To run a subset of tests, pass paths directly to Brownie through the same script:
+
+```bash
+./bin/runTests.sh tests/test_authentication.py -k router_initialization
+```
+
 ### Participate in Governance
 
 Notional V2 requires sophisticated and involved governors. If you're interested in contributing, consider participating in governance in the [Notional V2 forum](https://forum.notional.finance).
