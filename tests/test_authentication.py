@@ -20,6 +20,12 @@ def isolation(fn_isolation):
     pass
 
 
+def _proxy_has_initialized(proxy):
+    slot_zero = brownie.web3.eth.get_storage_at(proxy.address, 0)
+    slot_value = int.from_bytes(slot_zero, "big")
+    return ((slot_value >> 24) & 0xFF) == 1
+
+
 def test_router_initialization(environment, accounts, Router, nProxy):
     cETH = environment.cToken["ETH"]
     (router, pauseRouter, contracts) = deployNotionalContracts(
@@ -42,6 +48,7 @@ def test_router_initialization(environment, accounts, Router, nProxy):
         proxy = nProxy.deploy(router.address, initializeData, {"from": accounts[2]})
     proxy = nProxy.deploy(router.address, initializeData, {"from": accounts[0]})
     routerProxy = Contract.from_abi("Router", proxy.address, abi=Router.abi, owner=accounts[0])
+    assert _proxy_has_initialized(proxy)
 
     with brownie.reverts():
         # Cannot re-initialize
