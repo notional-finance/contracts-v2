@@ -12,12 +12,12 @@ Currently Notional is owned by a three-of-five Gnosis multisig contract where tw
 
 ## Codebase
 
-A full protocol description can be found in [the whitepaper](WHITEPAPER.md). Detailed code walkthroughs can be found at:
+A full protocol description can be found in [the whitepaper](docs/WHITEPAPER.md). Detailed code walkthroughs can be found at:
 
 - Videos: https://www.youtube.com/watch?v=-8a5kY0QeYY&list=PLnKdM8f8QEJ2lJ59ZjhVCcJvrT056X0Ga
 - Blogs: https://blog.notional.finance/tag/deep-dive/ 
 
-The codebase is broken down into the following modules, each directory has a `_README.md` file that describes the module. A full protocol description can be found in WHITEPAPER.md.
+The codebase is broken down into the following modules, each directory has a `_README.md` file that describes the module.
 
 ```
 contracts
