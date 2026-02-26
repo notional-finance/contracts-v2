@@ -1,11 +1,11 @@
 # Coverage Notes
 
-- Free collateral needs more work, coverage evaluation is not correct due to delegate call
-- settle assets needs to be more deterministic to catch all edge cases
-- settle bitmap does not test remap bitmap
-- account context store context, test bitmap
-- bitmap assets other methods
-- portfolio handler more branches
+- Free collateral: coverage evaluation is incomplete due to delegate calls.
+- Settle assets: tests should be more deterministic to catch edge cases.
+- Settle bitmap: remap bitmap flows still need explicit tests.
+- Account context: add explicit tests for storage persistence and bitmap interactions.
+- Bitmap assets: increase method-level branch coverage.
+- Portfolio handler: increase branch coverage across state transitions.
 
 ### Invariants
 
