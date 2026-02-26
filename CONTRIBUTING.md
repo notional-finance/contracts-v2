@@ -10,7 +10,7 @@ This project and everyone participating in it is governed by the [Contributor Co
 
 ### Report Bugs
 
-Critical security issues should be reported privately to security@notional.finance or via Immunefi. In both cases they will be eligible for our bug bounty program. Gas optimizations or feature enhancements can be reported via Github issues.
+Critical security issues should be reported privately to security@notional.finance or via Immunefi. In both cases, reports are eligible for the Notional bug bounty program. Gas optimizations or feature enhancements can be reported via GitHub issues.
 
 ### Improve Test Coverage and Documentation
 
